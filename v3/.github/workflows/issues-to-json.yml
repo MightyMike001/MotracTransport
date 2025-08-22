@@ -15,6 +15,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Install jq (required for parsing)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Zorg dat data/orders.json bestaat
         run: |
           mkdir -p data
@@ -22,13 +25,16 @@ jobs:
             echo "[]" > data/orders.json
           fi
 
+      - name: Debug - show event (optional)
+        run: cat "$GITHUB_EVENT_PATH"
+
       - name: Extract JSON uit issue body
         id: extract
         run: |
           body=$(jq -r '.issue.body' "$GITHUB_EVENT_PATH")
           json=$(printf "%s" "$body" | awk '/```json/{flag=1;next}/```/{flag=0}flag')
           if [ -z "$json" ]; then
-            echo "Geen JSON gevonden, stop."
+            echo "Geen JSON gevonden in issue body, stop."
             exit 1
           fi
           printf "%s" "$json" > new_item.json
@@ -48,5 +54,5 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/orders.json
-          git commit -m "Append order from issue #${{ github.event.issue.number }}"
-          git push
+          git commit -m "Append order from issue #${{ github.event.issue.number }}" || echo "Geen wijzigingen om te committen"
+          git push || echo "Push failed"
