@@ -1,4 +1,6 @@
+// data/orders.js - in-memory store (mutable via splice)
 export let transportOrders = [
+  // voorbeeldorder; je kunt dit leeg maken if gewenst
   {
     id: 1,
     klantNaam: "Philips Nederland",
@@ -18,4 +20,8 @@ export let transportOrders = [
     opmerkingen: "Afleveren voor 14:00"
   }
 ];
-export let editingId = null;
+
+// helper om array te vervangen zonder de import-binding te verbreken
+export function replaceTransportOrders(newArr){
+  transportOrders.splice(0, transportOrders.length, ...newArr);
+}
