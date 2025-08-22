@@ -1,1 +1,300 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motrac Transport Planning</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="./assets/css/styles.css" />
+</head>
+<body>
+    <header class="header">
+        <h1>Motrac Transport Planning</h1>
+        <div class="user-info">mike.gulien | Transport | dinsdag, juli 1, 2025</div>
+    </header>
 
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="logo">MG</div>
+            <button class="nav-item active" onclick="showSection('dashboard', event)">📊<div class="tooltip">Dashboard</div></button>
+            <button class="nav-item" onclick="showSection('new-order', event)">➕<div class="tooltip">Nieuwe Opdracht</div></button>
+            <button class="nav-item" onclick="showSection('orders', event)">📋<div class="tooltip">Transport Opdrachten</div></button>
+            <button class="nav-item" onclick="showSection('planning', event)">🚛<div class="tooltip">Vrachtwagen Planning</div></button>
+            <button class="nav-item" onclick="showSection('map', event)">🗺️<div class="tooltip">Route Kaart</div></button>
+        </div>
+
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <div id="dashboard" class="section">
+                <div class="card">
+                    <h2 class="section-title">Mijn Transport Opdrachten</h2>
+                    <div class="search-filter">
+                        <input type="text" id="dashboardSearch" placeholder="Zoek op klantnaam..." oninput="filterDashboard()">
+                        <select id="dashboardStatusFilter" onchange="filterDashboard()">
+                            <option value="">Alle statussen</option>
+                            <option value="Nieuw">Nieuw</option>
+                            <option value="Lopend">Lopend</option>
+                            <option value="Afleveren">Afleveren</option>
+                            <option value="Ophalen">Ophalen</option>
+                            <option value="Voltooid">Voltooid</option>
+                        </select>
+                        <select id="dashboardLocationFilter" onchange="filterDashboard()">
+                            <option value="">Alle locaties</option>
+                            <option value="ALMERE">ALMERE</option>
+                            <option value="VENLO">VENLO</option>
+                            <option value="ZWIJNDRECHT">ZWIJNDRECHT</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table id="dashboardTable">
+                            <thead>
+                                <tr>
+                                    <th>Order #</th>
+                                    <th>Klant</th>
+                                    <th>Transport Datum</th>
+                                    <th>Status</th>
+                                    <th>Locatie</th>
+                                    <th>Acties</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboardTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Section -->
+            <div id="map" class="section hidden">
+                <div class="card">
+                    <h2 class="section-title">Route Kaart Nederland</h2>
+                    <div class="map-filters">
+                        <input type="date" id="mapDate" onchange="updateMap()">
+                        <select id="mapLocation" onchange="updateMap()">
+                            <option value="">Alle locaties</option>
+                            <option value="ALMERE">ALMERE</option>
+                            <option value="VENLO">VENLO</option>
+                            <option value="ZWIJNDRECHT">ZWIJNDRECHT</option>
+                        </select>
+                        <select id="mapStatus" onchange="updateMap()">
+                            <option value="">Alle statussen</option>
+                            <option value="Nieuw">Nieuw</option>
+                            <option value="Lopend">Lopend</option>
+                            <option value="Afleveren">Afleveren</option>
+                            <option value="Ophalen">Ophalen</option>
+                            <option value="Voltooid">Voltooid</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="centerMap()">Reset View</button>
+                    </div>
+                    <div id="mapContainer"></div>
+                    
+                    <div class="route-controls">
+                        <h4>Route Opties:</h4>
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                            <label>
+                                <input type="checkbox" id="showRoutes" onchange="toggleRoutes()" checked> 
+                                Toon Routes
+                            </label>
+                            <label>
+                                <input type="checkbox" id="optimizeRoutes" onchange="updateMap()"> 
+                                Optimaliseer Routes
+                            </label>
+                            <button class="btn btn-primary" onclick="calculateAllRoutes()">Herbereken Routes</button>
+                            <button class="btn btn-secondary" onclick="printRoutes()">Print Routekaarten</button>
+                        </div>
+                    </div>
+
+                    <div class="route-info" id="routeInfo">
+                        <h4>Route Informatie:</h4>
+                        <div id="routeDetails">Selecteer filters en klik op "Herbereken Routes" om route informatie te zien.</div>
+                    </div>
+                    
+                    <div class="truck-list" id="truckList">
+                        <h4>Vrachtwagen Overzicht:</h4>
+                        <div id="truckListDetails">Geen routes gepland voor geselecteerde dag.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Planning Section -->
+            <div id="planning" class="section hidden">
+                <div class="card">
+                    <h2 class="section-title">Vrachtwagen Planning</h2>
+                    <div class="search-filter">
+                        <input type="date" id="planningDate" onchange="loadPlanningData()">
+                        <select id="planningLocation" onchange="loadPlanningData()">
+                            <option value="">Alle locaties</option>
+                            <option value="ALMERE">ALMERE</option>
+                            <option value="VENLO">VENLO</option>
+                            <option value="ZWIJNDRECHT">ZWIJNDRECHT</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="optimizePlanning()">Auto Optimaliseren</button>
+                    </div>
+                    
+                    <div class="truck-planning" id="truckPlanning"></div>
+
+                    <div class="unplanned-orders">
+                        <h3 class="section-title">Ongeplande Transport Orders</h3>
+                        <div id="unplanedOrdersList" class="drop-zone"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orders Section -->
+            <div id="orders" class="section hidden">
+                <div class="card">
+                    <h2 class="section-title">Alle Transport Opdrachten</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order #</th>
+                                    <th>Klant</th>
+                                    <th>Contactpersoon</th>
+                                    <th>Adres</th>
+                                    <th>Transport Datum</th>
+                                    <th>Status</th>
+                                    <th>Locatie</th>
+                                    <th>Product & Afmetingen</th>
+                                    <th>Vrachtwagen</th>
+                                    <th>Acties</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Order Section -->
+            <div id="new-order" class="section hidden">
+                <div class="card">
+                    <h2 class="section-title">Nieuwe Transport Opdracht</h2>
+                    <form id="transportForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="klantNaam">Klant Naam *</label>
+                                <input type="text" id="klantNaam" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="contactpersoon">Contactpersoon</label>
+                                <input type="text" id="contactpersoon">
+                            </div>
+                            <div class="form-group">
+                                <label for="transportDatum">Transport Datum *</label>
+                                <input type="date" id="transportDatum" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="status">Status *</label>
+                                <select id="status" required>
+                                    <option value="Nieuw">Nieuw</option>
+                                    <option value="Lopend">Lopend</option>
+                                    <option value="Afleveren">Afleveren</option>
+                                    <option value="Ophalen">Ophalen</option>
+                                    <option value="Voltooid">Voltooid</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="opdracht_type">Opdracht Type *</label>
+                                <select id="opdracht_type" required onchange="togglePickupFields()">
+                                    <option value="Vestiging naar Klant">Vestiging naar Klant</option>
+                                    <option value="Klant naar Vestiging">Klant naar Vestiging</option>
+                                    <option value="Klant naar Klant">Klant naar Klant</option>
+                                    <option value="Vestiging naar Vestiging">Vestiging naar Vestiging</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid" id="pickupSection">
+                            <div class="form-group">
+                                <label for="pickup_adres">Ophaal Adres *</label>
+                                <textarea id="pickup_adres" rows="2" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="pickup_plaats">Ophaal Plaats *</label>
+                                <input type="text" id="pickup_plaats" required>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="adres">Adres *</label>
+                                <textarea id="adres" rows="3" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="postcode">Postcode *</label>
+                                <input type="text" id="postcode" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="plaats">Plaats *</label>
+                                <input type="text" id="plaats" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="locatie">Locatie *</label>
+                                <select id="locatie" required onchange="togglePickupFields()">
+                                    <option value="">Selecteer locatie</option>
+                                    <option value="ALMERE">ALMERE</option>
+                                    <option value="VENLO">VENLO</option>
+                                    <option value="ZWIJNDRECHT">ZWIJNDRECHT</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="product">Product</label>
+                                <input type="text" id="product">
+                            </div>
+                            <div class="form-group">
+                                <label for="gewicht">Gewicht (kg)</label>
+                                <input type="number" id="gewicht" min="0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label for="lengte">Lengte (cm)</label>
+                                <input type="number" id="lengte" min="0" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="breedte">Breedte (cm)</label>
+                                <input type="number" id="breedte" min="0" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="hoogte">Hoogte (cm)</label>
+                                <input type="number" id="hoogte" min="0" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="vrachtwagen">Toegewezen Vrachtwagen</label>
+                                <select id="vrachtwagen">
+                                    <option value="">Niet gepland</option>
+                                    <option value="VW-001">VW-001 (Mercedes Sprinter)</option>
+                                    <option value="VW-002">VW-002 (Iveco Daily)</option>
+                                    <option value="VW-003">VW-003 (Mercedes Atego)</option>
+                                    <option value="VW-004">VW-004 (DAF LF)</option>
+                                    <option value="VW-005">VW-005 (Scania R450)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="opmerkingen">Opmerkingen</label>
+                                <textarea id="opmerkingen" rows="3"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="actions">
+                            <button type="submit" class="btn btn-primary" onclick="saveOrder(event)">Opdracht Opslaan</button>
+                            <button type="button" class="btn btn-secondary" onclick="resetForm()">Annuleren</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="./assets/js/main.js"></script>
+</body>
+</html>
