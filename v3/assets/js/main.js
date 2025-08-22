@@ -1,23 +1,41 @@
-import { showSection, loadOrders, saveOrder, editOrder, deleteOrder, resetForm, filterDashboard, togglePickupFields, saveOrderToGitHubFromForm, loadOrdersFromGitHub } from './features/orders.js';
-import { loadPlanningData, optimizePlanning, dragOrder, allowDrop, removeDragOver, dropOrder } from './features/planning.js';
-import { initializeMap, updateMap, toggleRoutes, calculateAllRoutes, printRoutes, centerMap, focusOnTruck } from './features/map.js';
+import * as Orders from './features/orders.js';
+import * as Planning from './features/planning.js';
+import * as MapMod from './features/map.js';
 import { getTodayString } from './lib/utils.js';
 
-Object.assign(window, {
-  showSection, loadOrders, saveOrder, editOrder, deleteOrder, resetForm, filterDashboard,
-  togglePickupFields, saveOrderToGitHubFromForm, loadOrdersFromGitHub,
-  loadPlanningData, optimizePlanning, dragOrder, allowDrop, removeDragOver, dropOrder,
-  initializeMap, updateMap, toggleRoutes, calculateAllRoutes, printRoutes, centerMap, focusOnTruck
-});
+// expose a few items globally (inline onclick uses them)
+window.showSection = Orders.showSection;
+window.loadOrders = Orders.loadOrders;
+window.saveOrder = Orders.saveOrder;
+window.saveOrderToGitHubFromForm = Orders.saveOrderToGitHubFromForm;
+window.togglePickupFields = Orders.togglePickupFields;
+window.editOrder = Orders.editOrder;
+window.deleteOrder = Orders.deleteOrder;
+window.resetForm = Orders.resetForm;
+window.filterDashboard = Orders.filterDashboard;
+window.loadOrdersFromGitHub = Orders.loadOrdersFromGitHub;
 
-document.addEventListener('DOMContentLoaded', ()=>{
-  const t=getTodayString();
-  ['transportDatum','planningDate','mapDate'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=t; });
-  loadOrders();
-  const unplanned=document.getElementById('unplanedOrdersList');
-  if(unplanned){
-    unplanned.addEventListener('drop', (e)=> dropOrder(e,''));
-    unplanned.addEventListener('dragover', allowDrop);
-    unplanned.addEventListener('dragleave', removeDragOver);
+window.loadPlanningData = Planning.loadPlanningData;
+window.optimizePlanning = Planning.optimizePlanning;
+
+window.initializeMap = MapMod.initializeMap;
+window.updateMap = MapMod.updateMap;
+window.toggleRoutes = MapMod.toggleRoutes;
+window.calculateAllRoutes = MapMod.calculateAllRoutes;
+window.printRoutes = MapMod.printRoutes;
+window.centerMap = MapMod.centerMap;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const today = getTodayString();
+  ['transportDatum','planningDate','mapDate'].forEach(id => { const el = document.getElementById(id); if(el) el.value = today; });
+  // initial load from bundled in-memory data
+  Orders.loadOrders();
+
+  // setup drop handlers for unplanned area
+  const unplannedArea = document.getElementById('unplanedOrdersList');
+  if(unplannedArea){
+    unplannedArea.addEventListener('drop', (e) => { Planning.dropOrder?.(e, ''); });
+    unplannedArea.addEventListener('dragover', Planning.allowDrop);
+    unplannedArea.addEventListener('dragleave', Planning.removeDragOver);
   }
 });
