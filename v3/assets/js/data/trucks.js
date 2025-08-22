@@ -5,5 +5,7 @@ export const vrachtwagens = [
   { id: "VW-004", naam: "DAF LF", maxGewicht: 15000, maxLengte: 850, maxBreedte: 250, maxHoogte: 300, locatie: "APELDOORN" },
   { id: "VW-005", naam: "Scania R450", maxGewicht: 25000, maxLengte: 1360, maxBreedte: 250, maxHoogte: 400, locatie: "APELDOORN" }
 ];
+
 export const truckColors = { "VW-001":"#FF6B6B","VW-002":"#4ECDC4","VW-003":"#45B7D1","VW-004":"#96CEB4","VW-005":"#FFEAA7" };
+
 export const TRANSPORT_HUB = { name:"Beekman Transport", address:"Oude Berghuizerweg 20, 7336 AW Apeldoorn", coords:[52.2112,5.9699] };
