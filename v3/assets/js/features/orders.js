@@ -197,11 +197,10 @@ export async function loadOrdersFromGitHub(){
     const res = await fetch(GH_RAW_ORDERS_URL, { cache: 'no-store' });
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const arr = await res.json();
-    // arr is expected to be an array of items (objects)
-    // map ids if missing
-    const mapped = (arr || []).map((o, i) => ({ id: o.id || (i+1), ...o }));
-    replaceTransportOrders(mapped);
-    alert(`${mapped.length} orders geladen uit GitHub JSON.`);
+    // ID's worden nu beheerd door de GitHub Action, dus we kunnen de data direct gebruiken.
+    const orders = Array.isArray(arr) ? arr : [];
+    replaceTransportOrders(orders);
+    alert(`${orders.length} orders geladen uit GitHub JSON.`);
     loadOrders();
   } catch (err) {
     alert('Laden uit GitHub mislukt: ' + err.message);
