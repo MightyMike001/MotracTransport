@@ -41,12 +41,19 @@ jobs:
 
       - name: Voeg record toe aan data/orders.json
         run: |
+          # Bepaal het volgende ID
+          max_id=$(jq '[.[] .id] | max // 0' data/orders.json)
+          next_id=$((max_id + 1))
+
+          # Voeg metadata en het nieuwe ID toe
           jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
              --arg issue "#${{ github.event.issue.number }}" \
-             '. + {issue:$issue, createdAt:$now}' new_item.json > new_item_with_meta.json
+             --argjson id "$next_id" \
+             '. + {id:$id, issue:$issue, createdAt:$now}' new_item.json > new_item_with_meta.json
 
+          # Voeg het nieuwe item toe aan de array
           tmp=$(mktemp)
-          jq -s '.[0] + [.[1]]' data/orders.json new_item_with_meta.json > "$tmp"
+          jq --slurp '.[0] + [.[1]]' data/orders.json new_item_with_meta.json > "$tmp"
           mv "$tmp" data/orders.json
 
       - name: Commit & push
