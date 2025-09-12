@@ -6,9 +6,9 @@ let deviceCounter = 0;
 
 // --- TEMPLATING & RENDERING ---
 const renderViews = () => {
-    document.getElementById('view-user').innerHTML = `<div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px"><button id="subtab-user-dashboard" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text sub-tab-active">Mijn Transporten</button><button id="subtab-user-new" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text">Nieuwe Aanvraag</button></nav></div><div id="subview-user-dashboard" class="subview-section active"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">Overzicht van mijn transporten</h2><button onclick="showNewRequestForm()" class="motrac-blue text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 hover:opacity-90 transition-opacity"><i data-lucide="plus" class="w-5 h-5"></i><span>Nieuwe Aanvraag</span></button></div><div class="bg-white p-4 rounded-lg shadow-sm"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th scope="col" class="px-6 py-3">Order ID</th><th scope="col" class="px-6 py-3">Van</th><th scope="col" class="px-6 py-3">Naar</th><th scope="col" class="px-6 py-3">Gewenste datum</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3">Acties</th></tr></thead><tbody id="transport-list-body"></tbody></table></div></div></div><div id="subview-user-new" class="subview-section"><h2 class="text-xl font-semibold mb-4">Nieuwe transportaanvraag</h2><form id="transport-form" class="space-y-8 bg-white p-6 rounded-lg shadow-sm"></form></div>`;
+    document.getElementById('view-user').innerHTML = `<div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px"><button id="subtab-user-dashboard" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text sub-tab-active">Mijn Transporten</button><button id="subtab-user-new" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text">Nieuwe Aanvraag</button></nav></div><div id="subview-user-dashboard" class="subview-section active"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">Overzicht van mijn transporten</h2><button data-action="show-new-request-form" class="motrac-blue text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 hover:opacity-90 transition-opacity"><i data-lucide="plus" class="w-5 h-5"></i><span>Nieuwe Aanvraag</span></button></div><div class="bg-white p-4 rounded-lg shadow-sm"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th scope="col" class="px-6 py-3">Order ID</th><th scope="col" class="px-6 py-3">Van</th><th scope="col" class="px-6 py-3">Naar</th><th scope="col" class="px-6 py-3">Gewenste datum</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3">Acties</th></tr></thead><tbody id="transport-list-body"></tbody></table></div></div></div><div id="subview-user-new" class="subview-section"><h2 class="text-xl font-semibold mb-4">Nieuwe transportaanvraag</h2><form id="transport-form" class="space-y-8 bg-white p-6 rounded-lg shadow-sm"></form></div>`;
     document.getElementById('view-planner').innerHTML = `<h2 class="text-xl font-semibold mb-4">Planner Dashboard</h2><div class="grid grid-cols-1 lg:grid-cols-5 gap-6"><div class="lg:col-span-2 space-y-6"><div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-semibold mb-3 border-b pb-2">Nieuwe Aanvragen</h3><div id="new-requests-list" class="space-y-3 h-[30vh] overflow-y-auto p-1"></div></div><div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-semibold mb-3 border-b pb-2">Vrachtwagens voor vandaag</h3><div class="space-y-4" id="trucks-container"></div></div></div><div class="lg:col-span-3"><div id="map"></div></div></div>`;
-    document.getElementById('view-admin').innerHTML = `<div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px"><button id="subtab-admin-users" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text sub-tab-active">Gebruikersbeheer</button><button id="subtab-admin-trucks" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text">Vrachtwagenbeheer</button></nav></div><div id="subview-admin-users" class="subview-section active"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">Gebruikersoverzicht</h2><button onclick="openModal('user-modal')" class="motrac-blue text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 hover:opacity-90 transition-opacity"><i data-lucide="user-plus" class="w-5 h-5"></i><span>Nieuwe Gebruiker</span></button></div><div class="bg-white p-4 rounded-lg shadow-sm"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th scope="col" class="px-6 py-3">Naam</th><th scope="col" class="px-6 py-3">Email</th><th scope="col" class="px-6 py-3">Rol</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3">Acties</th></tr></thead><tbody id="user-list-body"></tbody></table></div></div></div><div id="subview-admin-trucks" class="subview-section"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">Vrachtwagenoverzicht</h2><button onclick="openModal('truck-modal')" class="motrac-blue text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 hover:opacity-90 transition-opacity"><i data-lucide="truck" class="w-5 h-5"></i><span>Nieuwe Vrachtwagen</span></button></div><div class="bg-white p-4 rounded-lg shadow-sm"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th scope="col" class="px-6 py-3">ID</th><th scope="col" class="px-6 py-3">Chauffeur</th><th scope="col" class="px-6 py-3">Capaciteit (objecten)</th><th scope="col" class="px-6 py-3">Acties</th></tr></thead><tbody id="truck-list-body"></tbody></table></div></div></div>`;
+    document.getElementById('view-admin').innerHTML = `<div class="mb-4 border-b border-gray-200"><nav class="flex -mb-px"><button id="subtab-admin-users" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text sub-tab-active">Gebruikersbeheer</button><button id="subtab-admin-trucks" class="sub-tab py-3 px-4 text-sm font-medium text-gray-600 rounded-t-lg hover:text-motrac-blue-text">Vrachtwagenbeheer</button></nav></div><div id="subview-admin-users" class="subview-section active"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">Gebruikersoverzicht</h2><button data-action="open-modal" data-modal-id="user-modal" class="motrac-blue text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 hover:opacity-90 transition-opacity"><i data-lucide="user-plus" class="w-5 h-5"></i><span>Nieuwe Gebruiker</span></button></div><div class="bg-white p-4 rounded-lg shadow-sm"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th scope="col" class="px-6 py-3">Naam</th><th scope="col" class="px-6 py-3">Email</th><th scope="col" class="px-6 py-3">Rol</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3">Acties</th></tr></thead><tbody id="user-list-body"></tbody></table></div></div></div><div id="subview-admin-trucks" class="subview-section"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">Vrachtwagenoverzicht</h2><button data-action="open-modal" data-modal-id="truck-modal" class="motrac-blue text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2 hover:opacity-90 transition-opacity"><i data-lucide="truck" class="w-5 h-5"></i><span>Nieuwe Vrachtwagen</span></button></div><div class="bg-white p-4 rounded-lg shadow-sm"><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="text-xs text-gray-700 uppercase bg-gray-50"><tr><th scope="col" class="px-6 py-3">ID</th><th scope="col" class="px-6 py-3">Chauffeur</th><th scope="col" class="px-6 py-3">Capaciteit (objecten)</th><th scope="col" class="px-6 py-3">Acties</th></tr></thead><tbody id="truck-list-body"></tbody></table></div></div></div>`;
 };
 
 const renderTransportForm = () => {
@@ -41,7 +41,7 @@ const renderTransportList = () => {
         listBody.innerHTML += `<tr class="bg-white border-b">
             <td class="px-6 py-4 font-medium">${t.id}</td><td class="px-6 py-4">${t.from}</td><td class="px-6 py-4">${t.to}</td><td class="px-6 py-4">${t.date}</td>
             <td class="px-6 py-4"><span class="${statusStyles[t.status] || ''} text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">${t.status}</span></td>
-            <td class="px-6 py-4 flex space-x-2"><button onclick="openModal('transport-details-modal', '${t.id}')" class="p-1 text-gray-500 hover:text-blue-600"><i data-lucide="eye"></i></button><button class="p-1 text-gray-500 hover:text-blue-600"><i data-lucide="pencil"></i></button></td></tr>`;
+            <td class="px-6 py-4 flex space-x-2"><button data-action="open-transport-details" data-transport-id="${t.id}" class="p-1 text-gray-500 hover:text-blue-600"><i data-lucide="eye"></i></button><button class="p-1 text-gray-500 hover:text-blue-600"><i data-lucide="pencil"></i></button></td></tr>`;
     });
     lucide.createIcons();
 };
@@ -53,12 +53,12 @@ const renderUserList = () => {
     users.forEach(u => {
         const statusClass = u.status === 'Actief' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
         const actionButton = u.id === currentUserId ? '' : (u.status === 'Actief'
-            ? `<button onclick="toggleUserStatus('${u.id}')" class="p-1 text-gray-500 hover:text-red-600" title="Deactiveren"><i data-lucide="user-x" class="w-4 h-4"></i></button>`
-            : `<button onclick="toggleUserStatus('${u.id}')" class="p-1 text-gray-500 hover:text-green-600" title="Activeren"><i data-lucide="user-check" class="w-4 h-4"></i></button>`);
+            ? `<button data-action="toggle-user-status" data-user-id="${u.id}" class="p-1 text-gray-500 hover:text-red-600" title="Deactiveren"><i data-lucide="user-x" class="w-4 h-4"></i></button>`
+            : `<button data-action="toggle-user-status" data-user-id="${u.id}" class="p-1 text-gray-500 hover:text-green-600" title="Activeren"><i data-lucide="user-check" class="w-4 h-4"></i></button>`);
         listBody.innerHTML += `<tr class="bg-white border-b">
             <td class="px-6 py-4 font-medium">${u.name}</td><td class="px-6 py-4">${u.email}</td><td class="px-6 py-4">${u.role}</td>
             <td class="px-6 py-4"><span class="${statusClass} text-xs font-medium px-2.5 py-0.5 rounded-full">${u.status}</span></td>
-            <td class="px-6 py-4 flex space-x-2"><button onclick="openModal('user-modal', '${u.id}')" class="p-1 text-gray-500 hover:text-blue-600" title="Bewerken"><i data-lucide="pencil" class="w-4 h-4"></i></button>${actionButton}</td></tr>`;
+            <td class="px-6 py-4 flex space-x-2"><button data-action="open-modal" data-modal-id="user-modal" data-item-id="${u.id}" class="p-1 text-gray-500 hover:text-blue-600" title="Bewerken"><i data-lucide="pencil" class="w-4 h-4"></i></button>${actionButton}</td></tr>`;
     });
     lucide.createIcons();
 };
@@ -73,8 +73,8 @@ const renderTruckList = () => {
             <td class="px-6 py-4">${t.driver}</td>
             <td class="px-6 py-4">${t.capacity}</td>
             <td class="px-6 py-4 flex space-x-2">
-                <button onclick="openModal('truck-modal', '${t.id}')" class="p-1 text-gray-500 hover:text-blue-600" title="Bewerken"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                <button onclick="deleteTruck('${t.id}')" class="p-1 text-gray-500 hover:text-red-600" title="Verwijderen"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                <button data-action="open-modal" data-modal-id="truck-modal" data-item-id="${t.id}" class="p-1 text-gray-500 hover:text-blue-600" title="Bewerken"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                <button data-action="delete-truck" data-truck-id="${t.id}" class="p-1 text-gray-500 hover:text-red-600" title="Verwijderen"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             </td></tr>`;
     });
     lucide.createIcons();
@@ -94,7 +94,7 @@ const renderPlanner = () => {
                 <h4 class="font-semibold flex items-center gap-2"><i data-lucide="truck"></i>Vrachtwagen (${truck.driver})</h4>
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-mono bg-gray-200 px-2 py-1 rounded">0 / ${truck.capacity}</span>
-                    <button onclick="printTruckList('${truck.id}')" class="p-1 text-gray-500 hover:text-blue-600" title="Rittenlijst printen"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                    <button data-action="print-truck-list" data-truck-id="${truck.id}" class="p-1 text-gray-500 hover:text-blue-600" title="Rittenlijst printen"><i data-lucide="printer" class="w-4 h-4"></i></button>
                 </div>
             </div>
             <div class="drop-zone min-h-[15vh] space-y-2"></div>
@@ -102,7 +102,7 @@ const renderPlanner = () => {
     });
 
     transports.forEach(t => {
-        const requestHtml = `<div id="${t.id}" draggable="true" onclick="openModal('transport-details-modal', '${t.id}')" data-destination="${t.to}" data-device-count="${t.devices.length}" class="p-3 bg-gray-100 rounded-lg shadow-sm cursor-grab border hover:border-blue-500 transition-colors"><p class="font-semibold">${t.id}<span class="text-xs font-normal text-gray-500 ml-2">naar ${t.to}</span></p><p class="text-sm">${t.devices.length} object(en)</p></div>`;
+        const requestHtml = `<div id="${t.id}" draggable="true" data-action="open-transport-details" data-transport-id="${t.id}" data-destination="${t.to}" data-device-count="${t.devices.length}" class="p-3 bg-gray-100 rounded-lg shadow-sm cursor-grab border hover:border-blue-500 transition-colors"><p class="font-semibold">${t.id}<span class="text-xs font-normal text-gray-500 ml-2">naar ${t.to}</span></p><p class="text-sm">${t.devices.length} object(en)</p></div>`;
         const targetContainer = t.plannedOn ? document.querySelector(`#${t.plannedOn} .drop-zone`) : (t.status === 'Aangevraagd' ? requestsList : null);
         if (targetContainer) targetContainer.innerHTML += requestHtml;
     });
@@ -530,15 +530,43 @@ const attachAppListeners = () => {
         });
     });
 
-    // Sub-tabs using event delegation
+    // Centralized event listener using delegation
     document.getElementById('app').addEventListener('click', (e) => {
-        const target = e.target.closest('.sub-tab');
+        const target = e.target.closest('[data-action]');
+        const subTabTarget = e.target.closest('.sub-tab');
+
+        if (subTabTarget) {
+            const parentView = subTabTarget.closest('.view-section');
+            parentView.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('sub-tab-active'));
+            subTabTarget.classList.add('sub-tab-active');
+            const subviewId = 'subview-' + subTabTarget.id.substring(subTabTarget.id.indexOf('-') + 1);
+            parentView.querySelectorAll('.subview-section').forEach(sv => sv.classList.toggle('active', sv.id === subviewId));
+        }
+
         if (!target) return;
-        const parentView = target.closest('.view-section');
-        parentView.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('sub-tab-active'));
-        target.classList.add('sub-tab-active');
-        const subviewId = 'subview-' + target.id.substring(target.id.indexOf('-') + 1);
-        parentView.querySelectorAll('.subview-section').forEach(sv => sv.classList.toggle('active', sv.id === subviewId));
+
+        const action = target.dataset.action;
+
+        switch (action) {
+            case 'show-new-request-form':
+                document.getElementById('subtab-user-new').click();
+                break;
+            case 'open-modal':
+                openModal(target.dataset.modalId, target.dataset.itemId);
+                break;
+            case 'open-transport-details':
+                openModal('transport-details-modal', target.dataset.transportId);
+                break;
+            case 'toggle-user-status':
+                toggleUserStatus(target.dataset.userId);
+                break;
+            case 'delete-truck':
+                deleteTruck(target.dataset.truckId);
+                break;
+            case 'print-truck-list':
+                printTruckList(target.dataset.truckId);
+                break;
+        }
     });
 
     // Transport form listeners (using event delegation on the parent)
@@ -560,10 +588,20 @@ const attachAppListeners = () => {
     bellButton.addEventListener('click', (e) => { e.stopPropagation(); userDropdown.classList.add('hidden'); bellDropdown.classList.toggle('hidden'); });
     userButton.addEventListener('click', (e) => { e.stopPropagation(); bellDropdown.classList.add('hidden'); userDropdown.classList.toggle('hidden'); });
     window.addEventListener('click', () => { bellDropdown.classList.add('hidden'); userDropdown.classList.add('hidden'); });
+
+    // Modal close buttons
+    document.body.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action="close-modal"]');
+        if (target) {
+            const modal = target.closest('.fixed.inset-0');
+            if (modal) {
+                closeModal(modal.id);
+            }
+        }
+    });
+
     lucide.createIcons();
 };
-
-const showNewRequestForm = () => document.getElementById('subtab-user-new').click();
 
 // --- GLOBAL START ---
 lucide.createIcons();

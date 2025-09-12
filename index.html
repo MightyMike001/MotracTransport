@@ -78,7 +78,7 @@
                     </div>
                     <div><label for="userRole" class="block text-sm font-medium">Rol</label><select id="userRole" class="mt-1 w-full p-2 border rounded-md"><option>Gebruiker</option><option>Planner</option><option>Admin</option></select></div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6"><button type="button" onclick="closeModal('user-modal')" class="bg-gray-200 px-4 py-2 rounded-md">Annuleren</button><button type="submit" class="motrac-blue text-white px-4 py-2 rounded-md">Opslaan</button></div>
+                <div class="flex justify-end space-x-3 mt-6"><button type="button" data-action="close-modal" class="bg-gray-200 px-4 py-2 rounded-md">Annuleren</button><button type="submit" class="motrac-blue text-white px-4 py-2 rounded-md">Opslaan</button></div>
             </form>
         </div>
     </div>
@@ -92,7 +92,7 @@
                     <div><label for="truckDriver" class="block text-sm font-medium">Chauffeur</label><input type="text" id="truckDriver" required class="mt-1 w-full p-2 border rounded-md"></div>
                     <div><label for="truckCapacity" class="block text-sm font-medium">Capaciteit (objecten)</label><input type="number" id="truckCapacity" required class="mt-1 w-full p-2 border rounded-md"></div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6"><button type="button" onclick="closeModal('truck-modal')" class="bg-gray-200 px-4 py-2 rounded-md">Annuleren</button><button type="submit" class="motrac-blue text-white px-4 py-2 rounded-md">Opslaan</button></div>
+                <div class="flex justify-end space-x-3 mt-6"><button type="button" data-action="close-modal" class="bg-gray-200 px-4 py-2 rounded-md">Annuleren</button><button type="submit" class="motrac-blue text-white px-4 py-2 rounded-md">Opslaan</button></div>
             </form>
         </div>
     </div>
@@ -101,7 +101,7 @@
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
             <div class="flex justify-between items-center mb-4">
                 <h3 id="transport-details-title" class="text-lg font-medium text-gray-900">Transport Details</h3>
-                <button onclick="closeModal('transport-details-modal')" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
+                <button data-action="close-modal" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
             </div>
             <div id="transport-details-content" class="text-sm"></div>
         </div>
