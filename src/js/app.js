@@ -305,7 +305,7 @@ const addDeviceRow = (isFirst = false) => {
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div><label class="text-sm font-medium">Serienummer</label><input type="text" name="sn" placeholder="bv. SN12345" class="mt-1 w-full p-2 border rounded-md"></div>
                 <div><label class="text-sm font-medium">Type</label><input type="text" name="type" placeholder="bv. Heftruck" class="mt-1 w-full p-2 border rounded-md"></div>
-                <div><label class="text-sm font-medium">Hoogte (cm)</label><input type="number" name="height" placeholder="220" class="mt-1 w-full p-2 border rounded-md"></div>
+                <div><label class="text-sm font-medium">Hoogte (cm)</label><input type="number" name="height" placeholder="220" class="mt-1 w-full p-2 border rounded-md" min="0"></div>
                 <div><label class="text-sm font-medium">Opmerkingen</label><input type="text" name="notes" placeholder="bv. Stickers plakken" class="mt-1 w-full p-2 border rounded-md"></div>
             </div>
             ${!isFirst ? `<button type="button" class="remove-device-btn absolute top-2 right-2 text-gray-400 hover:text-red-600"><i data-lucide="x-circle" class="w-5 h-5"></i></button>` : ''}
@@ -322,15 +322,25 @@ const handleTransportSubmit = (e) => {
     const date = formData.get('date');
 
     const devices = [];
+    let hasInvalidHeight = false;
     document.querySelectorAll('.device-row').forEach(row => {
         const sn = row.querySelector('input[name="sn"]').value;
         const type = row.querySelector('input[name="type"]').value;
         const height = row.querySelector('input[name="height"]').value;
         const notes = row.querySelector('input[name="notes"]').value;
+
+        if (parseFloat(height) < 0) {
+            showNotification('De hoogte van een object kan niet negatief zijn.', 'error');
+            hasInvalidHeight = true;
+            return;
+        }
+
         if (sn || type) { // only add if there is some data
             devices.push({ sn, type, height, notes });
         }
     });
+
+    if (hasInvalidHeight) return;
 
     if (!from || !to || !date || devices.length === 0) {
         showNotification('Vul alle locatie/datum velden en tenminste één object in.', 'error');
@@ -559,3 +569,12 @@ const showNewRequestForm = () => document.getElementById('subtab-user-new').clic
 lucide.createIcons();
 document.getElementById('login-form').addEventListener('submit', handleLogin);
 document.getElementById('logout-button').addEventListener('click', handleLogout);
+
+// Expose functions for testing when QUnit is running
+if (typeof QUnit !== 'undefined') {
+    window.testable = {
+        handleTransportSubmit,
+        renderTransportForm,
+        showNotification
+    };
+}

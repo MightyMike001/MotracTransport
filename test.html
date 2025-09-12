@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Transport App Tests</title>
+    <link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.24.1.css">
+</head>
+<body>
+    <div id="qunit"></div>
+    <div id="qunit-fixture">
+        <!-- The app's HTML structure needed for the tests will go here -->
+        <!-- We need the form and the container for the device rows -->
+        <div id="app">
+            <div id="view-user">
+                <div id="subview-user-new">
+                    <form id="transport-form">
+                        <div id="devices-container"></div>
+                         <button type="submit">Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div id="notification"></div>
+    </div>
+
+    <!-- The app's dependencies -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- The app's code, loaded as modules -->
+    <script src="src/js/database.js" type="module"></script>
+    <script src="src/js/app.js" type="module"></script>
+
+    <!-- QUnit and the test script -->
+    <script src="https://code.jquery.com/qunit/qunit-2.24.1.js"></script>
+    <script src="tests.js" type="module"></script>
+</body>
+</html>
