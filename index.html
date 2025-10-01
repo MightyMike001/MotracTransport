@@ -9,7 +9,7 @@
 <body>
   <header class="site-header">
     <h1>Transportplanner</h1>
-    <div class="sub">HTML + Supabase (client-side). Maak orders aan, plan carriers en bewaak deadlines.</div>
+    <div class="sub">Complete workflow voor transportaanvragen, vrachtwagenbeheer en planning.</div>
   </header>
 
   <main class="wrap">
@@ -74,15 +74,21 @@
     <section class="content">
       <section class="card">
         <div class="bar">
-          <h3>Nieuwe order</h3>
+          <h3>Nieuwe transportaanvraag</h3>
           <button id="btnReload" class="btn ghost">Vernieuwen</button>
         </div>
         <div class="grid2">
+          <label>Referentie
+            <input id="oReference" placeholder="Bijv. ORD-2024-001" />
+          </label>
           <label>Klantnaam
             <input id="oCustomer" placeholder="Klant BV" />
           </label>
-          <label>Stad
+          <label>Stad klant
             <input id="oCity" placeholder="Plaatsnaam" />
+          </label>
+          <label>Contactpersoon
+            <input id="oContact" placeholder="Naam + telefoon" />
           </label>
           <label>Regio
             <select id="oRegion">
@@ -92,15 +98,76 @@
           <label>Prioriteit (1–5)
             <input id="oPriority" type="number" min="1" max="5" value="3" />
           </label>
-          <label>Gevraagde datum
+          <label>Gewenste leverdatum
             <input id="oDue" type="date" />
           </label>
-          <label>Opmerkingen
-            <input id="oNotes" placeholder="Bijzonderheden, aanmeldprocedure…" />
+          <label>Type transport
+            <select id="oLoadType">
+              <option value="">Selecteer...</option>
+              <option>Complete lading</option>
+              <option>Deellading</option>
+              <option>Koeltransport</option>
+              <option>ADR</option>
+            </select>
           </label>
         </div>
+
+        <h4 class="section-title">Laadadres</h4>
+        <div class="grid3">
+          <label>Locatie
+            <input id="oPickupLocation" placeholder="Straat + plaats" />
+          </label>
+          <label>Datum
+            <input id="oPickupDate" type="date" />
+          </label>
+          <label>Tijdslot
+            <select id="oPickupSlot">
+              <option value="">n.v.t.</option>
+              <option>07:00 - 09:00</option>
+              <option>09:00 - 12:00</option>
+              <option>12:00 - 15:00</option>
+              <option>15:00 - 18:00</option>
+            </select>
+          </label>
+        </div>
+
+        <h4 class="section-title">Losadres</h4>
+        <div class="grid3">
+          <label>Locatie
+            <input id="oDeliveryLocation" placeholder="Straat + plaats" />
+          </label>
+          <label>Datum
+            <input id="oDeliveryDate" type="date" />
+          </label>
+          <label>Tijdslot
+            <select id="oDeliverySlot">
+              <option value="">n.v.t.</option>
+              <option>07:00 - 09:00</option>
+              <option>09:00 - 12:00</option>
+              <option>12:00 - 15:00</option>
+              <option>15:00 - 18:00</option>
+            </select>
+          </label>
+        </div>
+
+        <h4 class="section-title">Lading</h4>
+        <div class="grid4">
+          <label>Pallets
+            <input id="oPallets" type="number" min="0" step="1" />
+          </label>
+          <label>Gewicht (kg)
+            <input id="oWeight" type="number" min="0" step="0.1" />
+          </label>
+          <label>Volume (m³)
+            <input id="oVolume" type="number" min="0" step="0.1" />
+          </label>
+          <label>Opmerkingen
+            <textarea id="oNotes" rows="2" placeholder="Bijzonderheden, aanmeldprocedure…"></textarea>
+          </label>
+        </div>
+
         <details>
-          <summary>Regel(s) toevoegen (optioneel)</summary>
+          <summary>Extra orderregel toevoegen (optioneel)</summary>
           <div class="grid3">
             <label>Product
               <input id="lProduct" placeholder="Heftruck, pallet, etc." />
@@ -113,24 +180,87 @@
             </label>
           </div>
         </details>
-        <button id="btnCreate" class="btn primary">Order aanmaken</button>
+        <button id="btnCreate" class="btn primary">Transport opslaan</button>
         <div id="createStatus" class="status"></div>
       </section>
 
       <section class="card">
         <div class="bar">
+          <h3>Vrachtwagenbeheer</h3>
+          <span class="muted small">Wordt lokaal opgeslagen voor de planner.</span>
+        </div>
+        <div class="grid4">
+          <label>Naam voertuig
+            <input id="truckName" placeholder="Bijv. Truck 01" />
+          </label>
+          <label>Kenteken
+            <input id="truckPlate" placeholder="00-XX-00" />
+          </label>
+          <label>Chauffeur
+            <input id="truckDriver" placeholder="Naam chauffeur" />
+          </label>
+          <label>Stops per dag
+            <input id="truckCapacity" type="number" min="1" value="6" />
+          </label>
+        </div>
+        <button id="btnAddTruck" class="btn">Vrachtwagen opslaan</button>
+        <div id="truckStatus" class="status"></div>
+        <ul id="truckList" class="truck-list"></ul>
+      </section>
+
+      <section class="card">
+        <div class="bar">
+          <h3>Planbord</h3>
+          <button id="btnClearBoard" class="btn ghost">Wis planning voor gekozen dag</button>
+        </div>
+        <div class="grid4 board-controls">
+          <label>Planningsdatum
+            <input id="boardDate" type="date" />
+          </label>
+          <label>Vrachtwagen
+            <select id="boardTruck"></select>
+          </label>
+          <label>Transport
+            <select id="boardOrder"></select>
+          </label>
+          <label>Tijdslot
+            <select id="boardSlot">
+              <option value="">n.v.t.</option>
+              <option>AM</option>
+              <option>PM</option>
+              <option>Nacht</option>
+            </select>
+          </label>
+        </div>
+        <div class="board-actions">
+          <button id="btnAssignOrder" class="btn primary">Plan transport in vrachtwagen</button>
+          <div id="boardStatus" class="status"></div>
+        </div>
+        <div id="planBoard" class="board-grid"></div>
+      </section>
+
+      <section class="card">
+        <div class="bar">
           <h3>Orders</h3>
-          <div class="muted small">Klik op een regel om te bewerken (carrier, datum, status).</div>
+          <div class="muted small">Klik op een regel om te bewerken (carrier, datum, status). Details worden getoond in de tooltip.</div>
         </div>
         <div class="table-wrap">
           <table id="ordersTable">
             <thead>
               <tr>
-                <th>Due</th><th>Klant</th><th>Regio</th><th>Prioriteit</th><th>Status</th><th>Carrier</th><th>Gepland</th>
+                <th>Leverdatum</th>
+                <th>Referentie</th>
+                <th>Klant</th>
+                <th>Laadadres</th>
+                <th>Losadres</th>
+                <th>Lading</th>
+                <th>Status</th>
+                <th>Vrachtwagen</th>
+                <th>Gepland</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="7" class="muted">Nog niets geladen…</td></tr>
+              <tr><td colspan="9" class="muted">Nog niets geladen…</td></tr>
             </tbody>
           </table>
         </div>
@@ -154,7 +284,7 @@
             <option>Geannuleerd</option>
           </select>
         </label>
-        <label>Carrier
+        <label>Carrier / vrachtwagen
           <input id="eCarrier" placeholder="Bijv. Beekman Transport" list="carrierList"/>
           <datalist id="carrierList"></datalist>
         </label>
@@ -164,7 +294,7 @@
         <label>Tijdslot
           <select id="eSlot">
             <option value="">n.v.t.</option>
-            <option>AM</option><option>PM</option>
+            <option>AM</option><option>PM</option><option>Nacht</option>
           </select>
         </label>
       </div>
