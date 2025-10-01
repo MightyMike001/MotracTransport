@@ -46,6 +46,8 @@ const els = {
   eCarrier: document.getElementById("eCarrier"),
   ePlanned: document.getElementById("ePlanned"),
   eSlot: document.getElementById("eSlot"),
+  editStatus: document.getElementById("editStatus"),
+  btnDeleteOrder: document.getElementById("btnDeleteOrder"),
   btnSaveEdit: document.getElementById("btnSaveEdit"),
   carrierList: document.getElementById("carrierList"),
   truckName: document.getElementById("truckName"),
@@ -361,6 +363,7 @@ function openEdit(row){
   els.eCarrier.value = row.assigned_carrier || "";
   els.ePlanned.value = row.planned_date || "";
   els.eSlot.value = row.planned_slot || "";
+  setStatus(els.editStatus, "");
   els.dlg.showModal();
 }
 
@@ -384,6 +387,35 @@ async function saveEdit(){
   await Orders.update(id, patch);
   els.dlg.close();
   await loadOrders();
+}
+
+async function deleteOrder(event){
+  if (event) event.preventDefault();
+  if (!els.eId) return;
+  const id = els.eId.value;
+  if (!id) return;
+  const user = getCurrentUser();
+  if (user?.role === "werknemer" && !canUserEditOrder({ id }, user)) {
+    const owner = getOrderOwner(id);
+    const ownerName = owner?.name || "een andere medewerker";
+    window.alert(`Je kunt dit transport niet verwijderen. Het is aangemaakt door ${ownerName}.`);
+    return;
+  }
+  if (!window.confirm("Weet je zeker dat je dit transport wilt verwijderen?")) {
+    return;
+  }
+  try {
+    setStatus(els.editStatus, "Verwijderen…");
+    await Orders.delete(id);
+    await loadOrders();
+    setStatus(els.editStatus, "Transport verwijderd.", "success");
+    if (els.dlg?.open) {
+      els.dlg.close();
+    }
+  } catch (e) {
+    console.error("Kan order niet verwijderen", e);
+    setStatus(els.editStatus, "Verwijderen mislukt.", "error");
+  }
 }
 
 function readNumber(value) {
@@ -968,6 +1000,7 @@ function bind(canManagePlanning){
   bindClick(els.btnAddCarrier, addCarrier);
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
+  bindClick(els.btnDeleteOrder, deleteOrder);
   if (els.btnSaveEdit) {
     els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
   }
