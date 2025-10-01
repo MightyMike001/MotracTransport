@@ -128,7 +128,10 @@
       await loadUsers(false);
     } catch (err) {
       console.error(err);
-      setStatus("Opslaan mislukt: " + (err.message || "onbekende fout"), "error");
+      const message = window.ApiHelpers?.formatSupabaseError
+        ? window.ApiHelpers.formatSupabaseError(err, "onbekende fout")
+        : err?.message || "onbekende fout";
+      setStatus(`Opslaan mislukt: ${message}`, "error");
     }
   }
 

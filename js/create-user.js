@@ -90,7 +90,10 @@
         }
       } catch (err) {
         console.error(err);
-        setCreateStatus(err.message || "Gebruiker aanmaken mislukt", "error");
+        const message = window.ApiHelpers?.formatSupabaseError
+          ? window.ApiHelpers.formatSupabaseError(err, "Gebruiker aanmaken mislukt")
+          : err?.message || "Gebruiker aanmaken mislukt";
+        setCreateStatus(message, "error");
       } finally {
         if (btnCreate) {
           btnCreate.disabled = false;

@@ -73,6 +73,62 @@ async function sbDelete(table, match) {
   return true;
 }
 
+function tryParseJson(value) {
+  if (typeof value !== "string") return null;
+  try {
+    return JSON.parse(value);
+  } catch (err) {
+    return null;
+  }
+}
+
+function pickErrorMessage(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  if (obj.code === "23505") {
+    const detailText = typeof obj.details === "string" ? obj.details.toLowerCase() : "";
+    const messageText = typeof obj.message === "string" ? obj.message.toLowerCase() : "";
+    if (detailText.includes("email") || messageText.includes("email")) {
+      return "Dit e-mailadres is al geregistreerd.";
+    }
+  }
+  const candidates = [obj.message, obj.error_description, obj.error, obj.details];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
+
+function formatSupabaseError(error, fallback = "Onbekende fout") {
+  if (!error) return fallback;
+
+  if (typeof error === "string") {
+    const parsed = tryParseJson(error);
+    if (parsed) {
+      const parsedMessage = pickErrorMessage(parsed);
+      if (parsedMessage) return parsedMessage;
+    }
+    return error;
+  }
+
+  if (typeof error.message === "string") {
+    const parsed = tryParseJson(error.message);
+    if (parsed) {
+      const parsedMessage = pickErrorMessage(parsed);
+      if (parsedMessage) return parsedMessage;
+    }
+    if (error.message.trim()) {
+      return error.message.trim();
+    }
+  }
+
+  const objectMessage = pickErrorMessage(error);
+  if (objectMessage) return objectMessage;
+
+  return fallback;
+}
+
 // Domein-functies
 const Orders = {
   list: async (filters = {}, options = {}) => {
@@ -173,3 +229,4 @@ window.Orders = Orders;
 window.Lines = Lines;
 window.Carriers = Carriers;
 window.Users = Users;
+window.ApiHelpers = Object.assign({}, window.ApiHelpers, { formatSupabaseError });
