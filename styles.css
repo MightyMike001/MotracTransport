@@ -889,6 +889,35 @@ dialog::backdrop {
   color: var(--color-muted);
 }
 
+nav.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+nav.pager.is-hidden {
+  display: none;
+}
+
+nav.pager .pager-info {
+  font-size: 0.875rem;
+  color: var(--muted-text, #555);
+}
+
+nav.pager .pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+nav.pager select {
+  min-width: 4.5rem;
+}
+
 @media (max-width: 720px) {
   .status-filter-label {
     width: 100%;

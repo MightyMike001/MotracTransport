@@ -86,6 +86,18 @@
             </tbody>
           </table>
         </div>
+        <nav class="pager is-hidden" id="ordersPager" aria-label="Paginering">
+          <button type="button" class="btn ghost" id="pagerPrev" aria-label="Vorige pagina">&laquo; Vorige</button>
+          <span id="pagerInfo" class="pager-info">Geen resultaten</span>
+          <button type="button" class="btn ghost" id="pagerNext" aria-label="Volgende pagina">Volgende &raquo;</button>
+          <label class="pager-size" for="pagerPageSize">Per pagina
+            <select id="pagerPageSize">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </nav>
       </section>
     </section>
   </main>

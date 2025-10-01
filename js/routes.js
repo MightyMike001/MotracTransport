@@ -250,10 +250,11 @@
     const optimize = els.toggleOptimize ? !!els.toggleOptimize.checked : false;
     setStatus("Routes laden…");
     try {
-      const [orders, trucks] = await Promise.all([
+      const [ordersResult, trucks] = await Promise.all([
         Orders.list({}),
         Promise.resolve(readLocal(STORAGE_KEYS.trucks, [])),
       ]);
+      const orders = Array.isArray(ordersResult?.rows) ? ordersResult.rows : [];
       const colorMap = new Map();
       let colorIndex = 0;
       const assignments = [];
@@ -270,7 +271,7 @@
         return hub;
       });
 
-      const dateOrders = (orders || []).filter((order) => {
+      const dateOrders = orders.filter((order) => {
         if (["Geleverd", "Geannuleerd"].includes(order.status || "")) return false;
         if (order.planned_date){
           return order.planned_date === date;
