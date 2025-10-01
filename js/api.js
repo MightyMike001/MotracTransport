@@ -1,3 +1,11 @@
+if (
+  !window.APP_CONFIG ||
+  !window.APP_CONFIG.SUPABASE_URL ||
+  !window.APP_CONFIG.SUPABASE_ANON_KEY
+) {
+  throw new Error("Supabase configuratie ontbreekt in window.APP_CONFIG");
+}
+
 const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.APP_CONFIG;
 
 const SB_HEADERS = {
