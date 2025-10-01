@@ -6,7 +6,7 @@
   <title>Transportplanner — Vloot &amp; carriers</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body data-require-auth="true">
+<body data-require-auth="true" data-require-role="admin">
   <header class="site-header">
     <h1>Transportplanner</h1>
     <div class="sub">Beheer lokale vrachtwagens en registreer externe carriers.</div>
@@ -16,7 +16,7 @@
         <a href="aanvraag.html">Nieuwe aanvraag</a>
         <a href="orders.html">Orders</a>
         <a href="planning.html" data-role-visible="planner,admin">Planning</a>
-        <a href="vloot.html" class="active">Vloot &amp; carriers</a>
+        <a href="vloot.html" class="active" data-role-visible="admin">Vloot &amp; carriers</a>
         <a href="users.html" class="nav-users" data-role-visible="admin">Gebruikers</a>
       </nav>
       <div class="auth-area" id="authArea"></div>
