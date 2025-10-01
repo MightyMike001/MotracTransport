@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transportplanner — Inloggen</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Transportplanner</h1>
+    <div class="sub">Log in om toegang te krijgen tot de modules.</div>
+    <div class="header-actions">
+      <nav class="main-nav">
+        <a href="index.html">Start</a>
+        <a href="aanvraag.html">Nieuwe aanvraag</a>
+        <a href="orders.html">Orders</a>
+        <a href="planning.html">Planning</a>
+        <a href="vloot.html">Vloot &amp; carriers</a>
+        <a href="users.html" class="nav-users" data-role-visible="admin">Gebruikers</a>
+      </nav>
+      <div class="auth-area" id="authArea"></div>
+    </div>
+  </header>
+
+  <main class="page login-page">
+    <section class="card narrow">
+      <h2>Inloggen</h2>
+      <p class="muted small">Gebruik het e-mailadres en wachtwoord dat is toegewezen in Supabase.</p>
+      <form id="loginForm" class="stack">
+        <label>E-mailadres
+          <input type="email" id="loginEmail" required autocomplete="email" />
+        </label>
+        <label>Wachtwoord
+          <input type="password" id="loginPassword" required autocomplete="current-password" />
+        </label>
+        <button class="btn primary" type="submit" id="btnLogin">Inloggen</button>
+      </form>
+      <div id="loginStatus" class="status" role="status"></div>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

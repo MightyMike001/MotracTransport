@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transportplanner — Gebruikersbeheer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-require-auth="true" data-require-role="admin">
+  <header class="site-header">
+    <h1>Gebruikersbeheer</h1>
+    <div class="sub">Beheer inloggegevens en rollen voor de transportplanner.</div>
+    <div class="header-actions">
+      <nav class="main-nav">
+        <a href="index.html">Start</a>
+        <a href="aanvraag.html">Nieuwe aanvraag</a>
+        <a href="orders.html">Orders</a>
+        <a href="planning.html">Planning</a>
+        <a href="vloot.html">Vloot &amp; carriers</a>
+        <a href="users.html" class="active nav-users" data-role-visible="admin">Gebruikers</a>
+      </nav>
+      <div class="auth-area" id="authArea"></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="card">
+      <h2>Nieuwe gebruiker toevoegen</h2>
+      <form id="userForm" class="grid2">
+        <label>Naam
+          <input id="uName" placeholder="Bijv. Jan Planner" required />
+        </label>
+        <label>E-mailadres
+          <input id="uEmail" type="email" placeholder="planner@bedrijf.nl" required />
+        </label>
+        <label>Rol
+          <select id="uRole" required>
+            <option value="admin">Admin</option>
+            <option value="planner">Planner</option>
+            <option value="werknemer">Werknemer</option>
+          </select>
+        </label>
+        <label>Tijdelijk wachtwoord
+          <input id="uPassword" type="password" required minlength="6" placeholder="Minimaal 6 tekens" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="uActive" checked /> Actief account
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Gebruiker opslaan</button>
+        </div>
+      </form>
+      <div id="userStatus" class="status" role="status"></div>
+    </section>
+
+    <section class="card">
+      <div class="bar">
+        <h2>Bestaande gebruikers</h2>
+        <button class="btn ghost small" id="btnReloadUsers">Vernieuwen</button>
+      </div>
+      <div class="table-wrap">
+        <table id="userTable">
+          <thead>
+            <tr>
+              <th>Naam</th>
+              <th>E-mail</th>
+              <th>Rol</th>
+              <th>Status</th>
+              <th>Aangemaakt</th>
+              <th>Acties</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="6" class="muted">Nog geen gebruikers geladen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/users.js"></script>
+</body>
+</html>
