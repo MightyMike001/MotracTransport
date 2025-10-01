@@ -47,6 +47,7 @@ const els = {
   ePlanned: document.getElementById("ePlanned"),
   eSlot: document.getElementById("eSlot"),
   btnSaveEdit: document.getElementById("btnSaveEdit"),
+  btnDeleteOrder: document.getElementById("btnDeleteOrder"),
   carrierList: document.getElementById("carrierList"),
   truckName: document.getElementById("truckName"),
   truckPlate: document.getElementById("truckPlate"),
@@ -113,6 +114,13 @@ let ORDERS_CACHE = [];
 let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
 let PLAN_BOARD = {};
+
+function getCurrentUser() {
+  if (window.Auth && typeof window.Auth.getUser === "function") {
+    return window.Auth.getUser();
+  }
+  return null;
+}
 
 function hydrateLocalState() {
   TRUCKS = storageGet(STORAGE_KEYS.trucks, []);
@@ -300,6 +308,7 @@ function openEdit(row){
   els.eCarrier.value = row.assigned_carrier || "";
   els.ePlanned.value = row.planned_date || "";
   els.eSlot.value = row.planned_slot || "";
+  updateDeleteOrderAction(row);
   els.dlg.showModal();
 }
 
@@ -316,6 +325,107 @@ async function saveEdit(){
   await Orders.update(id, patch);
   els.dlg.close();
   await loadOrders();
+}
+
+function getOrderById(id) {
+  return ORDERS_CACHE.find((o) => String(o.id) === String(id));
+}
+
+function isOrderOwnedByUser(order, user) {
+  if (!order || !user) return false;
+  const userId = user.id ? String(user.id) : null;
+  const userEmail = user.email ? String(user.email).toLowerCase() : null;
+  const idFields = [
+    "created_by_user_id",
+    "created_by_id",
+    "created_by",
+    "requested_by_user_id",
+    "requested_by_id",
+    "requester_id",
+    "user_id",
+    "owner_id",
+  ];
+  for (const field of idFields) {
+    if (order[field] && userId && String(order[field]) === userId) {
+      return true;
+    }
+  }
+  const emailFields = [
+    "created_by_email",
+    "requested_by_email",
+    "requester_email",
+    "customer_email",
+    "created_by",
+    "requested_by",
+  ];
+  for (const field of emailFields) {
+    const value = order[field];
+    if (value && userEmail && String(value).toLowerCase() === userEmail) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function canDeleteOrder(order, user) {
+  if (!user) return false;
+  if (user.role === "admin" || user.role === "planner") {
+    return true;
+  }
+  if (user.role === "werknemer") {
+    return isOrderOwnedByUser(order, user);
+  }
+  return false;
+}
+
+async function handleDeleteOrder(event) {
+  event.preventDefault();
+  if (!els.eId) return;
+  const id = els.eId.value;
+  if (!id) return;
+  const user = getCurrentUser();
+  if (!user) {
+    window.alert("Je bent niet ingelogd.");
+    return;
+  }
+  const order = getOrderById(id);
+  if (!order) {
+    window.alert("Deze order kon niet worden gevonden.");
+    return;
+  }
+  if (!canDeleteOrder(order, user)) {
+    window.alert("Je hebt geen toestemming om deze order te verwijderen.");
+    return;
+  }
+  const descriptionParts = [];
+  if (order?.customer_name) descriptionParts.push(order.customer_name);
+  if (order?.due_date) descriptionParts.push(order.due_date);
+  const description = descriptionParts.length ? descriptionParts.join(" – ") : `order ${id}`;
+  const confirmed = window.confirm(`Weet je zeker dat je ${description} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`);
+  if (!confirmed) return;
+  try {
+    await Orders.delete(id);
+    if (els.dlg) {
+      els.dlg.close();
+    }
+    await loadOrders();
+    updateDeleteOrderAction(null);
+  } catch (err) {
+    console.error("Kan order niet verwijderen", err);
+    window.alert("Verwijderen is mislukt. Probeer het opnieuw.");
+  }
+}
+
+function updateDeleteOrderAction(order) {
+  if (!els.btnDeleteOrder) return;
+  const user = getCurrentUser();
+  const allowed = order ? canDeleteOrder(order, user) : false;
+  els.btnDeleteOrder.disabled = !allowed;
+  if (!allowed) {
+    els.btnDeleteOrder.setAttribute("hidden", "hidden");
+  } else {
+    els.btnDeleteOrder.removeAttribute("hidden");
+  }
 }
 
 function readNumber(value) {
@@ -881,6 +991,8 @@ function bind(){
   bindClick(els.btnAddCarrier, addCarrier);
   bindClick(els.btnSuggestPlan, suggestPlan);
   bindClick(els.btnApplyPlan, applyPlan);
+  bindClick(els.btnDeleteOrder, handleDeleteOrder);
+  updateDeleteOrderAction(null);
   if (els.btnSaveEdit) {
     els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
   }
