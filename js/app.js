@@ -14,24 +14,39 @@ const els = {
   quickRegion: document.getElementById("quickRegion"),
   btnAddCarrier: document.getElementById("btnAddCarrier"),
   carrierStatus: document.getElementById("carrierStatus"),
-  oReference: document.getElementById("oReference"),
-  oCustomer: document.getElementById("oCustomer"),
-  oCity: document.getElementById("oCity"),
-  oContact: document.getElementById("oContact"),
-  oRegion: document.getElementById("oRegion"),
-  oPriority: document.getElementById("oPriority"),
+  orderForm: document.getElementById("orderForm"),
+  oRequestReference: document.getElementById("oRequestReference"),
+  oTransportType: document.getElementById("oTransportType"),
+  oStatus: document.getElementById("oStatus"),
+  oReceivedAt: document.getElementById("oReceivedAt"),
   oDue: document.getElementById("oDue"),
-  oLoadType: document.getElementById("oLoadType"),
-  oPickupLocation: document.getElementById("oPickupLocation"),
+  oCustomerName: document.getElementById("oCustomerName"),
+  oCustomerNumber: document.getElementById("oCustomerNumber"),
+  oCustomerOrderNumber: document.getElementById("oCustomerOrderNumber"),
+  oOrderReference: document.getElementById("oOrderReference"),
+  oOrderDescription: document.getElementById("oOrderDescription"),
+  oOrderContact: document.getElementById("oOrderContact"),
+  oOrderContactPhone: document.getElementById("oOrderContactPhone"),
+  oOrderContactEmail: document.getElementById("oOrderContactEmail"),
+  oPickupConfirmed: document.getElementById("oPickupConfirmed"),
   oPickupDate: document.getElementById("oPickupDate"),
-  oPickupSlot: document.getElementById("oPickupSlot"),
-  oDeliveryLocation: document.getElementById("oDeliveryLocation"),
+  oPickupTimeFrom: document.getElementById("oPickupTimeFrom"),
+  oPickupTimeTo: document.getElementById("oPickupTimeTo"),
+  oPickupContact: document.getElementById("oPickupContact"),
+  oPickupPhone: document.getElementById("oPickupPhone"),
+  oPickupLocation: document.getElementById("oPickupLocation"),
+  oPickupInstructions: document.getElementById("oPickupInstructions"),
+  oDeliveryConfirmed: document.getElementById("oDeliveryConfirmed"),
   oDeliveryDate: document.getElementById("oDeliveryDate"),
-  oDeliverySlot: document.getElementById("oDeliverySlot"),
+  oDeliveryTimeFrom: document.getElementById("oDeliveryTimeFrom"),
+  oDeliveryTimeTo: document.getElementById("oDeliveryTimeTo"),
+  oDeliveryContact: document.getElementById("oDeliveryContact"),
+  oDeliveryPhone: document.getElementById("oDeliveryPhone"),
+  oDeliveryLocation: document.getElementById("oDeliveryLocation"),
+  oDeliveryInstructions: document.getElementById("oDeliveryInstructions"),
   oPallets: document.getElementById("oPallets"),
   oWeight: document.getElementById("oWeight"),
   oVolume: document.getElementById("oVolume"),
-  oNotes: document.getElementById("oNotes"),
   lProduct: document.getElementById("lProduct"),
   lQty: document.getElementById("lQty"),
   lWeight: document.getElementById("lWeight"),
@@ -207,24 +222,73 @@ function cleanText(value) {
   return text.length ? text : null;
 }
 
+function joinNonEmpty(values, separator = " • ") {
+  if (!Array.isArray(values)) return "";
+  const normalized = [];
+  for (const value of values) {
+    const cleaned = cleanText(value);
+    if (cleaned) {
+      normalized.push(cleaned);
+    }
+  }
+  return normalized.join(separator);
+}
+
+function buildTimeSlot(from, to, fallback = null) {
+  const start = cleanText(from);
+  const end = cleanText(to);
+  if (start && end) {
+    return `${start} - ${end}`;
+  }
+  if (start) {
+    return `Vanaf ${start}`;
+  }
+  if (end) {
+    return `Tot ${end}`;
+  }
+  return fallback ?? null;
+}
+
 function normalizeStop(stop) {
+  const base = {
+    location: null,
+    date: null,
+    slot: null,
+    time_from: null,
+    time_to: null,
+    confirmed: null,
+    contact: null,
+    phone: null,
+    instructions: null,
+  };
   if (!stop || typeof stop === "boolean") {
-    return { location: null, date: null, slot: null };
+    return base;
   }
   if (typeof stop === "string") {
-    return {
-      location: cleanText(stop),
-      date: null,
-      slot: null,
-    };
+    return { ...base, location: cleanText(stop) };
   }
   if (typeof stop !== "object") {
-    return { location: null, date: null, slot: null };
+    return base;
   }
+  const location = cleanText(stop.location ?? stop.address);
+  const date = stop.date ?? stop.day ?? null;
+  const timeFrom = cleanText(stop.time_from ?? stop.timeFrom);
+  const timeTo = cleanText(stop.time_to ?? stop.timeTo);
+  const slot = cleanText(stop.slot) || buildTimeSlot(timeFrom, timeTo);
+  const confirmed = typeof stop.confirmed === "boolean" ? stop.confirmed : null;
+  const contact = cleanText(stop.contact ?? stop.contact_name);
+  const phone = cleanText(stop.phone ?? stop.contact_phone);
+  const instructions = cleanText(stop.instructions ?? stop.instruction ?? stop.notes);
   return {
-    location: stop.location ?? null,
-    date: stop.date ?? null,
-    slot: stop.slot ?? null,
+    location: location ?? null,
+    date: date ?? null,
+    slot: slot ?? null,
+    time_from: timeFrom ?? null,
+    time_to: timeTo ?? null,
+    confirmed,
+    contact: contact ?? null,
+    phone: phone ?? null,
+    instructions: instructions ?? null,
   };
 }
 
@@ -234,7 +298,13 @@ function mergeStops(target, source) {
   return {
     location: base.location || incoming.location || null,
     date: base.date || incoming.date || null,
-    slot: base.slot || incoming.slot || null,
+    time_from: base.time_from || incoming.time_from || null,
+    time_to: base.time_to || incoming.time_to || null,
+    slot: base.slot || incoming.slot || buildTimeSlot(base.time_from || incoming.time_from, base.time_to || incoming.time_to) || null,
+    confirmed: base.confirmed ?? incoming.confirmed ?? null,
+    contact: base.contact || incoming.contact || null,
+    phone: base.phone || incoming.phone || null,
+    instructions: base.instructions || incoming.instructions || null,
   };
 }
 
@@ -275,33 +345,65 @@ function mergeCargo(target, source) {
 function parseOrderDetails(order) {
   const details = {
     reference: null,
+    transportType: null,
+    customerOrderNumber: null,
+    customerNumber: null,
+    orderReference: null,
+    orderDescription: null,
     pickup: normalizeStop(null),
     delivery: normalizeStop(null),
     cargo: normalizeCargo(null),
     instructions: null,
     contact: null,
+    contactName: null,
+    contactPhone: null,
+    contactEmail: null,
   };
   if (!order) return details;
 
-  details.reference = cleanText(order.reference);
+  details.reference = cleanText(order.request_reference) || cleanText(order.reference);
+  details.transportType = cleanText(order.transport_type ?? order.load_type ?? order.cargo_type);
+  details.customerOrderNumber = cleanText(order.customer_order_number);
+  details.customerNumber = cleanText(order.customer_number);
+  details.orderReference = cleanText(order.order_reference);
+  details.orderDescription = cleanText(order.order_description);
+
   details.pickup = normalizeStop({
     location: cleanText(order.pickup_location),
     date: order.pickup_date ?? null,
+    time_from: order.pickup_time_from ?? null,
+    time_to: order.pickup_time_to ?? null,
     slot: cleanText(order.pickup_slot),
+    confirmed: order.pickup_confirmed ?? null,
+    contact: cleanText(order.pickup_contact),
+    phone: cleanText(order.pickup_contact_phone),
+    instructions: cleanText(order.pickup_instructions),
   });
   details.delivery = normalizeStop({
     location: cleanText(order.delivery_location),
     date: order.delivery_date ?? order.due_date ?? null,
+    time_from: order.delivery_time_from ?? null,
+    time_to: order.delivery_time_to ?? null,
     slot: cleanText(order.delivery_slot),
+    confirmed: order.delivery_confirmed ?? null,
+    contact: cleanText(order.delivery_contact),
+    phone: cleanText(order.delivery_contact_phone),
+    instructions: cleanText(order.delivery_instructions),
   });
   details.cargo = normalizeCargo({
-    type: cleanText(order.cargo_type ?? order.load_type),
+    type: details.transportType ?? null,
     pallets: order.pallets ?? order.cargo_pallets ?? null,
     weight: order.weight_kg ?? order.cargo_weight ?? null,
     volume: order.volume_m3 ?? order.cargo_volume ?? null,
   });
-  details.instructions = cleanText(order.instructions);
-  details.contact = cleanText(order.customer_contact ?? order.contact);
+
+  const contactName = cleanText(order.customer_contact ?? order.contact);
+  const contactPhone = cleanText(order.customer_contact_phone);
+  const contactEmail = cleanText(order.customer_contact_email);
+  details.contactName = contactName;
+  details.contactPhone = contactPhone;
+  details.contactEmail = contactEmail;
+  details.contact = joinNonEmpty([contactName, contactPhone, contactEmail]) || null;
 
   const raw = order.notes;
   if (raw && typeof raw === "string" && raw.startsWith("JSON:")) {
@@ -329,6 +431,18 @@ function parseOrderDetails(order) {
     details.instructions = cleanText(raw);
   }
 
+  const extraInstructions = joinNonEmpty([
+    details.orderDescription,
+    details.pickup.instructions,
+    details.delivery.instructions,
+  ], "\n");
+  if (!details.instructions && extraInstructions) {
+    details.instructions = extraInstructions;
+  }
+  if (!details.orderDescription && details.instructions) {
+    details.orderDescription = details.instructions;
+  }
+
   if ((!details.pickup.location || !details.delivery.location) && order.customer_city) {
     const fallback = { location: cleanText(order.customer_city), date: null, slot: null };
     if (!details.pickup.location) {
@@ -352,7 +466,8 @@ function formatStop(stop) {
     const displayDate = formatDateDisplay(stop.date);
     parts.push(displayDate !== "-" ? displayDate : stop.date);
   }
-  if (stop.slot) parts.push(stop.slot);
+  const slotText = stop.slot || buildTimeSlot(stop.time_from, stop.time_to);
+  if (slotText) parts.push(slotText);
   return parts.length ? parts.join(" • ") : "-";
 }
 
@@ -577,8 +692,23 @@ function renderOrders(rows) {
     const tr = document.createElement("tr");
     tr.classList.add("order-row");
     const tooltip = [];
-    if (details.instructions) tooltip.push(`Instructies: ${details.instructions}`);
+    if (details.orderDescription) tooltip.push(`Omschrijving: ${details.orderDescription}`);
+    if (details.transportType) tooltip.push(`Transporttype: ${details.transportType}`);
+    if (details.orderReference) tooltip.push(`Order referentie: ${details.orderReference}`);
+    if (details.customerOrderNumber) tooltip.push(`Klantorder: ${details.customerOrderNumber}`);
+    if (details.customerNumber) tooltip.push(`Klantnummer: ${details.customerNumber}`);
     if (details.contact) tooltip.push(`Contact: ${details.contact}`);
+    if (details.pickup.instructions) tooltip.push(`Laad: ${details.pickup.instructions}`);
+    if (details.delivery.instructions) tooltip.push(`Los: ${details.delivery.instructions}`);
+    const pickupContactInfo = joinNonEmpty([details.pickup.contact, details.pickup.phone]);
+    if (pickupContactInfo) tooltip.push(`Laad contact: ${pickupContactInfo}`);
+    const deliveryContactInfo = joinNonEmpty([details.delivery.contact, details.delivery.phone]);
+    if (deliveryContactInfo) tooltip.push(`Los contact: ${deliveryContactInfo}`);
+    if (details.pickup.confirmed === true) tooltip.push("Laadlocatie bevestigd");
+    if (details.delivery.confirmed === true) tooltip.push("Losadres bevestigd");
+    if (!details.orderDescription && details.instructions) {
+      tooltip.push(`Instructies: ${details.instructions}`);
+    }
     const ownerInfo = getOrderOwner(r);
     if (ownerInfo?.id) tr.dataset.ownerId = ownerInfo.id;
     if (ownerInfo?.name) tr.dataset.ownerName = ownerInfo.name;
@@ -602,6 +732,10 @@ function renderOrders(rows) {
     customerCell.textContent = r.customer_name || "-";
     tr.appendChild(customerCell);
 
+    const orderCell = document.createElement("td");
+    orderCell.textContent = details.customerOrderNumber || details.customerNumber || "-";
+    tr.appendChild(orderCell);
+
     const pickupCell = document.createElement("td");
     pickupCell.textContent = formatStop(details.pickup);
     tr.appendChild(pickupCell);
@@ -610,9 +744,9 @@ function renderOrders(rows) {
     deliveryCell.textContent = formatStop(details.delivery);
     tr.appendChild(deliveryCell);
 
-    const cargoCell = document.createElement("td");
-    cargoCell.textContent = formatCargo(details.cargo);
-    tr.appendChild(cargoCell);
+    const transportCell = document.createElement("td");
+    transportCell.textContent = details.transportType || formatCargo(details.cargo) || "-";
+    tr.appendChild(transportCell);
 
     const statusCell = document.createElement("td");
     statusCell.className = "cell-status";
@@ -788,105 +922,126 @@ function readNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function buildOrderDetails() {
-  const palletsRaw = els.oPallets.value ? parseInt(els.oPallets.value, 10) : null;
-  const pallets = Number.isFinite(palletsRaw) ? palletsRaw : null;
-  return {
-    reference: cleanText(els.oReference.value),
-    pickup: {
-      location: cleanText(els.oPickupLocation.value),
-      date: els.oPickupDate.value || null,
-      slot: cleanText(els.oPickupSlot.value),
-    },
-    delivery: {
-      location: cleanText(els.oDeliveryLocation.value),
-      date: els.oDeliveryDate.value || els.oDue.value || null,
-      slot: cleanText(els.oDeliverySlot.value),
-    },
-    cargo: {
-      type: cleanText(els.oLoadType.value),
-      pallets,
-      weight: readNumber(els.oWeight.value),
-      volume: readNumber(els.oVolume.value),
-    },
-    contact: cleanText(els.oContact.value),
-    instructions: cleanText(els.oNotes.value),
+function readInteger(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const num = parseInt(value, 10);
+  return Number.isFinite(num) ? num : null;
+}
+
+function collectOrderPayload() {
+  const requestReference = cleanText(els.oRequestReference?.value);
+  const transportType = cleanText(els.oTransportType?.value);
+  const status = cleanText(els.oStatus?.value) || "Nieuw";
+  const customerName = cleanText(els.oCustomerName?.value);
+  const orderDescription = cleanText(els.oOrderDescription?.value);
+  const pickupInstructions = cleanText(els.oPickupInstructions?.value);
+  const deliveryInstructions = cleanText(els.oDeliveryInstructions?.value);
+  const combinedNotes = joinNonEmpty([
+    orderDescription,
+    pickupInstructions,
+    deliveryInstructions,
+  ], "\n");
+
+  const payload = {
+    reference: requestReference,
+    request_reference: requestReference,
+    transport_type: transportType,
+    load_type: transportType,
+    cargo_type: transportType,
+    status,
+    request_received_date: els.oReceivedAt?.value || null,
+    due_date: els.oDue?.value || null,
+    customer_name: customerName,
+    customer_number: cleanText(els.oCustomerNumber?.value),
+    customer_contact: cleanText(els.oOrderContact?.value),
+    customer_contact_phone: cleanText(els.oOrderContactPhone?.value),
+    customer_contact_email: cleanText(els.oOrderContactEmail?.value),
+    customer_order_number: cleanText(els.oCustomerOrderNumber?.value),
+    order_reference: cleanText(els.oOrderReference?.value),
+    order_description: orderDescription,
+    pickup_confirmed: els.oPickupConfirmed ? !!els.oPickupConfirmed.checked : null,
+    pickup_date: els.oPickupDate?.value || null,
+    pickup_time_from: els.oPickupTimeFrom?.value || null,
+    pickup_time_to: els.oPickupTimeTo?.value || null,
+    pickup_slot: buildTimeSlot(els.oPickupTimeFrom?.value, els.oPickupTimeTo?.value),
+    pickup_contact: cleanText(els.oPickupContact?.value),
+    pickup_contact_phone: cleanText(els.oPickupPhone?.value),
+    pickup_location: cleanText(els.oPickupLocation?.value),
+    pickup_instructions: pickupInstructions,
+    delivery_confirmed: els.oDeliveryConfirmed ? !!els.oDeliveryConfirmed.checked : null,
+    delivery_date: els.oDeliveryDate?.value || null,
+    delivery_time_from: els.oDeliveryTimeFrom?.value || null,
+    delivery_time_to: els.oDeliveryTimeTo?.value || null,
+    delivery_slot: buildTimeSlot(els.oDeliveryTimeFrom?.value, els.oDeliveryTimeTo?.value),
+    delivery_contact: cleanText(els.oDeliveryContact?.value),
+    delivery_contact_phone: cleanText(els.oDeliveryPhone?.value),
+    delivery_location: cleanText(els.oDeliveryLocation?.value),
+    delivery_instructions: deliveryInstructions,
+    pallets: readInteger(els.oPallets?.value),
+    weight_kg: readNumber(els.oWeight?.value),
+    volume_m3: readNumber(els.oVolume?.value),
+    instructions: combinedNotes || null,
+    notes: combinedNotes || null,
   };
+
+  if (!payload.due_date && payload.delivery_date) {
+    payload.due_date = payload.delivery_date;
+  }
+  return payload;
 }
 
 function resetOrderForm(){
-  [
-    "oReference","oCustomer","oCity","oContact","oPriority","oDue","oLoadType",
-    "oPickupLocation","oPickupDate","oPickupSlot","oDeliveryLocation","oDeliveryDate",
-    "oDeliverySlot","oPallets","oWeight","oVolume","oNotes","lProduct","lQty","lWeight"
-  ].forEach(id => {
-    const field = document.getElementById(id);
-    if (!field) return;
-    if (field.tagName === "SELECT") {
-      field.selectedIndex = 0;
-    } else {
-      field.value = "";
-    }
-  });
-  if (els.oRegion) els.oRegion.selectedIndex = 0;
-  if (els.oPriority) els.oPriority.value = "3";
-  if (els.lQty) els.lQty.value = "1";
-  if (els.lWeight) els.lWeight.value = "0";
+  if (els.orderForm) {
+    els.orderForm.reset();
+  }
+  if (els.oStatus) {
+    els.oStatus.value = "Nieuw";
+  }
+  if (els.lQty) {
+    els.lQty.value = "1";
+  }
+  if (els.lWeight) {
+    els.lWeight.value = "0";
+  }
+  if (els.createStatus) {
+    setStatus(els.createStatus, "");
+  }
 }
 
 async function createOrder(){
-  if (!els.oCustomer || !els.oRegion) return;
+  if (!els.oCustomerName || !els.oRequestReference) return;
   const user = getCurrentUser();
-  const customerName = cleanText(els.oCustomer.value);
+  const customerName = cleanText(els.oCustomerName.value);
+  const requestReference = cleanText(els.oRequestReference.value);
+  if (!requestReference) {
+    setStatus(els.createStatus, "Vul de transport aanvraag referentie in.", "error");
+    return;
+  }
   if (!customerName) {
     setStatus(els.createStatus, "Vul de klantnaam in.", "error");
     return;
   }
   setStatus(els.createStatus, "Bezig…");
   try {
-    const details = buildOrderDetails();
-    const priorityRaw = parseInt(els.oPriority.value || "", 10);
-    const order = {
-      reference: details.reference,
-      customer_name: customerName,
-      customer_city: cleanText(els.oCity.value),
-      customer_contact: details.contact,
-      region: cleanText(els.oRegion.value),
-      priority: Number.isFinite(priorityRaw) ? priorityRaw : 3,
-      status: "Nieuw",
-      due_date: details.delivery?.date || els.oDue.value || null,
-      pickup_location: details.pickup?.location || null,
-      pickup_date: details.pickup?.date || null,
-      pickup_slot: details.pickup?.slot || null,
-      delivery_location: details.delivery?.location || null,
-      delivery_date: details.delivery?.date || null,
-      delivery_slot: details.delivery?.slot || null,
-      load_type: details.cargo?.type || null,
-      cargo_type: details.cargo?.type || null,
-      pallets: details.cargo?.pallets ?? null,
-      weight_kg: details.cargo?.weight ?? null,
-      volume_m3: details.cargo?.volume ?? null,
-      instructions: details.instructions || null,
-      notes: details.instructions || null,
-    };
-    if (!order.due_date && order.delivery_date) {
-      order.due_date = order.delivery_date;
-    }
+    const payload = collectOrderPayload();
+    payload.customer_name = customerName;
+    payload.reference = requestReference;
+    payload.request_reference = requestReference;
     const userId = user?.id ?? user?.user_id ?? null;
     if (userId !== null && userId !== undefined) {
-      order.created_by = userId;
+      payload.created_by = userId;
       const creatorName = user?.name ?? user?.full_name ?? user?.email ?? null;
       if (creatorName) {
-        order.created_by_name = creatorName;
+        payload.created_by_name = creatorName;
       }
     }
-    const created = await Orders.create(order);
-    if (els.lProduct.value.trim()) {
+    const created = await Orders.create(payload);
+    if (els.lProduct && els.lProduct.value.trim()) {
       await Lines.create({
         order_id: created.id,
         product: els.lProduct.value.trim(),
-        quantity: parseInt(els.lQty.value || "1", 10),
-        weight_kg: parseFloat(els.lWeight.value || "0")
+        quantity: readInteger(els.lQty?.value) || 1,
+        weight_kg: readNumber(els.lWeight?.value),
       });
     }
     setStatus(els.createStatus, "Transport aangemaakt", "success");

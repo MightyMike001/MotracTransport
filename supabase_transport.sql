@@ -25,15 +25,36 @@ create table if not exists public.transport_orders (
   planned_slot text,
   assigned_carrier text,
   reference text,
+  request_reference text,
+  transport_type text,
+  request_received_date date,
   customer_name text not null,
+  customer_number text,
   customer_city text,
   customer_contact text,
+  customer_contact_phone text,
+  customer_contact_email text,
+  customer_order_number text,
+  order_reference text,
+  order_description text,
+  pickup_confirmed boolean,
   pickup_location text,
   pickup_date date,
+  pickup_time_from time,
+  pickup_time_to time,
   pickup_slot text,
+  pickup_contact text,
+  pickup_contact_phone text,
+  pickup_instructions text,
+  delivery_confirmed boolean,
   delivery_location text,
   delivery_date date,
+  delivery_time_from time,
+  delivery_time_to time,
   delivery_slot text,
+  delivery_contact text,
+  delivery_contact_phone text,
+  delivery_instructions text,
   load_type text,
   cargo_type text,
   pallets integer,
@@ -56,15 +77,36 @@ alter table public.transport_orders add column if not exists planned_date date;
 alter table public.transport_orders add column if not exists planned_slot text;
 alter table public.transport_orders add column if not exists assigned_carrier text;
 alter table public.transport_orders add column if not exists reference text;
+alter table public.transport_orders add column if not exists request_reference text;
+alter table public.transport_orders add column if not exists transport_type text;
+alter table public.transport_orders add column if not exists request_received_date date;
 alter table public.transport_orders add column if not exists customer_name text;
+alter table public.transport_orders add column if not exists customer_number text;
 alter table public.transport_orders add column if not exists customer_city text;
 alter table public.transport_orders add column if not exists customer_contact text;
+alter table public.transport_orders add column if not exists customer_contact_phone text;
+alter table public.transport_orders add column if not exists customer_contact_email text;
+alter table public.transport_orders add column if not exists customer_order_number text;
+alter table public.transport_orders add column if not exists order_reference text;
+alter table public.transport_orders add column if not exists order_description text;
+alter table public.transport_orders add column if not exists pickup_confirmed boolean;
 alter table public.transport_orders add column if not exists pickup_location text;
 alter table public.transport_orders add column if not exists pickup_date date;
+alter table public.transport_orders add column if not exists pickup_time_from time;
+alter table public.transport_orders add column if not exists pickup_time_to time;
 alter table public.transport_orders add column if not exists pickup_slot text;
+alter table public.transport_orders add column if not exists pickup_contact text;
+alter table public.transport_orders add column if not exists pickup_contact_phone text;
+alter table public.transport_orders add column if not exists pickup_instructions text;
+alter table public.transport_orders add column if not exists delivery_confirmed boolean;
 alter table public.transport_orders add column if not exists delivery_location text;
 alter table public.transport_orders add column if not exists delivery_date date;
+alter table public.transport_orders add column if not exists delivery_time_from time;
+alter table public.transport_orders add column if not exists delivery_time_to time;
 alter table public.transport_orders add column if not exists delivery_slot text;
+alter table public.transport_orders add column if not exists delivery_contact text;
+alter table public.transport_orders add column if not exists delivery_contact_phone text;
+alter table public.transport_orders add column if not exists delivery_instructions text;
 alter table public.transport_orders add column if not exists load_type text;
 alter table public.transport_orders add column if not exists cargo_type text;
 alter table public.transport_orders add column if not exists pallets integer;

@@ -83,7 +83,9 @@ const Orders = {
     if (filters.plannedDate) params.push(`planned_date=eq.${encodeURIComponent(filters.plannedDate)}`);
     if (filters.search) {
       const searchTerm = encodeURIComponent(`*${filters.search}*`);
-      params.push(`or=(customer_name.ilike.${searchTerm},notes.ilike.${searchTerm})`);
+      params.push(
+        `or=(customer_name.ilike.${searchTerm},request_reference.ilike.${searchTerm},order_reference.ilike.${searchTerm},customer_order_number.ilike.${searchTerm},order_description.ilike.${searchTerm},pickup_location.ilike.${searchTerm},delivery_location.ilike.${searchTerm},notes.ilike.${searchTerm})`
+      );
     }
     const createdBy = filters.createdBy;
     if (createdBy !== undefined && createdBy !== null && String(createdBy).length) {
