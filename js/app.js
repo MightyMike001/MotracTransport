@@ -873,27 +873,39 @@ async function applyPlan(){
   }
 }
 
-function bind(){
-  const bindClick = (el, handler) => { if (el) el.addEventListener("click", handler); };
+function bind(canManagePlanning){
+  const bindClick = (el, handler, allowed = true) => {
+    if (!el) return;
+    if (!allowed) {
+      el.setAttribute("disabled", "disabled");
+      el.setAttribute("aria-disabled", "true");
+      return;
+    }
+    el.removeAttribute("disabled");
+    el.removeAttribute("aria-disabled");
+    el.addEventListener("click", handler);
+  };
   bindClick(els.btnApplyFilters, loadOrders);
   bindClick(els.btnCreate, createOrder);
   bindClick(els.btnReload, loadOrders);
   bindClick(els.btnAddCarrier, addCarrier);
-  bindClick(els.btnSuggestPlan, suggestPlan);
-  bindClick(els.btnApplyPlan, applyPlan);
+  bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
+  bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
   if (els.btnSaveEdit) {
     els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
   }
   bindClick(els.btnAddTruck, addTruck);
-  bindClick(els.btnAssignOrder, assignOrderToTruck);
-  bindClick(els.btnClearBoard, clearBoardForDay);
+  bindClick(els.btnAssignOrder, assignOrderToTruck, canManagePlanning);
+  bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
   if (els.boardDate) {
     els.boardDate.addEventListener("change", () => { renderPlanBoard(); });
   }
 }
 
 (async function init(){
-  bind();
+  const user = window.Auth?.getUser ? window.Auth.getUser() : null;
+  const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
+  bind(canManagePlanning);
   hydrateLocalState();
   const today = new Date();
   const end = new Date(Date.now()+5*86400000);
