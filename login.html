@@ -40,9 +40,26 @@
     </section>
 
     <section class="card narrow">
-      <h2>Nieuwe gebruiker nodig?</h2>
-      <p class="muted small">Ben je een beheerder en wil je een planner of werknemer toevoegen?</p>
-      <a class="btn secondary" href="create-user.html">Ga naar gebruiker aanmaken</a>
+      <h2>Account aanvragen</h2>
+      <p class="muted small">
+        Vraag zelf een account aan met je e-mailadres. Een beheerder wijst daarna je definitieve rol toe.
+      </p>
+      <form id="signupForm" class="stack" novalidate>
+        <label>E-mailadres
+          <input type="email" id="signupEmail" required autocomplete="email" placeholder="naam@voorbeeld.nl" />
+        </label>
+        <label>Wachtwoord
+          <input type="password" id="signupPassword" required minlength="6" autocomplete="new-password" />
+        </label>
+        <label>Bevestig wachtwoord
+          <input type="password" id="signupPasswordConfirm" required minlength="6" autocomplete="new-password" />
+        </label>
+        <button class="btn secondary" type="submit" id="btnSignup">Account aanvragen</button>
+      </form>
+      <div id="signupStatus" class="status" role="status"></div>
+      <p class="muted small">
+        Ben je beheerder en wil je iemand anders toevoegen? <a href="create-user.html">Gebruik dan het beheerdersformulier</a>.
+      </p>
     </section>
   </main>
 

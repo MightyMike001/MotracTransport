@@ -69,6 +69,17 @@
     return hash.toString(16);
   }
 
+  function formatRole(role) {
+    if (!role) return "";
+    const labels = {
+      admin: "Admin",
+      planner: "Planner",
+      werknemer: "Werknemer",
+      "in aanvraag": "In aanvraag",
+    };
+    return labels[role] || role;
+  }
+
   async function login(email, password) {
     const cleanedEmail = (email || "").trim().toLowerCase();
     const passwordHash = await hashPassword(password || "");
@@ -110,7 +121,7 @@
     area.innerHTML = `
       <div class="auth-summary">
         <span class="auth-user">${user.name}</span>
-        <span class="auth-role">${user.role}</span>
+        <span class="auth-role">${formatRole(user.role)}</span>
       </div>
       <button class="btn ghost small" id="btnLogout" type="button">Uitloggen</button>
     `;

@@ -7,7 +7,7 @@ create table if not exists public.app_users (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
   email citext not null unique,
-  role text not null check (role in ('admin', 'planner', 'werknemer')),
+  role text not null default 'in aanvraag' check (role in ('admin', 'planner', 'werknemer', 'in aanvraag')),
   password_hash text not null,
   is_active boolean not null default true,
   created_at timestamptz not null default now()

@@ -13,6 +13,13 @@
 
   let USER_CACHE = [];
 
+  const ROLE_OPTIONS = [
+    { value: "in aanvraag", label: "In aanvraag" },
+    { value: "planner", label: "Planner" },
+    { value: "werknemer", label: "Werknemer" },
+    { value: "admin", label: "Admin" },
+  ];
+
   function setStatus(message, variant = "default") {
     if (!els.status) return;
     els.status.textContent = message;
@@ -45,11 +52,21 @@
       .map((user) => {
         const toggleLabel = user.is_active ? "Deactiveer" : "Activeer";
         const statusLabel = user.is_active ? "Actief" : "Gedeactiveerd";
+        const currentRole = user.role || "in aanvraag";
+        const roleOptions = ROLE_OPTIONS.map(
+          (option) =>
+            `<option value="${option.value}"${option.value === currentRole ? " selected" : ""}>${option.label}</option>`
+        ).join("");
         return `
           <tr data-id="${user.id}">
             <td>${user.full_name}</td>
             <td>${user.email}</td>
-            <td>${user.role}</td>
+            <td>
+              <label class="sr-only" for="role-${user.id}">Rol</label>
+              <select class="role-select" id="role-${user.id}" data-action="role" data-id="${user.id}">
+                ${roleOptions}
+              </select>
+            </td>
             <td>${statusLabel}</td>
             <td>${formatDate(user.created_at)}</td>
             <td class="actions">
@@ -147,6 +164,29 @@
     }
   }
 
+  async function updateRole(id, role) {
+    if (!window.Users) return;
+    const user = USER_CACHE.find((u) => u.id === id);
+    if (!user || !role) return;
+    if (user.role === role) return;
+
+    const isValid = ROLE_OPTIONS.some((option) => option.value === role);
+    if (!isValid) {
+      setStatus("Onbekende rol gekozen", "error");
+      return;
+    }
+
+    try {
+      setStatus("Rol wordt bijgewerkt…");
+      await window.Users.update(id, { role });
+      setStatus("Rol bijgewerkt", "success");
+      await loadUsers(false);
+    } catch (err) {
+      console.error(err);
+      setStatus("Kon rol niet bijwerken", "error");
+    }
+  }
+
   function handleAction(event) {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
@@ -174,6 +214,12 @@
     }
     if (els.tableBody) {
       els.tableBody.addEventListener("click", handleAction);
+      els.tableBody.addEventListener("change", (event) => {
+        const select = event.target.closest("select[data-action='role']");
+        if (!select) return;
+        const id = select.dataset.id;
+        updateRole(id, select.value);
+      });
     }
     loadUsers(true);
   });
