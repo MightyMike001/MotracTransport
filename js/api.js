@@ -68,6 +68,7 @@ const Orders = {
   },
   create: (o) => sbInsert("transport_orders", [o]).then(r => r[0]),
   update: (id, patch) => sbUpdate("transport_orders", `id=eq.${id}`, patch),
+  delete: (id) => sbDelete("transport_orders", `id=eq.${id}`),
 };
 
 const Lines = {
