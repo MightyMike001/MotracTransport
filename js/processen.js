@@ -33,58 +33,6 @@
       ],
     },
     {
-      id: "quote-to-cash",
-      title: "Quote to Cash (Validatieproces Sales)",
-      requirement:
-        "Workflow voor offertes en orderbevestigingen vanuit Salesforce waarbij documenten beoordeeld, goedgekeurd en automatisch verstuurd of geüpload worden.",
-      appSupport:
-        "Er is geen koppeling met Salesforce of een validatieworkflow voor salesdocumenten in de huidige applicatie.",
-      status: "missing",
-      improvements: [
-        "Validatie- en goedkeuringsworkflow voor salesdocumenten integreren.",
-        "API-koppeling met Salesforce of uploadmechanisme voor documenten realiseren.",
-      ],
-    },
-    {
-      id: "validation-used",
-      title: "Validation Process Used",
-      requirement:
-        "Afzonderlijk validatieproces voor de afdeling Used, zichtbaar als apart proces in de inbox.",
-      appSupport:
-        "Er is nog geen specifieke inbox of workflow voor de afdeling Used aanwezig.",
-      status: "missing",
-      improvements: [
-        "Inrichting van een aparte Used-workflow met eigen inbox en taken toevoegen.",
-        "Configuratie van statusovergangen en notificaties per Used-proces definiëren.",
-      ],
-    },
-    {
-      id: "matching-order-confirmations",
-      title: "Matching Order Confirmations",
-      requirement:
-        "Automatisch matchen van orderbevestigingen met inkooporders, met automatische afsluiting bij match en verplichte actie inclusief reden bij no-match.",
-      appSupport:
-        "Ordermatching gebeurt nu niet automatisch; medewerkers passen handmatig statussen aan in de orders-tabel zonder verplichte afsluitreden.",
-      status: "missing",
-      improvements: [
-        "Automatische matching tussen binnenkomende orderbevestigingen en inkooporders opzetten.",
-        "Dialoog voor verplichte afsluitreden bij no-match toevoegen.",
-      ],
-    },
-    {
-      id: "manage-delivery-dates",
-      title: "Manage Delivery Dates (Update leverweek)",
-      requirement:
-        "Wekelijks proces dat afwijkingen in leverweken signaleert, klanten een gebundelde update stuurt en de Opportunity Owner een keuze geeft om zelf of automatisch te communiceren.",
-      appSupport:
-        "De orderspagina toont leverdatums, maar er is geen geautomatiseerde weekcontrole of e-mailworkflow naar klanten en Opportunity Owners.",
-      status: "missing",
-      improvements: [
-        "Signalering van leverweekafwijkingen en dashboards voor Opportunity Owners implementeren.",
-        "Automatische bundelmail naar klanten met gewijzigde leveringen realiseren.",
-      ],
-    },
-    {
       id: "supporting-processes",
       title: "Overige ondersteunende processen",
       requirement:
