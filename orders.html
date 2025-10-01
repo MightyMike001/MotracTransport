@@ -16,6 +16,7 @@
         <a href="aanvraag.html">Nieuwe aanvraag</a>
         <a href="orders.html" class="active">Orders</a>
         <a href="planning.html" data-role-visible="planner,admin">Planning</a>
+        <a href="routekaart.html" data-role-visible="planner,admin">Routekaart</a>
         <a href="vloot.html" data-role-visible="admin">Vloot &amp; carriers</a>
         <a href="users.html" class="nav-users" data-role-visible="admin">Gebruikers</a>
       </nav>
@@ -46,6 +47,12 @@
             <option>Geleverd</option>
             <option>Geannuleerd</option>
           </select>
+        </label>
+        <label>Zoekopdracht
+          <input id="filterQuery" type="search" placeholder="Klant, referentie of notitie" />
+        </label>
+        <label>Leverdatum
+          <input id="filterDate" type="date" />
         </label>
         <button id="btnApplyFilters" class="btn ghost">Toepassen</button>
         <button id="btnReload" class="btn">Vernieuwen</button>

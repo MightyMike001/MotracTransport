@@ -58,6 +58,12 @@ const Orders = {
     const params = [];
     if (filters.region) params.push(`region=eq.${encodeURIComponent(filters.region)}`);
     if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
+    if (filters.date) params.push(`due_date=eq.${encodeURIComponent(filters.date)}`);
+    if (filters.plannedDate) params.push(`planned_date=eq.${encodeURIComponent(filters.plannedDate)}`);
+    if (filters.search) {
+      const searchTerm = encodeURIComponent(`*${filters.search}*`);
+      params.push(`or=(customer_name.ilike.${searchTerm},notes.ilike.${searchTerm})`);
+    }
     const createdBy = filters.createdBy;
     if (createdBy !== undefined && createdBy !== null && String(createdBy).length) {
       params.push(`created_by=eq.${encodeURIComponent(createdBy)}`);

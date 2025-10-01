@@ -1,6 +1,8 @@
 const els = {
   filterRegion: document.getElementById("filterRegion"),
   filterStatus: document.getElementById("filterStatus"),
+  filterQuery: document.getElementById("filterQuery"),
+  filterDate: document.getElementById("filterDate"),
   btnApplyFilters: document.getElementById("btnApplyFilters"),
   planStart: document.getElementById("planStart"),
   planEnd: document.getElementById("planEnd"),
@@ -58,10 +60,7 @@ const els = {
   truckStatus: document.getElementById("truckStatus"),
   truckList: document.getElementById("truckList"),
   boardDate: document.getElementById("boardDate"),
-  boardTruck: document.getElementById("boardTruck"),
-  boardOrder: document.getElementById("boardOrder"),
-  boardSlot: document.getElementById("boardSlot"),
-  btnAssignOrder: document.getElementById("btnAssignOrder"),
+  boardRegion: document.getElementById("boardRegion"),
   boardStatus: document.getElementById("boardStatus"),
   btnClearBoard: document.getElementById("btnClearBoard"),
   planBoard: document.getElementById("planBoard"),
@@ -116,6 +115,7 @@ let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
 let PLAN_BOARD = {};
 const ORDER_OWNERS = new Map();
+let DRAG_CONTEXT = null;
 
 function getCurrentUser() {
   if (window.Auth && typeof window.Auth.getUser === "function") {
@@ -280,6 +280,14 @@ async function loadOrders() {
     region: els.filterRegion?.value || undefined,
     status: els.filterStatus?.value || undefined,
   };
+  const queryValue = els.filterQuery?.value?.trim();
+  const dateValue = els.filterDate?.value || undefined;
+  if (queryValue) {
+    listFilters.search = queryValue;
+  }
+  if (dateValue) {
+    listFilters.date = dateValue;
+  }
   let createdByFilter;
   if (currentUser?.role === "werknemer" && currentUser.id !== undefined && currentUser.id !== null) {
     createdByFilter = currentUser.id;
@@ -298,7 +306,6 @@ async function loadOrders() {
     }
     ORDERS_CACHE = filteredRows;
     renderOrders(filteredRows);
-    updatePlanBoardSelectors();
     syncPlanBoardFromOrders();
     renderPlanBoard();
   } catch (e) {
@@ -575,7 +582,6 @@ function renderTrucks(){
       list.appendChild(li);
     }
   }
-  updatePlanBoardSelectors();
   renderPlanBoard();
 }
 
@@ -624,34 +630,6 @@ async function removeTruck(id){
   await loadOrders();
 }
 
-function updatePlanBoardSelectors(){
-  const truckSelect = els.boardTruck;
-  const orderSelect = els.boardOrder;
-  if (!truckSelect || !orderSelect) return;
-  truckSelect.innerHTML = '<option value="">Selecteer vrachtwagen…</option>';
-  for (const truck of TRUCKS){
-    const option = document.createElement("option");
-    option.value = truck.id;
-    option.textContent = `${truck.name} (${truck.capacity || "∞"} stops)`;
-    truckSelect.appendChild(option);
-  }
-  orderSelect.innerHTML = '<option value="">Selecteer transport…</option>';
-  const eligible = ORDERS_CACHE.filter(o => !["Geleverd","Geannuleerd"].includes(o.status || ""));
-  eligible.sort((a,b) => (a.due_date || "").localeCompare(b.due_date || ""));
-  for (const order of eligible){
-    const details = parseOrderDetails(order);
-    const option = document.createElement("option");
-    option.value = String(order.id);
-    const parts = [];
-    parts.push(details.reference || order.customer_name || `Order #${order.id}`);
-    if (order.customer_name) parts.push(order.customer_name);
-    const due = order.due_date || details.delivery?.date;
-    if (due) parts.push(due);
-    option.textContent = parts.join(" • ");
-    orderSelect.appendChild(option);
-  }
-}
-
 function syncPlanBoardFromOrders(){
   let changed = false;
   const cleaned = {};
@@ -690,158 +668,423 @@ function syncPlanBoardFromOrders(){
       changed = true;
     }
   }
+  PLAN_BOARD = cleaned;
+  for (const order of ORDERS_CACHE){
+    if (!order?.planned_date || !order?.assigned_carrier) continue;
+    const truck = TRUCKS.find((t) => t.name === order.assigned_carrier);
+    if (!truck) continue;
+    const date = order.planned_date;
+    if (!PLAN_BOARD[date]) PLAN_BOARD[date] = {};
+    if (!PLAN_BOARD[date][truck.id]) PLAN_BOARD[date][truck.id] = [];
+    const hasAssignment = PLAN_BOARD[date][truck.id].some((a) => String(a.orderId) === String(order.id));
+    if (!hasAssignment){
+      const details = parseOrderDetails(order);
+      PLAN_BOARD[date][truck.id].push({
+        orderId: order.id,
+      reference: details.reference || order.customer_name,
+      customer: order.customer_name,
+      slot: order.planned_slot || null,
+      details,
+    });
+      changed = true;
+    }
+  }
   if (changed){
-    PLAN_BOARD = cleaned;
     savePlanBoard();
   }
+}
+
+function ensureBoardDate(){
+  if (!els.boardDate) {
+    return new Date().toISOString().slice(0,10);
+  }
+  let value = els.boardDate.value;
+  if (!value) {
+    value = new Date().toISOString().slice(0,10);
+    els.boardDate.value = value;
+  }
+  return value;
+}
+
+function getBoardRegionFilter(){
+  return (els.boardRegion?.value || "").trim();
+}
+
+function orderMatchesBoardRegion(order, regionFilter){
+  if (!regionFilter) return true;
+  return (order?.region || "").trim() === regionFilter;
+}
+
+function detachAssignment(date, truckId, orderId){
+  if (!PLAN_BOARD[date] || !PLAN_BOARD[date][truckId]) return null;
+  const assignments = PLAN_BOARD[date][truckId];
+  const index = assignments.findIndex((a) => String(a.orderId) === String(orderId));
+  if (index === -1) return null;
+  const [removed] = assignments.splice(index, 1);
+  if (!assignments.length) {
+    delete PLAN_BOARD[date][truckId];
+  }
+  if (!Object.keys(PLAN_BOARD[date]).length) {
+    delete PLAN_BOARD[date];
+  }
+  return removed || null;
 }
 
 function renderPlanBoard(){
   const container = els.planBoard;
   if (!container) return;
   container.innerHTML = "";
-  let date = els.boardDate ? els.boardDate.value : "";
-  if (!date){
-    date = new Date().toISOString().slice(0,10);
-    if (els.boardDate) els.boardDate.value = date;
-  }
+  const date = ensureBoardDate();
+  const regionFilter = getBoardRegionFilter();
   if (!TRUCKS.length){
     container.innerHTML = '<div class="empty-hint">Voeg eerst vrachtwagens toe om te plannen.</div>';
     setStatus(els.boardStatus, "Geen vrachtwagens beschikbaar.");
     return;
   }
   const dayData = PLAN_BOARD[date] || {};
-  let total = 0;
-  for (const truck of TRUCKS){
-    const card = document.createElement("div");
-    card.className = "truck-card";
-    const header = document.createElement("header");
-    const title = document.createElement("strong");
-    title.textContent = truck.name;
-    header.appendChild(title);
-    const capacity = document.createElement("span");
-    capacity.className = "badge";
-    const used = (dayData[truck.id] || []).length;
-    capacity.textContent = `${used}/${truck.capacity || "∞"}`;
-    header.appendChild(capacity);
-    card.appendChild(header);
-
-    const meta = document.createElement("div");
-    meta.className = "truck-meta";
-    const metaParts = [];
-    if (truck.plate) metaParts.push(`Kenteken ${truck.plate}`);
-    if (truck.driver) metaParts.push(`Chauffeur ${truck.driver}`);
-    meta.textContent = metaParts.join(" • ") || "Geen aanvullende info";
-    card.appendChild(meta);
-
-    const assignments = (dayData[truck.id] || []).slice().sort((a,b) => {
-      return (a.slot || "zzz").localeCompare(b.slot || "zzz") || (a.reference || "").localeCompare(b.reference || "");
+  const plannedToday = new Set();
+  for (const assignments of Object.values(dayData)){
+    for (const assignment of assignments){
+      plannedToday.add(String(assignment.orderId));
+    }
+  }
+  const activeOrders = ORDERS_CACHE.filter((order) => {
+    if (["Geleverd","Geannuleerd"].includes(order.status || "")) return false;
+    if (order.planned_date && order.planned_date !== date) return false;
+    return true;
+  });
+  const backlogOrders = activeOrders
+    .filter((order) => !plannedToday.has(String(order.id)))
+    .filter((order) => orderMatchesBoardRegion(order, regionFilter))
+    .sort((a, b) => {
+      const dueA = a.due_date || "";
+      const dueB = b.due_date || "";
+      return dueA.localeCompare(dueB) || (a.priority || 0) - (b.priority || 0);
     });
 
-    if (!assignments.length){
+  const backlogLane = document.createElement("section");
+  backlogLane.className = "plan-lane lane-unplanned";
+  const backlogHeader = document.createElement("header");
+  backlogHeader.className = "lane-header";
+  const backlogTitle = document.createElement("h3");
+  backlogTitle.textContent = "Ongepland";
+  backlogHeader.appendChild(backlogTitle);
+  const backlogCount = document.createElement("span");
+  backlogCount.className = "lane-count";
+  backlogCount.textContent = backlogOrders.length.toString();
+  backlogHeader.appendChild(backlogCount);
+  backlogLane.appendChild(backlogHeader);
+  const backlogBody = document.createElement("div");
+  backlogBody.className = "lane-body";
+  registerDropZone(backlogBody, { type: "backlog", date });
+  if (!backlogOrders.length){
+    const empty = document.createElement("div");
+    empty.className = "empty-hint";
+    empty.textContent = regionFilter ? "Geen open opdrachten voor deze regio." : "Alle opdrachten zijn ingepland.";
+    backlogBody.appendChild(empty);
+  } else {
+    for (const order of backlogOrders){
+      const card = buildOrderCard(order, date);
+      backlogBody.appendChild(card);
+    }
+  }
+  backlogLane.appendChild(backlogBody);
+  container.appendChild(backlogLane);
+
+  let totalAssignments = 0;
+  const sortedTrucks = TRUCKS.slice().sort((a, b) => a.name.localeCompare(b.name));
+  for (const truck of sortedTrucks){
+    const lane = document.createElement("section");
+    lane.className = "plan-lane";
+    lane.dataset.truckId = truck.id;
+    const header = document.createElement("header");
+    header.className = "lane-header";
+    const title = document.createElement("h3");
+    title.textContent = truck.name;
+    header.appendChild(title);
+    const meta = document.createElement("div");
+    meta.className = "lane-meta";
+    const metaParts = [];
+    if (truck.driver) metaParts.push(truck.driver);
+    if (truck.plate) metaParts.push(truck.plate);
+    meta.textContent = metaParts.join(" • ") || "Geen extra info";
+    header.appendChild(meta);
+
+    const assignments = (dayData[truck.id] || []).slice().sort((a, b) => {
+      return (a.slot || "zzz").localeCompare(b.slot || "zzz") || (a.reference || "").localeCompare(b.reference || "");
+    });
+    const visibleAssignments = assignments.filter((assignment) => {
+      const order = ORDERS_CACHE.find((o) => String(o.id) === String(assignment.orderId));
+      return orderMatchesBoardRegion(order, regionFilter);
+    });
+    const used = visibleAssignments.length;
+    const capacityValue = Number.isFinite(truck.capacity) ? Number(truck.capacity) : null;
+    const usage = capacityValue ? Math.min(used / capacityValue, 1) : 0;
+    const capacityWrap = document.createElement("div");
+    capacityWrap.className = "capacity-indicator";
+    const capacityLabel = document.createElement("span");
+    capacityLabel.className = "capacity-label";
+    capacityLabel.textContent = capacityValue ? `${used}/${capacityValue} stops` : `${used} stops`;
+    const capacityBar = document.createElement("div");
+    capacityBar.className = "capacity-bar";
+    const capacityFill = document.createElement("div");
+    capacityFill.className = "capacity-fill";
+    if (capacityValue){
+      capacityFill.style.width = `${usage * 100}%`;
+      if (usage >= 0.9){
+        capacityFill.classList.add("is-critical");
+      } else if (usage >= 0.75){
+        capacityFill.classList.add("is-warning");
+      }
+    } else {
+      capacityFill.style.width = "100%";
+    }
+    capacityBar.appendChild(capacityFill);
+    capacityWrap.appendChild(capacityLabel);
+    capacityWrap.appendChild(capacityBar);
+    header.appendChild(capacityWrap);
+    lane.appendChild(header);
+
+    const body = document.createElement("div");
+    body.className = "lane-body";
+    registerDropZone(body, { type: "truck", truckId: truck.id, date });
+    if (!visibleAssignments.length){
       const empty = document.createElement("div");
       empty.className = "empty-hint";
       empty.textContent = "Nog geen transporten ingepland.";
-      card.appendChild(empty);
+      body.appendChild(empty);
     } else {
-      for (const assignment of assignments){
-        const order = ORDERS_CACHE.find(o => String(o.id) === String(assignment.orderId));
-        const details = order ? parseOrderDetails(order) : assignment.details || {};
-        const item = document.createElement("div");
-        item.className = "assignment";
-        const titleLine = document.createElement("strong");
-        titleLine.textContent = details.reference || order?.customer_name || `Order #${assignment.orderId}`;
-        item.appendChild(titleLine);
-        const customerLine = document.createElement("div");
-        customerLine.textContent = order?.customer_name || assignment.customer || "";
-        item.appendChild(customerLine);
-        const routeLine = document.createElement("div");
-        routeLine.className = "truck-meta";
-        routeLine.textContent = `${formatStop(details.pickup)} → ${formatStop(details.delivery)}`;
-        item.appendChild(routeLine);
-        const cargoText = formatCargo(details.cargo);
-        if (cargoText && cargoText !== "-"){
-          const cargoLine = document.createElement("div");
-          cargoLine.className = "truck-meta";
-          cargoLine.textContent = cargoText;
-          item.appendChild(cargoLine);
-        }
-        if (assignment.slot){
-          const slotTag = document.createElement("span");
-          slotTag.className = "tag";
-          slotTag.textContent = assignment.slot;
-          item.appendChild(slotTag);
-        }
-        if (details.instructions){
-          item.title = details.instructions;
-        }
-        const actions = document.createElement("div");
-        actions.style.display = "flex";
-        actions.style.gap = "8px";
-        const removeBtn = document.createElement("button");
-        removeBtn.className = "btn ghost small";
-        removeBtn.textContent = "Verwijderen";
-        removeBtn.addEventListener("click", () => removeAssignment(date, truck.id, assignment.orderId));
-        actions.appendChild(removeBtn);
-        item.appendChild(actions);
-        card.appendChild(item);
+      for (const assignment of visibleAssignments){
+        const card = buildAssignmentCard(assignment, truck, date);
+        body.appendChild(card);
       }
-      total += assignments.length;
+      totalAssignments += visibleAssignments.length;
     }
-    container.appendChild(card);
+    lane.appendChild(body);
+    container.appendChild(lane);
   }
-  setStatus(els.boardStatus, `${total} transport(en) ingepland op ${formatDateDisplay(date)}.`);
+  setStatus(els.boardStatus, `${totalAssignments} transport(en) ingepland op ${formatDateDisplay(date)}.`);
 }
 
-async function assignOrderToTruck(){
-  if (!els.boardDate || !els.boardTruck || !els.boardOrder) return;
-  if (!els.boardDate.value){
-    setStatus(els.boardStatus, "Selecteer een datum.", "error");
+function buildOrderCard(order, date){
+  const details = parseOrderDetails(order);
+  const card = document.createElement("article");
+  card.className = "assignment is-unplanned";
+  const title = document.createElement("strong");
+  title.textContent = details.reference || order.customer_name || `Order #${order.id}`;
+  card.appendChild(title);
+  if (order.customer_name){
+    const customer = document.createElement("div");
+    customer.textContent = order.customer_name;
+    card.appendChild(customer);
+  }
+  const route = document.createElement("div");
+  route.className = "truck-meta";
+  route.textContent = `${formatStop(details.pickup)} → ${formatStop(details.delivery)}`;
+  card.appendChild(route);
+  const cargo = formatCargo(details.cargo);
+  if (cargo && cargo !== "-"){
+    const cargoLine = document.createElement("div");
+    cargoLine.className = "truck-meta";
+    cargoLine.textContent = cargo;
+    card.appendChild(cargoLine);
+  }
+  if (order.due_date){
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = `Levering ${order.due_date}`;
+    card.appendChild(tag);
+  }
+  if (details.instructions){
+    card.title = details.instructions;
+  }
+  makeDraggable(card, {
+    orderId: order.id,
+    fromTruckId: null,
+    date,
+  });
+  return card;
+}
+
+function buildAssignmentCard(assignment, truck, date){
+  const order = ORDERS_CACHE.find((o) => String(o.id) === String(assignment.orderId));
+  const details = order ? parseOrderDetails(order) : assignment.details || {};
+  const card = document.createElement("article");
+  card.className = "assignment";
+  const title = document.createElement("strong");
+  title.textContent = details.reference || order?.customer_name || `Order #${assignment.orderId}`;
+  card.appendChild(title);
+  const customer = document.createElement("div");
+  customer.textContent = order?.customer_name || assignment.customer || "";
+  card.appendChild(customer);
+  const route = document.createElement("div");
+  route.className = "truck-meta";
+  route.textContent = `${formatStop(details.pickup)} → ${formatStop(details.delivery)}`;
+  card.appendChild(route);
+  const cargoText = formatCargo(details.cargo);
+  if (cargoText && cargoText !== "-"){
+    const cargo = document.createElement("div");
+    cargo.className = "truck-meta";
+    cargo.textContent = cargoText;
+    card.appendChild(cargo);
+  }
+  if (assignment.slot){
+    const slot = document.createElement("span");
+    slot.className = "tag";
+    slot.textContent = assignment.slot;
+    card.appendChild(slot);
+  }
+  const actions = document.createElement("div");
+  actions.className = "assignment-actions";
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "btn ghost small";
+  removeBtn.type = "button";
+  removeBtn.textContent = "Verwijderen";
+  removeBtn.addEventListener("click", () => removeAssignment(date, truck.id, assignment.orderId));
+  actions.appendChild(removeBtn);
+  card.appendChild(actions);
+  if (details.instructions){
+    card.title = details.instructions;
+  }
+  makeDraggable(card, {
+    orderId: assignment.orderId,
+    fromTruckId: truck.id,
+    date,
+  });
+  return card;
+}
+
+function makeDraggable(element, context){
+  if (!element) return;
+  element.setAttribute("draggable", "true");
+  element.addEventListener("dragstart", (event) => {
+    DRAG_CONTEXT = { ...context };
+    element.classList.add("is-dragging");
+    if (event.dataTransfer){
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(context.orderId));
+    }
+  });
+  element.addEventListener("dragend", () => {
+    element.classList.remove("is-dragging");
+    DRAG_CONTEXT = null;
+  });
+}
+
+function registerDropZone(element, target){
+  if (!element) return;
+  element.addEventListener("dragenter", (event) => {
+    if (!DRAG_CONTEXT) return;
+    if (!isDropAllowed(target)) return;
+    event.preventDefault();
+    element.classList.add("is-drop-target");
+  });
+  element.addEventListener("dragover", (event) => {
+    if (!DRAG_CONTEXT) return;
+    if (!isDropAllowed(target)) return;
+    event.preventDefault();
+    if (event.dataTransfer){
+      event.dataTransfer.dropEffect = "move";
+    }
+  });
+  element.addEventListener("dragleave", () => {
+    element.classList.remove("is-drop-target");
+  });
+  element.addEventListener("drop", async (event) => {
+    if (!DRAG_CONTEXT) return;
+    if (!isDropAllowed(target)) return;
+    event.preventDefault();
+    element.classList.remove("is-drop-target");
+    await handleDrop(target);
+  });
+}
+
+function isDropAllowed(target){
+  if (!DRAG_CONTEXT) return false;
+  const boardDate = ensureBoardDate();
+  return !target.date || target.date === boardDate;
+}
+
+async function handleDrop(target){
+  if (!DRAG_CONTEXT) return;
+  const boardDate = ensureBoardDate();
+  const { orderId, fromTruckId } = DRAG_CONTEXT;
+  if (target.type === "backlog"){
+    if (!fromTruckId) return;
+    detachAssignment(boardDate, fromTruckId, orderId);
+    savePlanBoard();
+    renderPlanBoard();
+    setStatus(els.boardStatus, "Transport teruggezet naar ongepland.", "success");
+    try {
+      await Orders.update(orderId, {
+        status: "Te plannen",
+        assigned_carrier: null,
+        planned_date: null,
+        planned_slot: null,
+        updated_at: new Date().toISOString(),
+      });
+      await loadOrders();
+    } catch (e) {
+      console.error(e);
+      setStatus(els.boardStatus, "Terugzetten gelukt, maar synchronisatie mislukt.", "error");
+    }
     return;
   }
-  const truckId = els.boardTruck.value;
-  const orderValue = els.boardOrder.value;
-  if (!truckId || !orderValue){
-    setStatus(els.boardStatus, "Kies zowel een vrachtwagen als een transport.", "error");
+  if (target.type !== "truck") return;
+  const truck = TRUCKS.find((t) => String(t.id) === String(target.truckId));
+  if (!truck){
+    setStatus(els.boardStatus, "Onbekende vrachtwagen.", "error");
     return;
   }
-  const truck = TRUCKS.find(t => t.id === truckId);
-  const order = ORDERS_CACHE.find(o => String(o.id) === String(orderValue));
-  if (!truck || !order){
-    setStatus(els.boardStatus, "Onbekende selectie.", "error");
+  const order = ORDERS_CACHE.find((o) => String(o.id) === String(orderId));
+  if (!order){
+    setStatus(els.boardStatus, "Transport niet gevonden.", "error");
     return;
   }
-  const orderId = order.id;
-  const date = els.boardDate.value;
-  if (!PLAN_BOARD[date]) PLAN_BOARD[date] = {};
-  if (!PLAN_BOARD[date][truckId]) PLAN_BOARD[date][truckId] = [];
-  if (PLAN_BOARD[date][truckId].some(a => String(a.orderId) === String(orderId))){
-    setStatus(els.boardStatus, "Transport staat al ingepland op deze vrachtwagen.", "error");
-    return;
-  }
-  if (truck.capacity && PLAN_BOARD[date][truckId].length >= truck.capacity){
+  const dayData = PLAN_BOARD[boardDate] || {};
+  const assignments = dayData[truck.id] || [];
+  const existing = assignments.find((a) => String(a.orderId) === String(orderId));
+  const capacityValue = Number.isFinite(truck.capacity) ? Number(truck.capacity) : null;
+  if (!existing && capacityValue && assignments.length >= capacityValue){
     setStatus(els.boardStatus, `${truck.name} heeft de maximale capaciteit bereikt.`, "error");
+    renderPlanBoard();
+    return;
+  }
+  if (fromTruckId && fromTruckId === truck.id){
     return;
   }
   const details = parseOrderDetails(order);
-  PLAN_BOARD[date][truckId].push({
-    orderId,
-    reference: details.reference || order.customer_name,
-    customer: order.customer_name,
-    slot: els.boardSlot ? (els.boardSlot.value || null) : null,
-    details
-  });
+  if (!PLAN_BOARD[boardDate]) PLAN_BOARD[boardDate] = {};
+  if (!PLAN_BOARD[boardDate][truck.id]) PLAN_BOARD[boardDate][truck.id] = [];
+  if (existing){
+    Object.assign(existing, {
+      reference: details.reference || order.customer_name,
+      customer: order.customer_name,
+      slot: order.planned_slot || null,
+      details,
+    });
+  } else {
+    PLAN_BOARD[boardDate][truck.id].push({
+      orderId,
+      reference: details.reference || order.customer_name,
+      customer: order.customer_name,
+      slot: order.planned_slot || null,
+      details,
+    });
+  }
+  if (fromTruckId && fromTruckId !== truck.id){
+    detachAssignment(boardDate, fromTruckId, orderId);
+  }
   savePlanBoard();
-  setStatus(els.boardStatus, `Transport toegewezen aan ${truck.name}.`, "success");
-  if (els.boardOrder) els.boardOrder.value = "";
   renderPlanBoard();
+  setStatus(els.boardStatus, `Transport toegewezen aan ${truck.name}.`, "success");
   try {
     await Orders.update(orderId, {
       status: "Gepland",
       assigned_carrier: truck.name,
-      planned_date: date,
-      planned_slot: els.boardSlot ? (els.boardSlot.value || null) : null,
-      updated_at: new Date().toISOString()
+      planned_date: boardDate,
+      planned_slot: order.planned_slot || null,
+      updated_at: new Date().toISOString(),
     });
     await loadOrders();
   } catch (e) {
@@ -850,18 +1093,14 @@ async function assignOrderToTruck(){
   }
 }
 
-async function removeAssignment(date, truckId, orderId){
-  if (!PLAN_BOARD[date] || !PLAN_BOARD[date][truckId]) return;
-  PLAN_BOARD[date][truckId] = PLAN_BOARD[date][truckId].filter(a => a.orderId !== orderId);
-  if (!PLAN_BOARD[date][truckId].length){
-    delete PLAN_BOARD[date][truckId];
-  }
-  if (!Object.keys(PLAN_BOARD[date]).length){
-    delete PLAN_BOARD[date];
-  }
+async function removeAssignment(date, truckId, orderId, options = {}){
+  const removed = detachAssignment(date, truckId, orderId);
+  if (!removed) return;
   savePlanBoard();
-  renderPlanBoard();
-  setStatus(els.boardStatus, "Transport verwijderd uit planning.", "success");
+  if (!options.silent){
+    renderPlanBoard();
+    setStatus(els.boardStatus, "Transport verwijderd uit planning.", "success");
+  }
   try {
     await Orders.update(orderId, {
       status: "Te plannen",
@@ -873,7 +1112,9 @@ async function removeAssignment(date, truckId, orderId){
     await loadOrders();
   } catch (e) {
     console.error(e);
-    setStatus(els.boardStatus, "Planning lokaal bijgewerkt, maar synchronisatie mislukte.", "error");
+    if (!options.silent){
+      setStatus(els.boardStatus, "Planning lokaal bijgewerkt, maar synchronisatie mislukte.", "error");
+    }
   }
 }
 
@@ -1005,10 +1246,12 @@ function bind(canManagePlanning){
     els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
   }
   bindClick(els.btnAddTruck, addTruck);
-  bindClick(els.btnAssignOrder, assignOrderToTruck, canManagePlanning);
   bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
   if (els.boardDate) {
     els.boardDate.addEventListener("change", () => { renderPlanBoard(); });
+  }
+  if (els.boardRegion) {
+    els.boardRegion.addEventListener("change", () => { renderPlanBoard(); });
   }
 }
 
@@ -1028,7 +1271,6 @@ function bind(canManagePlanning){
     els.ordersTable ||
     els.btnReload ||
     els.btnApplyFilters ||
-    els.btnAssignOrder ||
     els.btnSuggestPlan ||
     els.dlg
   );
