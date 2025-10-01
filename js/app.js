@@ -180,7 +180,7 @@ function canUserEditOrder(order, user = getCurrentUser()) {
 
 function hydrateLocalState() {
   TRUCKS = storageGet(STORAGE_KEYS.trucks, []);
-  PLAN_BOARD = storageGet(STORAGE_KEYS.board, {});
+  PLAN_BOARD = sanitizePlanBoard(storageGet(STORAGE_KEYS.board, {}));
 }
 
 function saveTrucks() {
@@ -188,6 +188,7 @@ function saveTrucks() {
 }
 
 function savePlanBoard() {
+  PLAN_BOARD = sanitizePlanBoard(PLAN_BOARD);
   storageSet(STORAGE_KEYS.board, PLAN_BOARD);
 }
 
@@ -233,6 +234,53 @@ function joinNonEmpty(values, separator = " • ") {
     }
   }
   return normalized.join(separator);
+}
+
+function sanitizePlanBoard(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const safeBoard = {};
+  for (const [date, trucks] of Object.entries(value)) {
+    if (!trucks || typeof trucks !== "object") {
+      continue;
+    }
+    const safeTrucks = {};
+    for (const [truckId, assignments] of Object.entries(trucks)) {
+      if (!Array.isArray(assignments)) {
+        continue;
+      }
+      const cleanedAssignments = assignments
+        .map((assignment) => {
+          if (!assignment || typeof assignment !== "object") {
+            return null;
+          }
+          const orderId =
+            assignment.orderId ?? assignment.order_id ?? assignment.id ?? null;
+          if (orderId === undefined || orderId === null) {
+            return null;
+          }
+          const normalized = {
+            orderId,
+            reference: cleanText(assignment.reference) || null,
+            customer: cleanText(assignment.customer) || null,
+            slot: cleanText(assignment.slot) || null,
+          };
+          if (assignment.details && typeof assignment.details === "object") {
+            normalized.details = assignment.details;
+          }
+          return normalized;
+        })
+        .filter(Boolean);
+      if (cleanedAssignments.length) {
+        safeTrucks[truckId] = cleanedAssignments;
+      }
+    }
+    if (Object.keys(safeTrucks).length) {
+      safeBoard[date] = safeTrucks;
+    }
+  }
+  return safeBoard;
 }
 
 function buildTimeSlot(from, to, fallback = null) {
@@ -1344,15 +1392,26 @@ async function removeTruck(id){
   const truck = TRUCKS.find(t => t.id === id);
   TRUCKS = TRUCKS.filter(t => t.id !== id);
   saveTrucks();
+  let boardChanged = false;
   for (const date of Object.keys(PLAN_BOARD)){
-    if (PLAN_BOARD[date][id]){
-      delete PLAN_BOARD[date][id];
-      if (!Object.keys(PLAN_BOARD[date]).length){
-        delete PLAN_BOARD[date];
-      }
+    const trucksForDay = PLAN_BOARD[date];
+    if (!trucksForDay || typeof trucksForDay !== "object") {
+      delete PLAN_BOARD[date];
+      boardChanged = true;
+      continue;
+    }
+    if (!trucksForDay[id]){
+      continue;
+    }
+    delete trucksForDay[id];
+    boardChanged = true;
+    if (!Object.keys(trucksForDay).length){
+      delete PLAN_BOARD[date];
     }
   }
-  savePlanBoard();
+  if (boardChanged){
+    savePlanBoard();
+  }
   renderTrucks();
   setStatus(els.boardStatus, truck ? `Planning voor ${truck.name} verwijderd.` : "Vrachtwagen verwijderd.");
   await loadOrders();
@@ -1362,8 +1421,16 @@ function syncPlanBoardFromOrders(){
   let changed = false;
   const cleaned = {};
   for (const [date, trucks] of Object.entries(PLAN_BOARD)){
+    if (!trucks || typeof trucks !== "object") {
+      changed = true;
+      continue;
+    }
     const newTrucks = {};
     for (const [truckId, assignments] of Object.entries(trucks)){
+      if (!Array.isArray(assignments)) {
+        changed = true;
+        continue;
+      }
       const truck = TRUCKS.find(t => t.id === truckId);
       if (!truck) {
         changed = true;
