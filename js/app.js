@@ -201,45 +201,147 @@ function renderOrdersPlaceholder(message, className = "muted") {
   tbody.appendChild(tr);
 }
 
+function cleanText(value) {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text.length ? text : null;
+}
+
+function normalizeStop(stop) {
+  if (!stop || typeof stop === "boolean") {
+    return { location: null, date: null, slot: null };
+  }
+  if (typeof stop === "string") {
+    return {
+      location: cleanText(stop),
+      date: null,
+      slot: null,
+    };
+  }
+  if (typeof stop !== "object") {
+    return { location: null, date: null, slot: null };
+  }
+  return {
+    location: stop.location ?? null,
+    date: stop.date ?? null,
+    slot: stop.slot ?? null,
+  };
+}
+
+function mergeStops(target, source) {
+  const base = normalizeStop(target);
+  const incoming = normalizeStop(source);
+  return {
+    location: base.location || incoming.location || null,
+    date: base.date || incoming.date || null,
+    slot: base.slot || incoming.slot || null,
+  };
+}
+
+function normalizeCargo(cargo) {
+  if (!cargo || typeof cargo === "boolean") {
+    return { type: null, pallets: null, weight: null, volume: null };
+  }
+  if (typeof cargo === "string") {
+    return {
+      type: cleanText(cargo),
+      pallets: null,
+      weight: null,
+      volume: null,
+    };
+  }
+  if (typeof cargo !== "object") {
+    return { type: null, pallets: null, weight: null, volume: null };
+  }
+  return {
+    type: cargo.type ?? null,
+    pallets: cargo.pallets ?? null,
+    weight: cargo.weight ?? null,
+    volume: cargo.volume ?? null,
+  };
+}
+
+function mergeCargo(target, source) {
+  const base = normalizeCargo(target);
+  const incoming = normalizeCargo(source);
+  return {
+    type: base.type || incoming.type || null,
+    pallets: base.pallets ?? incoming.pallets ?? null,
+    weight: base.weight ?? incoming.weight ?? null,
+    volume: base.volume ?? incoming.volume ?? null,
+  };
+}
+
 function parseOrderDetails(order) {
-  const base = {
+  const details = {
     reference: null,
-    pickup: null,
-    delivery: null,
-    cargo: {},
+    pickup: normalizeStop(null),
+    delivery: normalizeStop(null),
+    cargo: normalizeCargo(null),
     instructions: null,
     contact: null,
   };
-  if (!order) return base;
+  if (!order) return details;
+
+  details.reference = cleanText(order.reference);
+  details.pickup = normalizeStop({
+    location: cleanText(order.pickup_location),
+    date: order.pickup_date ?? null,
+    slot: cleanText(order.pickup_slot),
+  });
+  details.delivery = normalizeStop({
+    location: cleanText(order.delivery_location),
+    date: order.delivery_date ?? order.due_date ?? null,
+    slot: cleanText(order.delivery_slot),
+  });
+  details.cargo = normalizeCargo({
+    type: cleanText(order.cargo_type ?? order.load_type),
+    pallets: order.pallets ?? order.cargo_pallets ?? null,
+    weight: order.weight_kg ?? order.cargo_weight ?? null,
+    volume: order.volume_m3 ?? order.cargo_volume ?? null,
+  });
+  details.instructions = cleanText(order.instructions);
+  details.contact = cleanText(order.customer_contact ?? order.contact);
+
   const raw = order.notes;
   if (raw && typeof raw === "string" && raw.startsWith("JSON:")) {
     try {
       const parsed = JSON.parse(raw.slice(5));
-      Object.assign(base, {
-        reference: parsed.reference ?? null,
-        pickup: parsed.pickup ?? null,
-        delivery: parsed.delivery ?? null,
-        cargo: parsed.cargo ?? {},
-        instructions: parsed.instructions ?? null,
-        contact: parsed.contact ?? null,
-      });
+      if (!details.reference && parsed.reference) {
+        details.reference = cleanText(parsed.reference);
+      }
+      details.pickup = mergeStops(details.pickup, parsed.pickup);
+      details.delivery = mergeStops(details.delivery, parsed.delivery);
+      details.cargo = mergeCargo(details.cargo, parsed.cargo);
+      if (!details.instructions && parsed.instructions) {
+        details.instructions = cleanText(parsed.instructions);
+      }
+      if (!details.contact && parsed.contact) {
+        details.contact = cleanText(parsed.contact);
+      }
     } catch (e) {
       console.warn("Kan orderdetails niet parsen", e);
-      base.instructions = raw;
+      if (!details.instructions) {
+        details.instructions = cleanText(raw);
+      }
     }
-  } else if (raw) {
-    base.instructions = raw;
+  } else if (!details.instructions && raw) {
+    details.instructions = cleanText(raw);
   }
-  if (!base.pickup && order.customer_city) {
-    base.pickup = { location: order.customer_city };
+
+  if ((!details.pickup.location || !details.delivery.location) && order.customer_city) {
+    const fallback = { location: cleanText(order.customer_city), date: null, slot: null };
+    if (!details.pickup.location) {
+      details.pickup = mergeStops(details.pickup, fallback);
+    }
+    if (!details.delivery.location) {
+      details.delivery = mergeStops(details.delivery, fallback);
+    }
   }
-  if (!base.delivery && order.customer_city) {
-    base.delivery = { location: order.customer_city };
+  if (!details.contact && order.created_by_name) {
+    details.contact = cleanText(order.created_by_name);
   }
-  if (!base.contact && order.customer_contact) {
-    base.contact = order.customer_contact;
-  }
-  return base;
+  return details;
 }
 
 function formatStop(stop) {
@@ -687,26 +789,28 @@ function readNumber(value) {
 }
 
 function buildOrderDetails() {
+  const palletsRaw = els.oPallets.value ? parseInt(els.oPallets.value, 10) : null;
+  const pallets = Number.isFinite(palletsRaw) ? palletsRaw : null;
   return {
-    reference: els.oReference.value.trim() || null,
+    reference: cleanText(els.oReference.value),
     pickup: {
-      location: els.oPickupLocation.value.trim() || null,
+      location: cleanText(els.oPickupLocation.value),
       date: els.oPickupDate.value || null,
-      slot: els.oPickupSlot.value || null,
+      slot: cleanText(els.oPickupSlot.value),
     },
     delivery: {
-      location: els.oDeliveryLocation.value.trim() || null,
+      location: cleanText(els.oDeliveryLocation.value),
       date: els.oDeliveryDate.value || els.oDue.value || null,
-      slot: els.oDeliverySlot.value || null,
+      slot: cleanText(els.oDeliverySlot.value),
     },
     cargo: {
-      type: els.oLoadType.value || null,
-      pallets: els.oPallets.value ? parseInt(els.oPallets.value, 10) : null,
+      type: cleanText(els.oLoadType.value),
+      pallets,
       weight: readNumber(els.oWeight.value),
       volume: readNumber(els.oVolume.value),
     },
-    contact: els.oContact.value.trim() || null,
-    instructions: els.oNotes.value.trim() || null,
+    contact: cleanText(els.oContact.value),
+    instructions: cleanText(els.oNotes.value),
   };
 }
 
@@ -733,7 +837,7 @@ function resetOrderForm(){
 async function createOrder(){
   if (!els.oCustomer || !els.oRegion) return;
   const user = getCurrentUser();
-  const customerName = els.oCustomer.value.trim();
+  const customerName = cleanText(els.oCustomer.value);
   if (!customerName) {
     setStatus(els.createStatus, "Vul de klantnaam in.", "error");
     return;
@@ -741,15 +845,33 @@ async function createOrder(){
   setStatus(els.createStatus, "Bezig…");
   try {
     const details = buildOrderDetails();
+    const priorityRaw = parseInt(els.oPriority.value || "", 10);
     const order = {
+      reference: details.reference,
       customer_name: customerName,
-      customer_city: els.oCity.value.trim(),
-      region: els.oRegion.value,
-      priority: parseInt(els.oPriority.value || "3", 10),
-      due_date: details.delivery?.date || els.oDue.value || null,
-      notes: "JSON:" + JSON.stringify(details),
+      customer_city: cleanText(els.oCity.value),
+      customer_contact: details.contact,
+      region: cleanText(els.oRegion.value),
+      priority: Number.isFinite(priorityRaw) ? priorityRaw : 3,
       status: "Nieuw",
+      due_date: details.delivery?.date || els.oDue.value || null,
+      pickup_location: details.pickup?.location || null,
+      pickup_date: details.pickup?.date || null,
+      pickup_slot: details.pickup?.slot || null,
+      delivery_location: details.delivery?.location || null,
+      delivery_date: details.delivery?.date || null,
+      delivery_slot: details.delivery?.slot || null,
+      load_type: details.cargo?.type || null,
+      cargo_type: details.cargo?.type || null,
+      pallets: details.cargo?.pallets ?? null,
+      weight_kg: details.cargo?.weight ?? null,
+      volume_m3: details.cargo?.volume ?? null,
+      instructions: details.instructions || null,
+      notes: details.instructions || null,
     };
+    if (!order.due_date && order.delivery_date) {
+      order.due_date = order.delivery_date;
+    }
     const userId = user?.id ?? user?.user_id ?? null;
     if (userId !== null && userId !== undefined) {
       order.created_by = userId;
