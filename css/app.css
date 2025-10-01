@@ -1,0 +1,39 @@
+:root{
+  --brand:#8B1538;
+  --bg:#f7f6f9;
+  --card:#fff;
+  --line:#e8e7ee;
+  --text:#21222c;
+  --muted:#6b6f7b;
+}
+*{box-sizing:border-box}
+body{margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text)}
+.header{display:flex; gap:16px; align-items:center; padding:12px 16px; background:var(--brand); color:#fff; position:sticky; top:0; z-index:10}
+.header h1{font-size:18px; margin:0 8px 0 0; font-weight:600}
+.nav{display:flex; gap:8px; flex-wrap:wrap}
+.tab{appearance:none; border:none; background:rgba(255,255,255,.12); color:#fff; padding:8px 10px; border-radius:10px; cursor:pointer}
+.tab.active{background:#fff; color:var(--brand); font-weight:600}
+main{max-width:1200px; margin:16px auto; padding:0 16px}
+.view{display:none}
+.view.active{display:block}
+.card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; box-shadow:0 6px 18px rgba(10,10,20,.04)}
+.grid{display:grid; gap:12px}
+.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:900px){ .cols-2,.cols-3{grid-template-columns:1fr} }
+label{display:block; font-size:.9rem; color:var(--muted); margin:6px 0 4px}
+input, select, textarea{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff}
+.btn{appearance:none; border:1px solid var(--line); background:#fff; padding:8px 12px; border-radius:10px; cursor:pointer}
+.btn.primary{background:var(--brand); color:#fff; border-color:var(--brand)}
+.table-wrap{overflow:auto; border:1px solid var(--line); border-radius:12px}
+table{width:100%; border-collapse:collapse}
+th,td{padding:10px; border-bottom:1px solid var(--line); text-align:left}
+th{background:#faf9fb; position:sticky; top:0}
+.kpis{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px}
+.kpi{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px}
+.kpi .label{color:var(--muted); font-size:.9rem}
+.kpi .value{font-size:1.4rem; font-weight:700; margin-top:6px}
+.footer{max-width:1200px; margin:14px auto; padding:0 16px 20px; color:var(--muted)}
+.order-card{padding:8px; border:1px dashed #cfd2da; border-radius:10px; background:#fff; margin:6px 0; cursor:grab}
+#routeMap{height:60vh; width:100%; border-radius:12px; border:1px solid var(--line)}
+.badge{display:inline-block; padding:4px 8px; border-radius:999px; background:#f0eef3; font-size:.85rem}
