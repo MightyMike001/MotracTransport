@@ -14,8 +14,29 @@ const SB_HEADERS = {
   "Authorization": "Bearer " + SUPABASE_ANON_KEY
 };
 
-async function sbSelect(table, query="") {
-  const r = await fetch(`${SUPABASE_URL}/${table}${query}`, { headers: SB_HEADERS });
+function buildSelectQuery(query = "") {
+  const trimmed = (query || "").trim();
+  if (!trimmed) {
+    return "?select=*";
+  }
+
+  const withoutPrefix = trimmed.startsWith("?") ? trimmed.slice(1) : trimmed;
+  if (!withoutPrefix.length) {
+    return "?select=*";
+  }
+
+  const parts = withoutPrefix.split("&").filter(Boolean);
+  const hasSelect = parts.some((part) => part.toLowerCase().startsWith("select="));
+  if (!hasSelect) {
+    parts.unshift("select=*");
+  }
+
+  return `?${parts.join("&")}`;
+}
+
+async function sbSelect(table, query = "") {
+  const normalizedQuery = buildSelectQuery(query);
+  const r = await fetch(`${SUPABASE_URL}/${table}${normalizedQuery}`, { headers: SB_HEADERS });
   const data = await r.json();
   if (!r.ok) throw new Error(JSON.stringify(data));
   return data;
