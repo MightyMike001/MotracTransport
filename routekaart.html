@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transportplanner — Routekaart</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-o9N1j7kGIC3NFZC0wE3VbZ8MaqkFkIB+3q4l9XELyXA="
+    crossorigin=""
+  />
+</head>
+<body data-require-auth="true" data-require-role="planner,admin">
+  <header class="site-header">
+    <h1>Transportplanner</h1>
+    <div class="sub">Visualiseer geplande ritten en optimaliseer routes per vrachtwagen.</div>
+    <div class="header-actions">
+      <nav class="main-nav">
+        <a href="index.html">Start</a>
+        <a href="aanvraag.html">Nieuwe aanvraag</a>
+        <a href="orders.html">Orders</a>
+        <a href="planning.html" data-role-visible="planner,admin">Planning</a>
+        <a href="routekaart.html" class="active" data-role-visible="planner,admin">Routekaart</a>
+        <a href="vloot.html" data-role-visible="admin">Vloot &amp; carriers</a>
+        <a href="users.html" class="nav-users" data-role-visible="admin">Gebruikers</a>
+      </nav>
+      <div class="auth-area" id="authArea"></div>
+    </div>
+  </header>
+
+  <main class="page route-page">
+    <section class="card route-card">
+      <div class="bar">
+        <h2>Kaart en route-optimalisatie</h2>
+        <div class="muted small">Selecteer een dag en bekijk hubs, opdrachten en routes per voertuig.</div>
+      </div>
+      <div class="route-controls">
+        <label>Dag
+          <input type="date" id="routesDate" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="toggleShowRoutes" checked /> Toon routes
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="toggleOptimize" /> Optimaliseer volgorde
+        </label>
+        <button class="btn" id="btnRebuildRoutes">Herbereken</button>
+        <button class="btn ghost" id="btnResetView">Reset view</button>
+        <button class="btn ghost" id="btnPrintRoutes">Print / export</button>
+      </div>
+      <div id="routesStatus" class="status" role="status"></div>
+      <div id="routesMap" class="map-container" role="region" aria-label="Routekaart"></div>
+      <div class="route-summary" id="routesSummary"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-vYOQwY7Se7m0d9H9O8ndbWgP0iUGbm0M9EJ4tgiJT0A=" crossorigin=""></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/routes.js"></script>
+</body>
+</html>

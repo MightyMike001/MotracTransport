@@ -488,54 +488,269 @@ dialog::backdrop {
   color: var(--color-muted);
 }
 
-.board-controls label {
-  margin-top: 0;
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.board-actions {
+.plan-bar {
   display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-top: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.board-grid {
-  margin-top: 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 18px;
-}
-
-.truck-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  background: var(--color-surface);
+.plan-bar-text {
+  max-width: 520px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  box-shadow: var(--shadow-sm);
+  gap: 6px;
 }
 
-.truck-card header {
+.plan-controls {
   display: flex;
-  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.plan-controls label {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.plan-controls input,
+.plan-controls select {
+  min-width: 180px;
+}
+
+.board-status-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.board-status-row .status {
+  flex: 1;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.plan-lane {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.plan-lane.lane-unplanned {
+  background: linear-gradient(180deg, rgba(226, 0, 26, 0.05), rgba(226, 0, 26, 0.02));
+  border-style: dashed;
+}
+
+.lane-header {
+  display: flex;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lane-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.lane-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.lane-count {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.capacity-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.capacity-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.capacity-bar {
+  width: 120px;
+  height: 8px;
+  background: var(--color-background);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.capacity-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.capacity-fill.is-warning {
+  background: #F29F05;
+}
+
+.capacity-fill.is-critical {
+  background: var(--color-error);
+}
+
+.lane-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 140px;
+  padding: 6px 0 8px;
+}
+
+.lane-body.is-drop-target,
+.lane-body.is-drop-target::before {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: 4px;
+}
+
+.lane-body .empty-hint {
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+  padding: 14px;
+  text-align: center;
 }
 
 .assignment {
   padding: 12px;
   border-radius: var(--radius-sm);
-  background: #fafafa;
+  background: #ffffff;
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  cursor: grab;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .assignment strong {
   font-size: 14px;
+}
+
+.assignment.is-unplanned {
+  background: rgba(226, 0, 26, 0.04);
+}
+
+.assignment.is-dragging {
+  opacity: 0.6;
+  box-shadow: var(--shadow-sm);
+  cursor: grabbing;
+}
+
+.assignment-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.route-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.route-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.route-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.route-controls .checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-container {
+  width: 100%;
+  height: 520px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.route-summary {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.route-summary-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.route-summary-card.unplanned {
+  border-style: dashed;
+  background: rgba(111, 111, 111, 0.08);
+}
+
+.route-summary-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-summary-card h3 {
+  margin: 0;
+}
+
+.route-summary-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .badge {
