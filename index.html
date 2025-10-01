@@ -1,118 +1,35 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Motrac Transport App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
-    <link rel="stylesheet" href="src/css/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Transport Planning App – Modules</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/app.css">
 </head>
-<body class="antialiased text-gray-800">
-    
-    <div id="login-container" class="min-h-screen flex items-center justify-center w-full">
-        <div class="bg-white p-8 rounded-lg shadow-lg text-center w-full max-w-sm">
-            <i data-lucide="truck" class="w-16 h-16 motrac-blue-text mx-auto mb-4"></i>
-            <h1 class="text-2xl font-bold text-gray-700 mb-6">Transport App Login</h1>
-            <form id="login-form">
-                <div class="space-y-4">
-                    <input type="email" id="login-email" placeholder="E-mailadres" required class="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" value="mike@motrac.nl">
-                    <input type="password" id="login-password" placeholder="Wachtwoord" required class="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" value="admin">
-                </div>
-                <p id="login-error" class="text-red-500 text-sm mt-4 h-5"></p>
-                <button type="submit" class="w-full motrac-blue text-white font-bold py-3 px-4 rounded-lg mt-4 hover:opacity-90 transition-opacity flex justify-center items-center min-h-[50px]">Inloggen</button>
-            </form>
-        </div>
-    </div>
+<body>
+  <header class="header">
+    <h1>Transport Planning</h1>
+    <nav class="nav">
+      <button data-view="dashboard" class="tab active">Dashboard</button>
+      <button data-view="orders" class="tab">Orders</button>
+      <button data-view="planning" class="tab">Planning</button>
+      <button data-view="map" class="tab">Kaart</button>
+    </nav>
+  </header>
 
-    <div id="app" class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 hidden">
+  <main id="app">
+    <section id="view-dashboard" class="view active"></section>
+    <section id="view-orders" class="view"></section>
+    <section id="view-planning" class="view"></section>
+    <section id="view-map" class="view"></section>
+  </main>
 
-        <!-- Header -->
-        <header class="flex justify-between items-center mb-6 pb-4 border-b no-print">
-            <div class="flex items-center space-x-4">
-                <i data-lucide="truck" class="w-10 h-10 motrac-blue-text"></i>
-                <h1 class="text-2xl md:text-3xl font-bold text-gray-700">Transport App</h1>
-            </div>
-            <div class="flex items-center space-x-2">
-                <span id="loggedInUser" class="text-sm hidden sm:inline mr-2"></span>
-                <div class="relative">
-                    <button id="bell-button" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="bell"></i></button>
-                    <div id="bell-dropdown" class="origin-top-right absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10"><div class="py-1"><div class="px-4 py-2 text-sm text-gray-700 font-semibold border-b">Notificaties</div><a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Transport TR-00124 is ingepland.</a></div></div>
-                </div>
-                <div class="relative">
-                    <button id="user-button" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="user-circle"></i></button>
-                    <div id="user-dropdown" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-10"><div class="py-1" role="menu"><a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Mijn Profiel</a><a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Instellingen</a><div class="border-t my-1"></div><a href="#" id="logout-button" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100" role="menuitem">Uitloggen</a></div></div>
-                </div>
-            </div>
-        </header>
+  <footer class="footer">
+    <small>Offline demo (localStorage). Kaart gebruikt OpenStreetMap.</small>
+  </footer>
 
-        <!-- Main Content -->
-        <main class="no-print">
-            <div class="flex border-b border-gray-200 mb-6">
-                <button id="tab-user" class="py-2 px-4 text-sm font-medium text-gray-500 hover:text-gray-700 main-tab">Gebruikersportaal</button>
-                <button id="tab-planner" class="py-2 px-4 text-sm font-medium text-gray-500 hover:text-gray-700 main-tab">Plannersportaal</button>
-                <button id="tab-admin" class="py-2 px-4 text-sm font-medium text-gray-500 hover:text-gray-700 main-tab">Adminportaal</button>
-            </div>
-            <div id="view-user" class="view-section"><!-- User View Content --></div>
-            <div id="view-planner" class="view-section"><!-- Planner View Content --></div>
-            <div id="view-admin" class="view-section"><!-- Admin View Content --></div>
-        </main>
-    </div>
-    
-    <!-- Modals -->
-    <div id="user-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center hidden z-50 no-print">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 id="user-modal-title" class="text-lg font-medium text-gray-900 mb-4">Gebruiker</h3>
-            <form id="user-form">
-                <input type="hidden" id="userId">
-                <div class="space-y-4">
-                    <div><label for="userName" class="block text-sm font-medium">Naam</label><input type="text" id="userName" required class="mt-1 w-full p-2 border rounded-md"></div>
-                    <div><label for="userEmail" class="block text-sm font-medium">Email</label><input type="email" id="userEmail" required class="mt-1 w-full p-2 border rounded-md"></div>
-                    <div>
-                        <label for="userPassword" class="block text-sm font-medium">Wachtwoord</label>
-                        <input type="password" id="userPassword" class="mt-1 w-full p-2 border rounded-md" placeholder="Laat leeg om niet te wijzigen">
-                    </div>
-                    <div><label for="userRole" class="block text-sm font-medium">Rol</label><select id="userRole" class="mt-1 w-full p-2 border rounded-md"><option>Gebruiker</option><option>Planner</option><option>Admin</option></select></div>
-                </div>
-                <div class="flex justify-end space-x-3 mt-6"><button type="button" data-action="close-modal" class="bg-gray-200 px-4 py-2 rounded-md">Annuleren</button><button type="submit" class="motrac-blue text-white px-4 py-2 rounded-md">Opslaan</button></div>
-            </form>
-        </div>
-    </div>
-    
-    <div id="truck-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center hidden z-50 no-print">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 id="truck-modal-title" class="text-lg font-medium text-gray-900 mb-4">Vrachtwagen</h3>
-            <form id="truck-form">
-                <input type="hidden" id="truckId">
-                <div class="space-y-4">
-                    <div><label for="truckDriver" class="block text-sm font-medium">Chauffeur</label><input type="text" id="truckDriver" required class="mt-1 w-full p-2 border rounded-md"></div>
-                    <div><label for="truckCapacity" class="block text-sm font-medium">Capaciteit (objecten)</label><input type="number" id="truckCapacity" required class="mt-1 w-full p-2 border rounded-md"></div>
-                </div>
-                <div class="flex justify-end space-x-3 mt-6"><button type="button" data-action="close-modal" class="bg-gray-200 px-4 py-2 rounded-md">Annuleren</button><button type="submit" class="motrac-blue text-white px-4 py-2 rounded-md">Opslaan</button></div>
-            </form>
-        </div>
-    </div>
-    
-    <div id="transport-details-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center hidden z-50 no-print">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="transport-details-title" class="text-lg font-medium text-gray-900">Transport Details</h3>
-                <button data-action="close-modal" class="text-gray-400 hover:text-gray-600"><i data-lucide="x"></i></button>
-            </div>
-            <div id="transport-details-content" class="text-sm"></div>
-        </div>
-    </div>
-
-    <div id="printable-area"></div>
-
-    <div id="notification" class="notification no-print"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="src/js/app.js" type="module"></script>
+  <script type="module" src="js/main.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
-
-
