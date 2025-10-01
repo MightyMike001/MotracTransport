@@ -13,6 +13,14 @@ create table if not exists public.app_users (
   created_at timestamptz not null default now()
 );
 
+-- Zorg ervoor dat bestaande databases de uitgebreidere rollenlijst accepteren.
+alter table public.app_users
+  drop constraint if exists app_users_role_check;
+
+alter table public.app_users
+  add constraint app_users_role_check
+  check (role in ('admin', 'planner', 'werknemer', 'in aanvraag'));
+
 comment on table public.app_users is 'Authenticatiegebruikers voor de transportplanner webapplicatie.';
 
 -- Schakel Row Level Security in en maak eenvoudige policies voor de demo.
