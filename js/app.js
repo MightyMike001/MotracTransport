@@ -113,6 +113,38 @@ let ORDERS_CACHE = [];
 let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
 let PLAN_BOARD = {};
+const ORDER_OWNERS = new Map();
+
+function getCurrentUser() {
+  if (window.Auth && typeof window.Auth.getUser === "function") {
+    return window.Auth.getUser();
+  }
+  return null;
+}
+
+function rememberOrderOwners(rows) {
+  ORDER_OWNERS.clear();
+  rows.forEach((row) => {
+    const key = String(row.id);
+    ORDER_OWNERS.set(key, {
+      id: row.created_by ?? null,
+      name: row.created_by_name ?? null,
+    });
+  });
+}
+
+function getOrderOwner(order) {
+  const id = typeof order === "object" ? order?.id : order;
+  if (id === undefined || id === null) return null;
+  return ORDER_OWNERS.get(String(id)) || null;
+}
+
+function canUserEditOrder(order, user = getCurrentUser()) {
+  if (!user || user.role !== "werknemer") return true;
+  const owner = getOrderOwner(order);
+  if (!owner || !owner.id) return true;
+  return String(owner.id) === String(user.id);
+}
 
 function hydrateLocalState() {
   TRUCKS = storageGet(STORAGE_KEYS.trucks, []);
@@ -239,17 +271,28 @@ async function refreshCarriersDatalist() {
 }
 
 async function loadOrders() {
+  const currentUser = getCurrentUser();
   const filters = {
     region: els.filterRegion?.value || undefined,
     status: els.filterStatus?.value || undefined,
   };
+  let createdByFilter;
+  if (currentUser?.role === "werknemer" && currentUser.id) {
+    createdByFilter = currentUser.id;
+    filters.createdBy = createdByFilter;
+  }
   if (els.ordersTable) {
     renderOrdersPlaceholder("Bezig met laden…");
   }
   try {
     const rows = await Orders.list(filters);
-    ORDERS_CACHE = rows;
-    renderOrders(rows);
+    rememberOrderOwners(rows);
+    let filteredRows = rows;
+    if (createdByFilter) {
+      filteredRows = rows.filter((row) => String(row.created_by ?? "") === String(createdByFilter));
+    }
+    ORDERS_CACHE = filteredRows;
+    renderOrders(filteredRows);
     updatePlanBoardSelectors();
     syncPlanBoardFromOrders();
     renderPlanBoard();
@@ -270,6 +313,7 @@ function renderOrders(rows) {
     renderOrdersPlaceholder("Geen orders gevonden");
     return;
   }
+  const currentUser = getCurrentUser();
   for (const r of rows) {
     const details = parseOrderDetails(r);
     const tr = document.createElement("tr");
@@ -277,6 +321,9 @@ function renderOrders(rows) {
     if (details.instructions) tooltip.push(`Instructies: ${details.instructions}`);
     if (details.contact) tooltip.push(`Contact: ${details.contact}`);
     tr.title = tooltip.join("\n");
+    const ownerInfo = getOrderOwner(r);
+    if (ownerInfo?.id) tr.dataset.ownerId = ownerInfo.id;
+    if (ownerInfo?.name) tr.dataset.ownerName = ownerInfo.name;
     tr.innerHTML = `
       <td>${r.due_date ?? details.delivery?.date ?? "-"}</td>
       <td>${details.reference ?? "-"}</td>
@@ -288,13 +335,24 @@ function renderOrders(rows) {
       <td>${r.assigned_carrier ?? "-"}</td>
       <td>${formatPlanned(r)}</td>
     `;
-    tr.addEventListener("click", () => openEdit(r));
+    if (canUserEditOrder(r, currentUser)) {
+      tr.addEventListener("click", () => openEdit(r));
+    } else {
+      tr.classList.add("is-readonly-order");
+    }
     tbody.appendChild(tr);
   }
 }
 
 function openEdit(row){
   if (!els.dlg) return;
+  const user = getCurrentUser();
+  if (user?.role === "werknemer" && !canUserEditOrder(row, user)) {
+    const owner = getOrderOwner(row);
+    const ownerName = owner?.name || "een andere medewerker";
+    window.alert(`Je kunt dit transport niet bewerken. Het is aangemaakt door ${ownerName}.`);
+    return;
+  }
   els.eId.value = row.id;
   els.eStatus.value = row.status || "Nieuw";
   els.eCarrier.value = row.assigned_carrier || "";
@@ -306,6 +364,13 @@ function openEdit(row){
 async function saveEdit(){
   if (!els.eId) return;
   const id = els.eId.value;
+  const user = getCurrentUser();
+  if (user?.role === "werknemer" && !canUserEditOrder({ id }, user)) {
+    const owner = getOrderOwner(id);
+    const ownerName = owner?.name || "een andere medewerker";
+    window.alert(`Je kunt dit transport niet opslaan. Het is aangemaakt door ${ownerName}.`);
+    return;
+  }
   const patch = {
     status: els.eStatus.value,
     assigned_carrier: els.eCarrier.value || null,
@@ -369,6 +434,7 @@ function resetOrderForm(){
 
 async function createOrder(){
   if (!els.oCustomer || !els.oRegion) return;
+  const user = getCurrentUser();
   const customerName = els.oCustomer.value.trim();
   if (!customerName) {
     setStatus(els.createStatus, "Vul de klantnaam in.", "error");
@@ -386,6 +452,10 @@ async function createOrder(){
       notes: "JSON:" + JSON.stringify(details),
       status: "Nieuw",
     };
+    if (user?.id) {
+      order.created_by = user.id;
+      order.created_by_name = user.name || user.email || null;
+    }
     const created = await Orders.create(order);
     if (els.lProduct.value.trim()) {
       await Lines.create({
