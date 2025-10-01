@@ -42,6 +42,11 @@ const els = {
     const table = document.getElementById("ordersTable");
     return table ? table.querySelector("tbody") : null;
   })(),
+  pager: document.getElementById("ordersPager"),
+  pagerInfo: document.getElementById("pagerInfo"),
+  pagerPrev: document.getElementById("pagerPrev"),
+  pagerNext: document.getElementById("pagerNext"),
+  pagerPageSize: document.getElementById("pagerPageSize"),
   dlg: document.getElementById("editDialog"),
   eId: document.getElementById("eId"),
   eStatus: document.getElementById("eStatus"),
@@ -114,6 +119,13 @@ let ORDERS_CACHE = [];
 let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
 let PLAN_BOARD = {};
+const PAGINATION = {
+  currentPage: 1,
+  pageSize: 20,
+  totalItems: 0,
+  totalPages: 1,
+  currentPageCount: 0,
+};
 const ORDER_OWNERS = new Map();
 let DRAG_CONTEXT = null;
 
@@ -274,7 +286,54 @@ async function refreshCarriersDatalist() {
   }
 }
 
-async function loadOrders() {
+async function fetchAllOrderPages(filters, firstPageResult) {
+  const pageSize = Number(firstPageResult?.pageSize);
+  const total = Number(firstPageResult?.total) || 0;
+  if (!pageSize || pageSize <= 0) {
+    return Array.isArray(firstPageResult?.rows) ? firstPageResult.rows : [];
+  }
+  if (total === 0) {
+    return [];
+  }
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) {
+    return Array.isArray(firstPageResult?.rows) ? firstPageResult.rows : [];
+  }
+  const allRows = [];
+  for (let page = 1; page <= totalPages; page += 1) {
+    if (page === Number(firstPageResult?.page)) {
+      if (Array.isArray(firstPageResult?.rows)) {
+        allRows.push(...firstPageResult.rows);
+      }
+      continue;
+    }
+    const next = await Orders.list(filters, { page, pageSize });
+    if (Array.isArray(next?.rows)) {
+      allRows.push(...next.rows);
+    }
+    if (allRows.length >= total) {
+      break;
+    }
+  }
+  return allRows;
+}
+
+async function loadOrders(options = {}) {
+  if (options && typeof options.preventDefault === "function") {
+    options.preventDefault();
+    options = {};
+  }
+  const requestedPageSize = Number(options.pageSize);
+  if (Number.isFinite(requestedPageSize) && requestedPageSize > 0) {
+    PAGINATION.pageSize = requestedPageSize;
+  }
+  const requestedPage = Number(options.page);
+  if (Number.isFinite(requestedPage) && requestedPage >= 1) {
+    PAGINATION.currentPage = requestedPage;
+  }
+
+  const usePagination = Boolean(els.ordersTable && els.pager);
+
   const currentUser = getCurrentUser();
   const listFilters = {
     region: els.filterRegion?.value || undefined,
@@ -288,24 +347,61 @@ async function loadOrders() {
   if (dateValue) {
     listFilters.date = dateValue;
   }
-  let createdByFilter;
   if (currentUser?.role === "werknemer" && currentUser.id !== undefined && currentUser.id !== null) {
-    createdByFilter = currentUser.id;
-    listFilters.createdBy = createdByFilter;
+    listFilters.createdBy = currentUser.id;
   }
   if (els.ordersTable) {
     renderOrdersPlaceholder("Bezig met laden…");
   }
   try {
-    const rows = await Orders.list(listFilters);
-    const safeRows = Array.isArray(rows) ? rows : [];
-    rememberOrderOwners(safeRows);
-    let filteredRows = safeRows;
-    if (createdByFilter) {
-      filteredRows = safeRows.filter((row) => String(row?.created_by ?? "") === String(createdByFilter));
+    const filtersForQuery = { ...listFilters };
+    const queryOptions = usePagination ? {
+      page: PAGINATION.currentPage,
+      pageSize: PAGINATION.pageSize,
+    } : {};
+    const firstPage = await Orders.list(filtersForQuery, queryOptions);
+    const safeRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
+    const totalCount = Number(firstPage?.total) || safeRows.length;
+    const pageSize = usePagination ? (Number(firstPage?.pageSize) || PAGINATION.pageSize) : safeRows.length || PAGINATION.pageSize;
+    const totalPages = usePagination
+      ? (totalCount > 0 && pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1)
+      : 1;
+
+    if (totalCount === 0) {
+      PAGINATION.totalItems = 0;
+      PAGINATION.totalPages = 1;
+      PAGINATION.currentPageCount = 0;
+      ORDERS_CACHE = [];
+      rememberOrderOwners([]);
+      renderOrders([]);
+      syncPlanBoardFromOrders();
+      renderPlanBoard();
+      return;
     }
-    ORDERS_CACHE = filteredRows;
-    renderOrders(filteredRows);
+
+    if (usePagination && PAGINATION.currentPage > totalPages) {
+      PAGINATION.currentPage = totalPages;
+      await loadOrders({ page: totalPages });
+      return;
+    }
+
+    PAGINATION.totalItems = totalCount;
+    PAGINATION.totalPages = totalPages;
+    PAGINATION.currentPageCount = safeRows.length;
+
+    rememberOrderOwners(safeRows);
+    renderOrders(safeRows);
+
+    let allRows = safeRows;
+    if (usePagination) {
+      try {
+        allRows = await fetchAllOrderPages(filtersForQuery, firstPage);
+      } catch (err) {
+        console.error("Kan volledige orderlijst niet ophalen", err);
+      }
+    }
+    ORDERS_CACHE = Array.isArray(allRows) ? allRows : safeRows;
+    rememberOrderOwners(ORDERS_CACHE);
     syncPlanBoardFromOrders();
     renderPlanBoard();
   } catch (e) {
@@ -313,16 +409,26 @@ async function loadOrders() {
     if (els.ordersTable) {
       renderOrdersPlaceholder("Orders laden mislukt. Controleer je verbinding en probeer opnieuw.", "muted error-text");
     }
+    PAGINATION.totalItems = 0;
+    PAGINATION.totalPages = 1;
+    PAGINATION.currentPageCount = 0;
+    ORDERS_CACHE = [];
+    rememberOrderOwners([]);
+    updatePaginationControls();
     setStatus(els.boardStatus, "Laden van orders mislukt.", "error");
   }
 }
 
 function renderOrders(rows) {
   const tbody = els.ordersTable;
-  if (!tbody) return;
+  if (!tbody) {
+    updatePaginationControls();
+    return;
+  }
   tbody.innerHTML = "";
   if (!rows.length) {
     renderOrdersPlaceholder("Geen orders gevonden");
+    updatePaginationControls();
     return;
   }
   const currentUser = getCurrentUser();
@@ -354,6 +460,81 @@ function renderOrders(rows) {
     }
     tbody.appendChild(tr);
   }
+  updatePaginationControls();
+}
+
+function updatePaginationControls() {
+  if (!els.pager) return;
+  const totalItems = Number(PAGINATION.totalItems) || 0;
+  const pageSize = Number(PAGINATION.pageSize) || 1;
+  const totalPages = totalItems > 0 ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
+  const currentPage = Math.min(Math.max(Number(PAGINATION.currentPage) || 1, 1), totalPages);
+  const pageCount = Number(PAGINATION.currentPageCount) || 0;
+  const start = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const end = totalItems === 0 ? 0 : Math.min(start + pageCount - 1, totalItems);
+  if (els.pagerInfo) {
+    const infoText = totalItems === 0
+      ? "Geen resultaten"
+      : `Pagina ${currentPage} van ${totalPages} (${start}–${end} van ${totalItems})`;
+    els.pagerInfo.textContent = infoText;
+  }
+  const disablePrev = currentPage <= 1 || totalItems === 0;
+  const disableNext = currentPage >= totalPages || totalItems === 0;
+  if (els.pagerPrev) {
+    els.pagerPrev.disabled = disablePrev;
+    if (disablePrev) {
+      els.pagerPrev.setAttribute("aria-disabled", "true");
+    } else {
+      els.pagerPrev.removeAttribute("aria-disabled");
+    }
+  }
+  if (els.pagerNext) {
+    els.pagerNext.disabled = disableNext;
+    if (disableNext) {
+      els.pagerNext.setAttribute("aria-disabled", "true");
+    } else {
+      els.pagerNext.removeAttribute("aria-disabled");
+    }
+  }
+  if (els.pagerPageSize) {
+    const desiredValue = String(pageSize);
+    if (els.pagerPageSize.value !== desiredValue) {
+      els.pagerPageSize.value = desiredValue;
+    }
+  }
+  const shouldHide = totalItems <= pageSize && currentPage <= 1;
+  if (shouldHide) {
+    els.pager.classList.add("is-hidden");
+  } else {
+    els.pager.classList.remove("is-hidden");
+  }
+}
+
+function goToPage(page) {
+  const totalItems = Number(PAGINATION.totalItems) || 0;
+  if (totalItems === 0) return;
+  const totalPages = Math.max(1, Number(PAGINATION.totalPages) || 1);
+  const nextPage = Math.min(Math.max(Number(page) || 1, 1), totalPages);
+  if (nextPage === PAGINATION.currentPage) return;
+  PAGINATION.currentPage = nextPage;
+  loadOrders({ page: nextPage });
+}
+
+function goToPreviousPage() {
+  goToPage((Number(PAGINATION.currentPage) || 1) - 1);
+}
+
+function goToNextPage() {
+  goToPage((Number(PAGINATION.currentPage) || 1) + 1);
+}
+
+function handlePageSizeChange(event) {
+  const value = Number(event?.target?.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    return;
+  }
+  PAGINATION.currentPage = 1;
+  loadOrders({ page: 1, pageSize: value });
 }
 
 function openEdit(row){
@@ -1235,9 +1416,9 @@ function bind(canManagePlanning){
     el.removeAttribute("aria-disabled");
     el.addEventListener("click", handler);
   };
-  bindClick(els.btnApplyFilters, loadOrders);
+  bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
-  bindClick(els.btnReload, loadOrders);
+  bindClick(els.btnReload, () => loadOrders());
   bindClick(els.btnAddCarrier, addCarrier);
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
@@ -1252,6 +1433,19 @@ function bind(canManagePlanning){
   }
   if (els.boardRegion) {
     els.boardRegion.addEventListener("change", () => { renderPlanBoard(); });
+  }
+  if (els.pagerPrev) {
+    els.pagerPrev.addEventListener("click", goToPreviousPage);
+  }
+  if (els.pagerNext) {
+    els.pagerNext.addEventListener("click", goToNextPage);
+  }
+  if (els.pagerPageSize) {
+    const defaultSize = Number(els.pagerPageSize.value);
+    if (Number.isFinite(defaultSize) && defaultSize > 0) {
+      PAGINATION.pageSize = defaultSize;
+    }
+    els.pagerPageSize.addEventListener("change", handlePageSizeChange);
   }
 }
 

@@ -75,7 +75,7 @@ async function sbDelete(table, match) {
 
 // Domein-functies
 const Orders = {
-  list: (filters = {}) => {
+  list: async (filters = {}, options = {}) => {
     const params = [];
     if (filters.region) params.push(`region=eq.${encodeURIComponent(filters.region)}`);
     if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
@@ -90,8 +90,49 @@ const Orders = {
       params.push(`created_by=eq.${encodeURIComponent(createdBy)}`);
     }
     params.push("order=due_date.asc");
-    const qs = `?${params.join("&")}`;
-    return sbSelect("transport_orders", qs);
+
+    const rawQuery = params.length ? `?${params.join("&")}` : "";
+    const qs = buildSelectQuery(rawQuery);
+
+    const pageSizeValue = Number(options.pageSize);
+    const hasPagination = Number.isFinite(pageSizeValue) && pageSizeValue > 0;
+    let pageValue = Number(options.page);
+    if (!Number.isFinite(pageValue) || pageValue < 1) {
+      pageValue = 1;
+    }
+
+    const headers = { ...SB_HEADERS };
+    if (hasPagination) {
+      const from = (pageValue - 1) * pageSizeValue;
+      const to = from + pageSizeValue - 1;
+      headers.Range = `${from}-${Math.max(from, to)}`;
+      headers.Prefer = "count=exact";
+    }
+
+    const response = await fetch(`${SUPABASE_URL}/transport_orders${qs}`, { headers });
+    const data = await response.json();
+    if (!response.ok) throw new Error(JSON.stringify(data));
+
+    let total = Array.isArray(data) ? data.length : 0;
+    if (hasPagination) {
+      const contentRange = response.headers.get("content-range");
+      if (contentRange) {
+        const totalPart = contentRange.split("/")[1];
+        if (totalPart && totalPart !== "*") {
+          const parsedTotal = Number(totalPart);
+          if (Number.isFinite(parsedTotal)) {
+            total = parsedTotal;
+          }
+        }
+      }
+    }
+
+    return {
+      rows: Array.isArray(data) ? data : [],
+      total,
+      page: hasPagination ? pageValue : 1,
+      pageSize: hasPagination ? pageSizeValue : (Array.isArray(data) ? data.length : 0),
+    };
   },
   create: (o) => sbInsert("transport_orders", [o]).then(r => r[0]),
   update: (id, patch) => sbUpdate("transport_orders", `id=eq.${id}`, patch),
