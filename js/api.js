@@ -54,11 +54,16 @@ async function sbDelete(table, match) {
 
 // Domein-functies
 const Orders = {
-  list: (filters={}) => {
+  list: (filters = {}) => {
     const params = [];
     if (filters.region) params.push(`region=eq.${encodeURIComponent(filters.region)}`);
     if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
-    const qs = params.length ? `?${params.join("&")}&order=due_date.asc` : `?order=due_date.asc`;
+    const createdBy = filters.createdBy;
+    if (createdBy !== undefined && createdBy !== null && String(createdBy).length) {
+      params.push(`created_by=eq.${encodeURIComponent(createdBy)}`);
+    }
+    params.push("order=due_date.asc");
+    const qs = `?${params.join("&")}`;
     return sbSelect("transport_orders", qs);
   },
   create: (o) => sbInsert("transport_orders", [o]).then(r => r[0]),
