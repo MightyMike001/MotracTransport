@@ -67,3 +67,25 @@ const Carriers = {
   create: (c) => sbInsert("carriers", [c]).then(r => r[0]),
   update: (id, patch) => sbUpdate("carriers", `id=eq.${id}`, patch),
 };
+
+const Users = {
+  list: () => sbSelect(
+    "app_users",
+    "?select=id,full_name,email,role,is_active,created_at&order=full_name.asc"
+  ),
+  create: (user) => sbInsert("app_users", [user]).then(r => r[0]),
+  update: (id, patch) => sbUpdate("app_users", `id=eq.${id}`, patch).then(r => r[0]),
+  remove: (id) => sbDelete("app_users", `id=eq.${id}`),
+  setPassword: (id, passwordHash) =>
+    sbUpdate("app_users", `id=eq.${id}`, { password_hash: passwordHash }).then(r => r[0]),
+  authenticate: async (email, passwordHash) => {
+    const query = `?select=id,full_name,email,role,is_active&email=eq.${encodeURIComponent(email)}&password_hash=eq.${encodeURIComponent(passwordHash)}`;
+    const result = await sbSelect("app_users", query);
+    return result[0] || null;
+  }
+};
+
+window.Orders = Orders;
+window.Lines = Lines;
+window.Carriers = Carriers;
+window.Users = Users;
