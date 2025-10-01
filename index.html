@@ -3,310 +3,49 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Transportplanner — HTML + Supabase</title>
+  <title>Transportplanner — Start</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="site-header">
     <h1>Transportplanner</h1>
     <div class="sub">Complete workflow voor transportaanvragen, vrachtwagenbeheer en planning.</div>
+    <nav class="main-nav">
+      <a href="index.html" class="active">Start</a>
+      <a href="aanvraag.html">Nieuwe aanvraag</a>
+      <a href="orders.html">Orders</a>
+      <a href="planning.html">Planning</a>
+      <a href="vloot.html">Vloot &amp; carriers</a>
+    </nav>
   </header>
 
-  <main class="wrap">
-    <aside class="sidebar">
-      <section class="card">
-        <h3>Filters</h3>
-        <label>Regio
-          <select id="filterRegion">
-            <option value="">Alle</option>
-            <option>Noord</option>
-            <option>Midden</option>
-            <option>Zuid</option>
-            <option>België</option>
-          </select>
-        </label>
-        <label>Status
-          <select id="filterStatus">
-            <option value="">Alle</option>
-            <option>Nieuw</option>
-            <option>Te plannen</option>
-            <option>Gepland</option>
-            <option>In transport</option>
-            <option>Geleverd</option>
-            <option>Geannuleerd</option>
-          </select>
-        </label>
-        <button id="btnApplyFilters" class="btn ghost">Toepassen</button>
-      </section>
+  <main class="home-page">
+    <section class="card hero">
+      <h2>Welkom bij de Transportplanner</h2>
+      <p>
+        Gebruik de navigatie hieronder om snel naar de juiste workflow te springen.
+        Iedere module heeft een eigen pagina zodat je gericht kunt werken en minder hoeft te scrollen.
+      </p>
+    </section>
 
-      <section class="card">
-        <h3>Auto-planner</h3>
-        <p class="muted small">Wijst open orders toe op basis van regio, prioriteit en carrier-capaciteit per dag.</p>
-        <label>Startdatum
-          <input type="date" id="planStart" />
-        </label>
-        <label>Einddatum
-          <input type="date" id="planEnd" />
-        </label>
-        <button id="btnSuggestPlan" class="btn primary">Genereer voorstel</button>
-        <button id="btnApplyPlan" class="btn">Opslaan planning</button>
-        <div id="plannerStatus" class="status"></div>
-      </section>
-
-      <section class="card">
-        <h3>Snelle carrier</h3>
-        <label>Carrier
-          <input id="quickCarrier" placeholder="Bijv. Beekman Transport" />
-        </label>
-        <label>Capaciteit/dag
-          <input id="quickCapacity" type="number" min="1" value="8" />
-        </label>
-        <label>Basisregio
-          <select id="quickRegion">
-            <option>Noord</option><option>Midden</option><option>Zuid</option><option>België</option>
-          </select>
-        </label>
-        <button id="btnAddCarrier" class="btn">Carrier toevoegen</button>
-        <div id="carrierStatus" class="status"></div>
-      </section>
-    </aside>
-
-    <section class="content">
-      <section class="card">
-        <div class="bar">
-          <h3>Nieuwe transportaanvraag</h3>
-          <button id="btnReload" class="btn ghost">Vernieuwen</button>
-        </div>
-        <div class="grid2">
-          <label>Referentie
-            <input id="oReference" placeholder="Bijv. ORD-2024-001" />
-          </label>
-          <label>Klantnaam
-            <input id="oCustomer" placeholder="Klant BV" />
-          </label>
-          <label>Stad klant
-            <input id="oCity" placeholder="Plaatsnaam" />
-          </label>
-          <label>Contactpersoon
-            <input id="oContact" placeholder="Naam + telefoon" />
-          </label>
-          <label>Regio
-            <select id="oRegion">
-              <option>Noord</option><option>Midden</option><option>Zuid</option><option>België</option>
-            </select>
-          </label>
-          <label>Prioriteit (1–5)
-            <input id="oPriority" type="number" min="1" max="5" value="3" />
-          </label>
-          <label>Gewenste leverdatum
-            <input id="oDue" type="date" />
-          </label>
-          <label>Type transport
-            <select id="oLoadType">
-              <option value="">Selecteer...</option>
-              <option>Complete lading</option>
-              <option>Deellading</option>
-              <option>Koeltransport</option>
-              <option>ADR</option>
-            </select>
-          </label>
-        </div>
-
-        <h4 class="section-title">Laadadres</h4>
-        <div class="grid3">
-          <label>Locatie
-            <input id="oPickupLocation" placeholder="Straat + plaats" />
-          </label>
-          <label>Datum
-            <input id="oPickupDate" type="date" />
-          </label>
-          <label>Tijdslot
-            <select id="oPickupSlot">
-              <option value="">n.v.t.</option>
-              <option>07:00 - 09:00</option>
-              <option>09:00 - 12:00</option>
-              <option>12:00 - 15:00</option>
-              <option>15:00 - 18:00</option>
-            </select>
-          </label>
-        </div>
-
-        <h4 class="section-title">Losadres</h4>
-        <div class="grid3">
-          <label>Locatie
-            <input id="oDeliveryLocation" placeholder="Straat + plaats" />
-          </label>
-          <label>Datum
-            <input id="oDeliveryDate" type="date" />
-          </label>
-          <label>Tijdslot
-            <select id="oDeliverySlot">
-              <option value="">n.v.t.</option>
-              <option>07:00 - 09:00</option>
-              <option>09:00 - 12:00</option>
-              <option>12:00 - 15:00</option>
-              <option>15:00 - 18:00</option>
-            </select>
-          </label>
-        </div>
-
-        <h4 class="section-title">Lading</h4>
-        <div class="grid4">
-          <label>Pallets
-            <input id="oPallets" type="number" min="0" step="1" />
-          </label>
-          <label>Gewicht (kg)
-            <input id="oWeight" type="number" min="0" step="0.1" />
-          </label>
-          <label>Volume (m³)
-            <input id="oVolume" type="number" min="0" step="0.1" />
-          </label>
-          <label>Opmerkingen
-            <textarea id="oNotes" rows="2" placeholder="Bijzonderheden, aanmeldprocedure…"></textarea>
-          </label>
-        </div>
-
-        <details>
-          <summary>Extra orderregel toevoegen (optioneel)</summary>
-          <div class="grid3">
-            <label>Product
-              <input id="lProduct" placeholder="Heftruck, pallet, etc." />
-            </label>
-            <label>Aantal
-              <input id="lQty" type="number" min="1" value="1" />
-            </label>
-            <label>Gewicht (kg)
-              <input id="lWeight" type="number" min="0" step="0.1" value="0" />
-            </label>
-          </div>
-        </details>
-        <button id="btnCreate" class="btn primary">Transport opslaan</button>
-        <div id="createStatus" class="status"></div>
-      </section>
-
-      <section class="card">
-        <div class="bar">
-          <h3>Vrachtwagenbeheer</h3>
-          <span class="muted small">Wordt lokaal opgeslagen voor de planner.</span>
-        </div>
-        <div class="grid4">
-          <label>Naam voertuig
-            <input id="truckName" placeholder="Bijv. Truck 01" />
-          </label>
-          <label>Kenteken
-            <input id="truckPlate" placeholder="00-XX-00" />
-          </label>
-          <label>Chauffeur
-            <input id="truckDriver" placeholder="Naam chauffeur" />
-          </label>
-          <label>Stops per dag
-            <input id="truckCapacity" type="number" min="1" value="6" />
-          </label>
-        </div>
-        <button id="btnAddTruck" class="btn">Vrachtwagen opslaan</button>
-        <div id="truckStatus" class="status"></div>
-        <ul id="truckList" class="truck-list"></ul>
-      </section>
-
-      <section class="card">
-        <div class="bar">
-          <h3>Planbord</h3>
-          <button id="btnClearBoard" class="btn ghost">Wis planning voor gekozen dag</button>
-        </div>
-        <div class="grid4 board-controls">
-          <label>Planningsdatum
-            <input id="boardDate" type="date" />
-          </label>
-          <label>Vrachtwagen
-            <select id="boardTruck"></select>
-          </label>
-          <label>Transport
-            <select id="boardOrder"></select>
-          </label>
-          <label>Tijdslot
-            <select id="boardSlot">
-              <option value="">n.v.t.</option>
-              <option>AM</option>
-              <option>PM</option>
-              <option>Nacht</option>
-            </select>
-          </label>
-        </div>
-        <div class="board-actions">
-          <button id="btnAssignOrder" class="btn primary">Plan transport in vrachtwagen</button>
-          <div id="boardStatus" class="status"></div>
-        </div>
-        <div id="planBoard" class="board-grid"></div>
-      </section>
-
-      <section class="card">
-        <div class="bar">
-          <h3>Orders</h3>
-          <div class="muted small">Klik op een regel om te bewerken (carrier, datum, status). Details worden getoond in de tooltip.</div>
-        </div>
-        <div class="table-wrap">
-          <table id="ordersTable">
-            <thead>
-              <tr>
-                <th>Leverdatum</th>
-                <th>Referentie</th>
-                <th>Klant</th>
-                <th>Laadadres</th>
-                <th>Losadres</th>
-                <th>Lading</th>
-                <th>Status</th>
-                <th>Vrachtwagen</th>
-                <th>Gepland</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td colspan="9" class="muted">Nog niets geladen…</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <section class="dashboard-grid">
+      <a class="card nav-card" href="aanvraag.html">
+        <h3>Nieuwe aanvraag</h3>
+        <p>Leg een nieuw transport vast met laad- en losadres, prioriteit en bijzondere instructies.</p>
+      </a>
+      <a class="card nav-card" href="orders.html">
+        <h3>Orders</h3>
+        <p>Filter en bekijk bestaande transporten. Bewerk status, carrier en planning vanuit de tabel.</p>
+      </a>
+      <a class="card nav-card" href="planning.html">
+        <h3>Planning</h3>
+        <p>Gebruik de auto-planner en het planbord om ritten aan vrachtwagens toe te wijzen.</p>
+      </a>
+      <a class="card nav-card" href="vloot.html">
+        <h3>Vloot &amp; carriers</h3>
+        <p>Beheer vrachtwagens en voeg carriers met capaciteit toe voor de auto-planner.</p>
+      </a>
     </section>
   </main>
-
-  <!-- Modaal voor bewerken -->
-  <dialog id="editDialog">
-    <form method="dialog" class="card">
-      <h3>Order bewerken</h3>
-      <input type="hidden" id="eId" />
-      <div class="grid2">
-        <label>Status
-          <select id="eStatus">
-            <option>Nieuw</option>
-            <option>Te plannen</option>
-            <option>Gepland</option>
-            <option>In transport</option>
-            <option>Geleverd</option>
-            <option>Geannuleerd</option>
-          </select>
-        </label>
-        <label>Carrier / vrachtwagen
-          <input id="eCarrier" placeholder="Bijv. Beekman Transport" list="carrierList"/>
-          <datalist id="carrierList"></datalist>
-        </label>
-        <label>Geplande datum
-          <input id="ePlanned" type="date" />
-        </label>
-        <label>Tijdslot
-          <select id="eSlot">
-            <option value="">n.v.t.</option>
-            <option>AM</option><option>PM</option><option>Nacht</option>
-          </select>
-        </label>
-      </div>
-      <menu class="menu">
-        <button value="cancel" class="btn ghost">Annuleren</button>
-        <button id="btnSaveEdit" value="default" class="btn primary">Opslaan</button>
-      </menu>
-    </form>
-  </dialog>
-
-  <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/app.js"></script>
 </body>
 </html>
