@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Transport Planning App – Modules</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="header">
+    <h1>Transport Planning</h1>
+    <nav class="nav">
+      <button data-view="dashboard" class="tab active">Dashboard</button>
+      <button data-view="orders" class="tab">Orders</button>
+      <button data-view="planning" class="tab">Planning</button>
+      <button data-view="map" class="tab">Kaart</button>
+    </nav>
+  </header>
+
+  <main id="app">
+    <section id="view-dashboard" class="view active"></section>
+    <section id="view-orders" class="view"></section>
+    <section id="view-planning" class="view"></section>
+    <section id="view-map" class="view"></section>
+  </main>
+
+  <footer class="footer">
+    <small>Offline demo (localStorage). Kaart gebruikt OpenStreetMap.</small>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
