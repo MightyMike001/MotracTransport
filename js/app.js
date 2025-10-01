@@ -246,7 +246,10 @@ function formatStop(stop) {
   if (!stop) return "-";
   const parts = [];
   if (stop.location) parts.push(stop.location);
-  if (stop.date) parts.push(stop.date);
+  if (stop.date) {
+    const displayDate = formatDateDisplay(stop.date);
+    parts.push(displayDate !== "-" ? displayDate : stop.date);
+  }
   if (stop.slot) parts.push(stop.slot);
   return parts.length ? parts.join(" • ") : "-";
 }
@@ -262,17 +265,31 @@ function formatCargo(cargo) {
 }
 
 function formatPlanned(row) {
+  if (!row) return "-";
   const parts = [];
-  if (row.planned_date) parts.push(row.planned_date);
-  if (row.planned_slot) parts.push(`(${row.planned_slot})`);
-  return parts.join(" ") || "-";
+  const dateValue = row.planned_date;
+  if (dateValue) {
+    const formattedDate = formatDateDisplay(dateValue);
+    if (formattedDate && formattedDate !== "-") {
+      parts.push(formattedDate);
+    }
+  }
+  if (row.planned_slot) {
+    parts.push(`(${row.planned_slot})`);
+  }
+  return parts.join(" ").trim() || "-";
 }
 
 function formatDateDisplay(value) {
   if (!value) return "-";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("nl-NL", { weekday: "short", day: "2-digit", month: "2-digit" });
+  if (Number.isNaN(d.getTime())) return typeof value === "string" && value.trim() ? value : "-";
+  return d.toLocaleDateString("nl-NL", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 async function refreshCarriersDatalist() {
@@ -419,6 +436,27 @@ async function loadOrders(options = {}) {
   }
 }
 
+function createStatusBadge(status) {
+  const span = document.createElement("span");
+  span.className = "status-badge";
+  const label = (status || "Onbekend").trim();
+  const normalized = label.toLowerCase();
+  let variant = "neutral";
+  if (normalized === "gepland" || normalized === "geleverd") {
+    variant = "success";
+  } else if (normalized === "te plannen") {
+    variant = "warning";
+  } else if (normalized === "geannuleerd") {
+    variant = "danger";
+  } else if (normalized === "in transport") {
+    variant = "info";
+  }
+  span.classList.add(variant);
+  span.textContent = label || "-";
+  span.setAttribute("aria-label", `Status: ${label || "Onbekend"}`);
+  return span;
+}
+
 function renderOrders(rows) {
   const tbody = els.ordersTable;
   if (!tbody) {
@@ -435,28 +473,65 @@ function renderOrders(rows) {
   for (const r of rows) {
     const details = parseOrderDetails(r);
     const tr = document.createElement("tr");
+    tr.classList.add("order-row");
     const tooltip = [];
     if (details.instructions) tooltip.push(`Instructies: ${details.instructions}`);
     if (details.contact) tooltip.push(`Contact: ${details.contact}`);
-    tr.title = tooltip.join("\n");
     const ownerInfo = getOrderOwner(r);
     if (ownerInfo?.id) tr.dataset.ownerId = ownerInfo.id;
     if (ownerInfo?.name) tr.dataset.ownerName = ownerInfo.name;
-    tr.innerHTML = `
-      <td>${r.due_date ?? details.delivery?.date ?? "-"}</td>
-      <td>${details.reference ?? "-"}</td>
-      <td>${r.customer_name ?? "-"}</td>
-      <td>${formatStop(details.pickup)}</td>
-      <td>${formatStop(details.delivery)}</td>
-      <td>${formatCargo(details.cargo)}</td>
-      <td>${r.status ?? "-"}</td>
-      <td>${r.assigned_carrier ?? "-"}</td>
-      <td>${formatPlanned(r)}</td>
-    `;
+    if (ownerInfo?.name) {
+      tooltip.push(`Aangemaakt door ${ownerInfo.name}`);
+    }
+    if (tooltip.length) {
+      tr.title = tooltip.join("\n");
+    }
+
+    const dueCell = document.createElement("td");
+    const dueSource = r.due_date || details.delivery?.date;
+    dueCell.textContent = formatDateDisplay(dueSource);
+    tr.appendChild(dueCell);
+
+    const refCell = document.createElement("td");
+    refCell.textContent = details.reference || "-";
+    tr.appendChild(refCell);
+
+    const customerCell = document.createElement("td");
+    customerCell.textContent = r.customer_name || "-";
+    tr.appendChild(customerCell);
+
+    const pickupCell = document.createElement("td");
+    pickupCell.textContent = formatStop(details.pickup);
+    tr.appendChild(pickupCell);
+
+    const deliveryCell = document.createElement("td");
+    deliveryCell.textContent = formatStop(details.delivery);
+    tr.appendChild(deliveryCell);
+
+    const cargoCell = document.createElement("td");
+    cargoCell.textContent = formatCargo(details.cargo);
+    tr.appendChild(cargoCell);
+
+    const statusCell = document.createElement("td");
+    statusCell.className = "cell-status";
+    statusCell.appendChild(createStatusBadge(r.status));
+    tr.appendChild(statusCell);
+
+    const carrierCell = document.createElement("td");
+    carrierCell.textContent = r.assigned_carrier || "-";
+    tr.appendChild(carrierCell);
+
+    const plannedCell = document.createElement("td");
+    plannedCell.textContent = formatPlanned(r);
+    tr.appendChild(plannedCell);
+
     if (canUserEditOrder(r, currentUser)) {
       tr.addEventListener("click", () => openEdit(r));
     } else {
       tr.classList.add("is-readonly-order");
+      if (!tooltip.length && ownerInfo?.name) {
+        tr.title = `Aangemaakt door ${ownerInfo.name}`;
+      }
     }
     tbody.appendChild(tr);
   }
@@ -887,13 +962,20 @@ function ensureBoardDate(){
   return value;
 }
 
+function normalizeRegion(value) {
+  return (value || "")
+    .toString()
+    .trim()
+    .toLowerCase();
+}
+
 function getBoardRegionFilter(){
-  return (els.boardRegion?.value || "").trim();
+  return normalizeRegion(els.boardRegion?.value);
 }
 
 function orderMatchesBoardRegion(order, regionFilter){
   if (!regionFilter) return true;
-  return (order?.region || "").trim() === regionFilter;
+  return normalizeRegion(order?.region) === regionFilter;
 }
 
 function detachAssignment(date, truckId, orderId){
@@ -1073,7 +1155,7 @@ function buildOrderCard(order, date){
   if (order.due_date){
     const tag = document.createElement("span");
     tag.className = "tag";
-    tag.textContent = `Levering ${order.due_date}`;
+    tag.textContent = `Levering ${formatDateDisplay(order.due_date)}`;
     card.appendChild(tag);
   }
   if (details.instructions){
