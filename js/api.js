@@ -1,0 +1,69 @@
+const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.APP_CONFIG;
+
+const SB_HEADERS = {
+  "Content-Type": "application/json",
+  "apikey": SUPABASE_ANON_KEY,
+  "Authorization": "Bearer " + SUPABASE_ANON_KEY
+};
+
+async function sbSelect(table, query="") {
+  const r = await fetch(`${SUPABASE_URL}/${table}${query}`, { headers: SB_HEADERS });
+  const data = await r.json();
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+
+async function sbInsert(table, rows) {
+  const r = await fetch(`${SUPABASE_URL}/${table}`, {
+    method: "POST",
+    headers: { ...SB_HEADERS, "Prefer": "return=representation" },
+    body: JSON.stringify(rows)
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+
+async function sbUpdate(table, match, patch) {
+  const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
+    method: "PATCH",
+    headers: { ...SB_HEADERS, "Prefer": "return=representation" },
+    body: JSON.stringify(patch)
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+
+async function sbDelete(table, match) {
+  const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
+    method: "DELETE",
+    headers: SB_HEADERS
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return true;
+}
+
+// Domein-functies
+const Orders = {
+  list: (filters={}) => {
+    const params = [];
+    if (filters.region) params.push(`region=eq.${encodeURIComponent(filters.region)}`);
+    if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
+    const qs = params.length ? `?${params.join("&")}&order=due_date.asc` : `?order=due_date.asc`;
+    return sbSelect("transport_orders", qs);
+  },
+  create: (o) => sbInsert("transport_orders", [o]).then(r => r[0]),
+  update: (id, patch) => sbUpdate("transport_orders", `id=eq.${id}`, patch),
+};
+
+const Lines = {
+  create: (row) => sbInsert("transport_lines", [row]).then(r => r[0]),
+  listByOrder: (orderId) => sbSelect("transport_lines", `?order_id=eq.${orderId}`),
+};
+
+const Carriers = {
+  list: () => sbSelect("carriers", "?order=name.asc"),
+  create: (c) => sbInsert("carriers", [c]).then(r => r[0]),
+  update: (id, patch) => sbUpdate("carriers", `id=eq.${id}`, patch),
+};
