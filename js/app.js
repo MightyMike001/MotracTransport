@@ -47,9 +47,10 @@ const els = {
   oPallets: document.getElementById("oPallets"),
   oWeight: document.getElementById("oWeight"),
   oVolume: document.getElementById("oVolume"),
-  lProduct: document.getElementById("lProduct"),
-  lQty: document.getElementById("lQty"),
-  lWeight: document.getElementById("lWeight"),
+  articleTypeInputs: document.querySelectorAll('input[name="articleType"]'),
+  articleList: document.getElementById("articleList"),
+  articleRowTemplate: document.getElementById("articleRowTemplate"),
+  btnAddArticle: document.getElementById("btnAddArticle"),
   btnCreate: document.getElementById("btnCreate"),
   createStatus: document.getElementById("createStatus"),
   btnReload: document.getElementById("btnReload"),
@@ -928,9 +929,190 @@ function readInteger(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function collectOrderPayload() {
+function getArticleType() {
+  if (!els.articleTypeInputs) return null;
+  for (const input of els.articleTypeInputs) {
+    if (input && input.checked) {
+      return input.value;
+    }
+  }
+  return null;
+}
+
+function getArticleRows() {
+  if (!els.articleList) return [];
+  return Array.from(els.articleList.querySelectorAll(".article-row"));
+}
+
+function createArticleRowElement() {
+  if (!els.articleRowTemplate) return null;
+  const fragment = els.articleRowTemplate.content.cloneNode(true);
+  const row = fragment.querySelector(".article-row");
+  if (!row) return null;
+  return row;
+}
+
+function updateArticleRowMode(row, articleType) {
+  if (!row) return;
+  const normalizedType = articleType === "serial" ? "serial" : "non_serial";
+  const serialField = row.querySelector(".serial-field");
+  const serialInput = row.querySelector('[data-field="serial_number"]');
+  const quantityLabel = row.querySelector(".quantity-field");
+  const quantityInput = row.querySelector('[data-field="quantity"]');
+
+  if (serialField) {
+    serialField.hidden = normalizedType !== "serial";
+  }
+  if (serialInput) {
+    if (normalizedType === "serial") {
+      serialInput.removeAttribute("disabled");
+    } else {
+      serialInput.value = "";
+      serialInput.setAttribute("disabled", "disabled");
+    }
+  }
+  if (quantityInput) {
+    if (normalizedType === "serial") {
+      quantityInput.value = "1";
+      quantityInput.setAttribute("readonly", "readonly");
+      quantityInput.setAttribute("aria-readonly", "true");
+    } else {
+      quantityInput.removeAttribute("readonly");
+      quantityInput.removeAttribute("aria-readonly");
+      quantityInput.removeAttribute("disabled");
+      if (!quantityInput.value) {
+        quantityInput.value = "1";
+      }
+    }
+  }
+  if (quantityLabel) {
+    quantityLabel.classList.toggle("is-readonly", normalizedType === "serial");
+  }
+}
+
+function updateArticleRowsForType(articleType) {
+  const rows = getArticleRows();
+  for (const row of rows) {
+    updateArticleRowMode(row, articleType);
+  }
+}
+
+function ensureMinimumArticleRows() {
+  const rows = getArticleRows();
+  if (rows.length === 0) {
+    addArticleRow();
+  }
+}
+
+function addArticleRow(prefill = null) {
+  if (!els.articleList) return null;
+  const row = createArticleRowElement();
+  if (!row) return null;
+  els.articleList.appendChild(row);
+  updateArticleRowMode(row, getArticleType());
+  if (prefill) {
+    const productInput = row.querySelector('[data-field="product"]');
+    const serialInput = row.querySelector('[data-field="serial_number"]');
+    const quantityInput = row.querySelector('[data-field="quantity"]');
+    const weightInput = row.querySelector('[data-field="weight"]');
+    if (productInput && prefill.product) {
+      productInput.value = prefill.product;
+    }
+    if (serialInput && prefill.serial_number) {
+      serialInput.value = prefill.serial_number;
+    }
+    if (quantityInput && prefill.quantity !== undefined && prefill.quantity !== null) {
+      quantityInput.value = String(prefill.quantity);
+    }
+    if (weightInput && prefill.weight_kg !== undefined && prefill.weight_kg !== null) {
+      weightInput.value = String(prefill.weight_kg);
+    }
+  }
+  return row;
+}
+
+function removeArticleRow(row) {
+  if (!row || !els.articleList || !els.articleList.contains(row)) return;
+  row.remove();
+  ensureMinimumArticleRows();
+  updateArticleRowsForType(getArticleType());
+}
+
+function resetArticlesSection() {
+  if (els.articleTypeInputs) {
+    for (const input of els.articleTypeInputs) {
+      input.checked = false;
+    }
+  }
+  if (els.articleList) {
+    els.articleList.innerHTML = "";
+  }
+  ensureMinimumArticleRows();
+  updateArticleRowsForType(getArticleType());
+}
+
+function collectArticles(articleType) {
+  const normalizedType = articleType === "serial" ? "serial" : "non_serial";
+  const rows = getArticleRows();
+  const items = [];
+  for (const row of rows) {
+    const productInput = row.querySelector('[data-field="product"]');
+    const serialInput = row.querySelector('[data-field="serial_number"]');
+    const quantityInput = row.querySelector('[data-field="quantity"]');
+    const weightInput = row.querySelector('[data-field="weight"]');
+    const product = cleanText(productInput?.value);
+    const serialNumber = cleanText(serialInput?.value);
+    const weight = readNumber(weightInput?.value);
+    const rawQuantity = readInteger(quantityInput?.value);
+    const defaultQuantity = quantityInput ? readInteger(quantityInput.defaultValue) : null;
+    const isQuantityDefault = rawQuantity === null || (defaultQuantity !== null && rawQuantity === defaultQuantity);
+    const isEmpty = !product && !serialNumber && weight === null && (normalizedType === "serial" || isQuantityDefault);
+    if (isEmpty) {
+      continue;
+    }
+    if (!product) {
+      const err = new Error("Vul voor elk artikel een omschrijving in.");
+      err.code = "ARTICLE_PRODUCT_REQUIRED";
+      throw err;
+    }
+    if (normalizedType === "serial") {
+      if (!serialNumber) {
+        const err = new Error("Vul voor elk serienummer gebonden artikel een serienummer in.");
+        err.code = "ARTICLE_SERIAL_REQUIRED";
+        throw err;
+      }
+      items.push({
+        product,
+        quantity: 1,
+        weight_kg: weight,
+        serial_number: serialNumber,
+      });
+    } else {
+      const quantity = rawQuantity ?? 1;
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        const err = new Error("Voer voor niet serienummer gebonden artikelen een hoeveelheid groter dan nul in.");
+        err.code = "ARTICLE_QUANTITY_REQUIRED";
+        throw err;
+      }
+      items.push({
+        product,
+        quantity,
+        weight_kg: weight,
+        serial_number: null,
+      });
+    }
+  }
+  if (!items.length) {
+    const err = new Error("Voeg minimaal één artikel toe.");
+    err.code = "ARTICLE_REQUIRED";
+    throw err;
+  }
+  return items;
+}
+
+function collectOrderPayload(articleType) {
   const requestReference = cleanText(els.oRequestReference?.value);
-  const transportType = cleanText(els.oTransportType?.value);
+  const transportType = cleanText(els.oTransportType?.value) || "Afleveren";
   const status = cleanText(els.oStatus?.value) || "Nieuw";
   const customerName = cleanText(els.oCustomerName?.value);
   const orderDescription = cleanText(els.oOrderDescription?.value);
@@ -982,6 +1164,7 @@ function collectOrderPayload() {
     volume_m3: readNumber(els.oVolume?.value),
     instructions: combinedNotes || null,
     notes: combinedNotes || null,
+    article_type: articleType === "serial" ? "serial" : articleType === "non_serial" ? "non_serial" : null,
   };
 
   if (!payload.due_date && payload.delivery_date) {
@@ -997,12 +1180,10 @@ function resetOrderForm(){
   if (els.oStatus) {
     els.oStatus.value = "Nieuw";
   }
-  if (els.lQty) {
-    els.lQty.value = "1";
+  if (els.oTransportType) {
+    els.oTransportType.value = "Afleveren";
   }
-  if (els.lWeight) {
-    els.lWeight.value = "0";
-  }
+  resetArticlesSection();
   if (els.createStatus) {
     setStatus(els.createStatus, "");
   }
@@ -1021,9 +1202,21 @@ async function createOrder(){
     setStatus(els.createStatus, "Vul de klantnaam in.", "error");
     return;
   }
+  const articleType = getArticleType();
+  if (!articleType) {
+    setStatus(els.createStatus, "Kies het artikeltype.", "error");
+    return;
+  }
+  let articleLines = [];
+  try {
+    articleLines = collectArticles(articleType);
+  } catch (articleError) {
+    setStatus(els.createStatus, articleError.message || "Controleer de artikelen.", "error");
+    return;
+  }
   setStatus(els.createStatus, "Bezig…");
   try {
-    const payload = collectOrderPayload();
+    const payload = collectOrderPayload(articleType);
     payload.customer_name = customerName;
     payload.reference = requestReference;
     payload.request_reference = requestReference;
@@ -1036,12 +1229,14 @@ async function createOrder(){
       }
     }
     const created = await Orders.create(payload);
-    if (els.lProduct && els.lProduct.value.trim()) {
+    for (const line of articleLines) {
       await Lines.create({
         order_id: created.id,
-        product: els.lProduct.value.trim(),
-        quantity: readInteger(els.lQty?.value) || 1,
-        weight_kg: readNumber(els.lWeight?.value),
+        product: line.product,
+        quantity: line.quantity,
+        weight_kg: line.weight_kg,
+        serial_number: line.serial_number,
+        article_type: articleType,
       });
     }
     setStatus(els.createStatus, "Transport aangemaakt", "success");
@@ -1777,6 +1972,7 @@ function bind(canManagePlanning){
   };
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
+  bindClick(els.btnAddArticle, () => addArticleRow());
   bindClick(els.btnReload, () => loadOrders());
   bindClick(els.btnAddCarrier, addCarrier);
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
@@ -1787,6 +1983,22 @@ function bind(canManagePlanning){
   }
   bindClick(els.btnAddTruck, addTruck);
   bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
+  if (els.articleList) {
+    els.articleList.addEventListener("click", (event) => {
+      const removeButton = event.target.closest('[data-action="remove-article"]');
+      if (!removeButton) return;
+      event.preventDefault();
+      const row = removeButton.closest(".article-row");
+      removeArticleRow(row);
+    });
+  }
+  if (els.articleTypeInputs) {
+    for (const input of els.articleTypeInputs) {
+      input.addEventListener("change", () => {
+        updateArticleRowsForType(getArticleType());
+      });
+    }
+  }
   if (els.boardDate) {
     els.boardDate.addEventListener("change", () => { renderPlanBoard(); });
   }
@@ -1812,6 +2024,8 @@ function bind(canManagePlanning){
   const user = window.Auth?.getUser ? window.Auth.getUser() : null;
   const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
   bind(canManagePlanning);
+  ensureMinimumArticleRows();
+  updateArticleRowsForType(getArticleType());
   hydrateLocalState();
   const today = new Date();
   const end = new Date(Date.now()+5*86400000);

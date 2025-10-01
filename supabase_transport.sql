@@ -62,6 +62,7 @@ create table if not exists public.transport_orders (
   volume_m3 numeric,
   instructions text,
   notes text,
+  article_type text,
   created_by uuid,
   created_by_name text
 );
@@ -79,6 +80,8 @@ alter table public.transport_orders add column if not exists assigned_carrier te
 alter table public.transport_orders add column if not exists reference text;
 alter table public.transport_orders add column if not exists request_reference text;
 alter table public.transport_orders add column if not exists transport_type text;
+alter table public.transport_orders
+  alter column transport_type set default 'Afleveren';
 alter table public.transport_orders add column if not exists request_received_date date;
 alter table public.transport_orders add column if not exists customer_name text;
 alter table public.transport_orders add column if not exists customer_number text;
@@ -114,11 +117,40 @@ alter table public.transport_orders add column if not exists weight_kg numeric;
 alter table public.transport_orders add column if not exists volume_m3 numeric;
 alter table public.transport_orders add column if not exists instructions text;
 alter table public.transport_orders add column if not exists notes text;
+alter table public.transport_orders add column if not exists article_type text;
 alter table public.transport_orders add column if not exists created_by uuid;
 alter table public.transport_orders add column if not exists created_by_name text;
 
 alter table public.transport_orders
   add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'transport_orders_transport_type_allowed'
+      and conrelid = 'public.transport_orders'::regclass
+  ) then
+    alter table public.transport_orders
+      add constraint transport_orders_transport_type_allowed
+      check (transport_type is null or transport_type = 'Afleveren');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'transport_orders_article_type_allowed'
+      and conrelid = 'public.transport_orders'::regclass
+  ) then
+    alter table public.transport_orders
+      add constraint transport_orders_article_type_allowed
+      check (article_type is null or article_type in ('serial', 'non_serial'));
+  end if;
+end $$;
 
 create index if not exists transport_orders_due_date_idx
   on public.transport_orders using btree (due_date);
@@ -170,12 +202,30 @@ create table if not exists public.transport_lines (
   order_id bigint not null references public.transport_orders(id) on delete cascade,
   product text not null,
   quantity integer not null default 1,
-  weight_kg numeric
+  weight_kg numeric,
+  serial_number text,
+  article_type text
 );
 
 alter table public.transport_lines add column if not exists weight_kg numeric;
 alter table public.transport_lines add column if not exists quantity integer;
 alter table public.transport_lines alter column quantity set default 1;
+alter table public.transport_lines add column if not exists serial_number text;
+alter table public.transport_lines add column if not exists article_type text;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'transport_lines_article_type_allowed'
+      and conrelid = 'public.transport_lines'::regclass
+  ) then
+    alter table public.transport_lines
+      add constraint transport_lines_article_type_allowed
+      check (article_type is null or article_type in ('serial', 'non_serial'));
+  end if;
+end $$;
 
 create index if not exists transport_lines_order_id_idx
   on public.transport_lines using btree (order_id);
