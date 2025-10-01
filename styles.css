@@ -285,10 +285,6 @@ h4 {
     gap: 8px;
   }
 
-  .grid3 {
-    grid-template-columns: 1fr;
-  }
-
   .plan-controls {
     width: 100%;
   }
@@ -327,6 +323,7 @@ h4 {
 
 .checkbox {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   font-size: 14px;
@@ -384,6 +381,7 @@ h4 {
 
 .toggle-option {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
@@ -450,16 +448,20 @@ h4 {
 }
 
 label {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 8px 0;
   color: var(--color-muted);
   font-weight: 500;
+  min-width: 0;
 }
 
 input,
 select,
 textarea {
   width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -548,7 +550,7 @@ textarea {
 .grid2 {
   display: grid;
   gap: 12px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (max-width: 760px) {
@@ -565,19 +567,25 @@ textarea {
 .grid3 {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 @media (max-width: 900px) {
   .grid3 {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .grid3 {
+    grid-template-columns: 1fr;
   }
 }
 
 .grid4 {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 1100px) {
@@ -955,6 +963,7 @@ dialog::backdrop {
 
 .status-filter-label {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   font-size: 13px;
