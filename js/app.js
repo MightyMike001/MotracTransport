@@ -36,7 +36,10 @@ const els = {
   btnCreate: document.getElementById("btnCreate"),
   createStatus: document.getElementById("createStatus"),
   btnReload: document.getElementById("btnReload"),
-  ordersTable: document.getElementById("ordersTable").querySelector("tbody"),
+  ordersTable: (() => {
+    const table = document.getElementById("ordersTable");
+    return table ? table.querySelector("tbody") : null;
+  })(),
   dlg: document.getElementById("editDialog"),
   eId: document.getElementById("eId"),
   eStatus: document.getElementById("eStatus"),
@@ -199,14 +202,15 @@ function formatDateDisplay(value) {
 }
 
 async function refreshCarriersDatalist() {
+  if (!els.carrierList) return;
   const carriers = await Carriers.list();
   els.carrierList.innerHTML = carriers.map(c => `<option value="${c.name}">`).join("");
 }
 
 async function loadOrders() {
   const filters = {
-    region: els.filterRegion.value || undefined,
-    status: els.filterStatus.value || undefined,
+    region: els.filterRegion?.value || undefined,
+    status: els.filterStatus?.value || undefined,
   };
   const rows = await Orders.list(filters);
   ORDERS_CACHE = rows;
@@ -218,6 +222,7 @@ async function loadOrders() {
 
 function renderOrders(rows) {
   const tbody = els.ordersTable;
+  if (!tbody) return;
   tbody.innerHTML = "";
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="muted">Geen orders gevonden</td></tr>';
@@ -247,6 +252,7 @@ function renderOrders(rows) {
 }
 
 function openEdit(row){
+  if (!els.dlg) return;
   els.eId.value = row.id;
   els.eStatus.value = row.status || "Nieuw";
   els.eCarrier.value = row.assigned_carrier || "";
@@ -256,6 +262,7 @@ function openEdit(row){
 }
 
 async function saveEdit(){
+  if (!els.eId) return;
   const id = els.eId.value;
   const patch = {
     status: els.eStatus.value,
@@ -312,14 +319,15 @@ function resetOrderForm(){
       field.value = "";
     }
   });
-  els.oRegion.selectedIndex = 0;
-  els.oPriority.value = "3";
-  els.lQty.value = "1";
-  els.lWeight.value = "0";
+  if (els.oRegion) els.oRegion.selectedIndex = 0;
+  if (els.oPriority) els.oPriority.value = "3";
+  if (els.lQty) els.lQty.value = "1";
+  if (els.lWeight) els.lWeight.value = "0";
 }
 
 async function createOrder(){
-  els.createStatus.textContent = "Bezig…";
+  if (!els.oCustomer || !els.oRegion) return;
+  if (els.createStatus) els.createStatus.textContent = "Bezig…";
   try {
     const details = buildOrderDetails();
     const order = {
@@ -340,17 +348,18 @@ async function createOrder(){
         weight_kg: parseFloat(els.lWeight.value || "0")
       });
     }
-    els.createStatus.textContent = "Transport aangemaakt";
+    if (els.createStatus) els.createStatus.textContent = "Transport aangemaakt";
     resetOrderForm();
     await loadOrders();
   } catch (e) {
     console.error(e);
-    els.createStatus.textContent = "Mislukt";
+    if (els.createStatus) els.createStatus.textContent = "Mislukt";
   }
 }
 
 async function addCarrier(){
-  els.carrierStatus.textContent = "Bezig…";
+  if (!els.quickCarrier || !els.quickRegion) return;
+  if (els.carrierStatus) els.carrierStatus.textContent = "Bezig…";
   try {
     await Carriers.create({
       name: els.quickCarrier.value.trim(),
@@ -358,17 +367,18 @@ async function addCarrier(){
       capacity_per_day: parseInt(els.quickCapacity.value || "8", 10),
       active: true
     });
-    els.carrierStatus.textContent = "Toegevoegd";
+    if (els.carrierStatus) els.carrierStatus.textContent = "Toegevoegd";
     els.quickCarrier.value = "";
     await refreshCarriersDatalist();
   } catch (e) {
     console.error(e);
-    els.carrierStatus.textContent = "Mislukt";
+    if (els.carrierStatus) els.carrierStatus.textContent = "Mislukt";
   }
 }
 
 function renderTrucks(){
   const list = els.truckList;
+  if (!list) return;
   list.innerHTML = "";
   if (!TRUCKS.length){
     const li = document.createElement("li");
@@ -404,9 +414,10 @@ function renderTrucks(){
 }
 
 function addTruck(){
+  if (!els.truckName) return;
   const name = els.truckName.value.trim();
   if (!name){
-    els.truckStatus.textContent = "Vul een naam in.";
+    if (els.truckStatus) els.truckStatus.textContent = "Vul een naam in.";
     return;
   }
   const truck = {
@@ -418,7 +429,7 @@ function addTruck(){
   };
   TRUCKS.push(truck);
   saveTrucks();
-  els.truckStatus.textContent = `${truck.name} opgeslagen.`;
+  if (els.truckStatus) els.truckStatus.textContent = `${truck.name} opgeslagen.`;
   ["truckName","truckPlate","truckDriver"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   els.truckCapacity.value = "6";
   renderTrucks();
@@ -438,12 +449,16 @@ async function removeTruck(id){
   }
   savePlanBoard();
   renderTrucks();
-  els.boardStatus.textContent = truck ? `Planning voor ${truck.name} verwijderd.` : "Vrachtwagen verwijderd.";
+  if (els.boardStatus) {
+    els.boardStatus.textContent = truck ? `Planning voor ${truck.name} verwijderd.` : "Vrachtwagen verwijderd.";
+  }
   await loadOrders();
 }
 
 function updatePlanBoardSelectors(){
   const truckSelect = els.boardTruck;
+  const orderSelect = els.boardOrder;
+  if (!truckSelect || !orderSelect) return;
   truckSelect.innerHTML = '<option value="">Selecteer vrachtwagen…</option>';
   for (const truck of TRUCKS){
     const option = document.createElement("option");
@@ -451,7 +466,6 @@ function updatePlanBoardSelectors(){
     option.textContent = `${truck.name} (${truck.capacity || "∞"} stops)`;
     truckSelect.appendChild(option);
   }
-  const orderSelect = els.boardOrder;
   orderSelect.innerHTML = '<option value="">Selecteer transport…</option>';
   const eligible = ORDERS_CACHE.filter(o => !["Geleverd","Geannuleerd"].includes(o.status || ""));
   eligible.sort((a,b) => (a.due_date || "").localeCompare(b.due_date || ""));
@@ -515,15 +529,16 @@ function syncPlanBoardFromOrders(){
 
 function renderPlanBoard(){
   const container = els.planBoard;
+  if (!container) return;
   container.innerHTML = "";
-  let date = els.boardDate.value;
+  let date = els.boardDate ? els.boardDate.value : "";
   if (!date){
     date = new Date().toISOString().slice(0,10);
-    els.boardDate.value = date;
+    if (els.boardDate) els.boardDate.value = date;
   }
   if (!TRUCKS.length){
     container.innerHTML = '<div class="empty-hint">Voeg eerst vrachtwagens toe om te plannen.</div>';
-    els.boardStatus.textContent = "Geen vrachtwagens beschikbaar.";
+    if (els.boardStatus) els.boardStatus.textContent = "Geen vrachtwagens beschikbaar.";
     return;
   }
   const dayData = PLAN_BOARD[date] || {};
@@ -606,35 +621,38 @@ function renderPlanBoard(){
     }
     container.appendChild(card);
   }
-  els.boardStatus.textContent = `${total} transport(en) ingepland op ${formatDateDisplay(date)}.`;
+  if (els.boardStatus) {
+    els.boardStatus.textContent = `${total} transport(en) ingepland op ${formatDateDisplay(date)}.`;
+  }
 }
 
 async function assignOrderToTruck(){
+  if (!els.boardDate || !els.boardTruck || !els.boardOrder) return;
   if (!els.boardDate.value){
-    els.boardStatus.textContent = "Selecteer een datum.";
+    if (els.boardStatus) els.boardStatus.textContent = "Selecteer een datum.";
     return;
   }
   const truckId = els.boardTruck.value;
   const orderId = parseInt(els.boardOrder.value || "0", 10);
   if (!truckId || !orderId){
-    els.boardStatus.textContent = "Kies zowel een vrachtwagen als een transport.";
+    if (els.boardStatus) els.boardStatus.textContent = "Kies zowel een vrachtwagen als een transport.";
     return;
   }
   const truck = TRUCKS.find(t => t.id === truckId);
   const order = ORDERS_CACHE.find(o => o.id === orderId);
   if (!truck || !order){
-    els.boardStatus.textContent = "Onbekende selectie.";
+    if (els.boardStatus) els.boardStatus.textContent = "Onbekende selectie.";
     return;
   }
   const date = els.boardDate.value;
   if (!PLAN_BOARD[date]) PLAN_BOARD[date] = {};
   if (!PLAN_BOARD[date][truckId]) PLAN_BOARD[date][truckId] = [];
   if (PLAN_BOARD[date][truckId].some(a => a.orderId === orderId)){
-    els.boardStatus.textContent = "Transport staat al ingepland op deze vrachtwagen.";
+    if (els.boardStatus) els.boardStatus.textContent = "Transport staat al ingepland op deze vrachtwagen.";
     return;
   }
   if (truck.capacity && PLAN_BOARD[date][truckId].length >= truck.capacity){
-    els.boardStatus.textContent = `${truck.name} heeft de maximale capaciteit bereikt.`;
+    if (els.boardStatus) els.boardStatus.textContent = `${truck.name} heeft de maximale capaciteit bereikt.`;
     return;
   }
   const details = parseOrderDetails(order);
@@ -642,25 +660,25 @@ async function assignOrderToTruck(){
     orderId,
     reference: details.reference || order.customer_name,
     customer: order.customer_name,
-    slot: els.boardSlot.value || null,
+    slot: els.boardSlot ? (els.boardSlot.value || null) : null,
     details
   });
   savePlanBoard();
-  els.boardStatus.textContent = `Transport toegewezen aan ${truck.name}.`;
-  els.boardOrder.value = "";
+  if (els.boardStatus) els.boardStatus.textContent = `Transport toegewezen aan ${truck.name}.`;
+  if (els.boardOrder) els.boardOrder.value = "";
   renderPlanBoard();
   try {
     await Orders.update(orderId, {
       status: "Gepland",
       assigned_carrier: truck.name,
       planned_date: date,
-      planned_slot: els.boardSlot.value || null,
+      planned_slot: els.boardSlot ? (els.boardSlot.value || null) : null,
       updated_at: new Date().toISOString()
     });
     await loadOrders();
   } catch (e) {
     console.error(e);
-    els.boardStatus.textContent = "Planning opgeslagen maar synchronisatie met database mislukte.";
+    if (els.boardStatus) els.boardStatus.textContent = "Planning opgeslagen maar synchronisatie met database mislukte.";
   }
 }
 
@@ -675,7 +693,7 @@ async function removeAssignment(date, truckId, orderId){
   }
   savePlanBoard();
   renderPlanBoard();
-  els.boardStatus.textContent = "Transport verwijderd uit planning.";
+  if (els.boardStatus) els.boardStatus.textContent = "Transport verwijderd uit planning.";
   try {
     await Orders.update(orderId, {
       status: "Te plannen",
@@ -687,21 +705,22 @@ async function removeAssignment(date, truckId, orderId){
     await loadOrders();
   } catch (e) {
     console.error(e);
-    els.boardStatus.textContent = "Planning lokaal bijgewerkt, maar synchronisatie mislukte.";
+    if (els.boardStatus) els.boardStatus.textContent = "Planning lokaal bijgewerkt, maar synchronisatie mislukte.";
   }
 }
 
 async function clearBoardForDay(){
+  if (!els.boardDate) return;
   const date = els.boardDate.value;
   if (!date || !PLAN_BOARD[date]){
-    els.boardStatus.textContent = "Geen planning voor deze datum.";
+    if (els.boardStatus) els.boardStatus.textContent = "Geen planning voor deze datum.";
     return;
   }
   const affectedAssignments = Object.values(PLAN_BOARD[date]).flat();
   delete PLAN_BOARD[date];
   savePlanBoard();
   renderPlanBoard();
-  els.boardStatus.textContent = "Planning gewist.";
+  if (els.boardStatus) els.boardStatus.textContent = "Planning gewist.";
   try {
     await Promise.allSettled(affectedAssignments.map(a => Orders.update(a.orderId, {
       status: "Te plannen",
@@ -717,7 +736,8 @@ async function clearBoardForDay(){
 }
 
 async function suggestPlan(){
-  els.plannerStatus.textContent = "Voorstel maken…";
+  if (!els.planStart || !els.planEnd) return;
+  if (els.plannerStatus) els.plannerStatus.textContent = "Voorstel maken…";
   const carriers = await Carriers.list();
   const active = carriers.filter(c => c.active !== false);
   const start = new Date(els.planStart.value || new Date());
@@ -760,11 +780,13 @@ async function suggestPlan(){
     }
   }
   PLAN_SUGGESTIONS = suggestions;
-  els.plannerStatus.textContent = `Voorstel: ${suggestions.filter(s=>s.carrier).length} toegewezen / ${suggestions.length} totaal`;
+  if (els.plannerStatus) {
+    els.plannerStatus.textContent = `Voorstel: ${suggestions.filter(s=>s.carrier).length} toegewezen / ${suggestions.length} totaal`;
+  }
 }
 
 async function applyPlan(){
-  els.plannerStatus.textContent = "Opslaan…";
+  if (els.plannerStatus) els.plannerStatus.textContent = "Opslaan…";
   const tasks = PLAN_SUGGESTIONS.filter(s => s.carrier && s.date).map(s =>
     Orders.update(s.id, {
       status: "Gepland",
@@ -775,22 +797,27 @@ async function applyPlan(){
     })
   );
   await Promise.allSettled(tasks);
-  els.plannerStatus.textContent = "Planning opgeslagen";
+  if (els.plannerStatus) els.plannerStatus.textContent = "Planning opgeslagen";
   await loadOrders();
 }
 
 function bind(){
-  els.btnApplyFilters.addEventListener("click", loadOrders);
-  els.btnCreate.addEventListener("click", createOrder);
-  els.btnReload.addEventListener("click", loadOrders);
-  els.btnAddCarrier.addEventListener("click", addCarrier);
-  els.btnSuggestPlan.addEventListener("click", suggestPlan);
-  els.btnApplyPlan.addEventListener("click", applyPlan);
-  els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
-  els.btnAddTruck.addEventListener("click", addTruck);
-  els.btnAssignOrder.addEventListener("click", assignOrderToTruck);
-  els.btnClearBoard.addEventListener("click", clearBoardForDay);
-  els.boardDate.addEventListener("change", () => { renderPlanBoard(); });
+  const bindClick = (el, handler) => { if (el) el.addEventListener("click", handler); };
+  bindClick(els.btnApplyFilters, loadOrders);
+  bindClick(els.btnCreate, createOrder);
+  bindClick(els.btnReload, loadOrders);
+  bindClick(els.btnAddCarrier, addCarrier);
+  bindClick(els.btnSuggestPlan, suggestPlan);
+  bindClick(els.btnApplyPlan, applyPlan);
+  if (els.btnSaveEdit) {
+    els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
+  }
+  bindClick(els.btnAddTruck, addTruck);
+  bindClick(els.btnAssignOrder, assignOrderToTruck);
+  bindClick(els.btnClearBoard, clearBoardForDay);
+  if (els.boardDate) {
+    els.boardDate.addEventListener("change", () => { renderPlanBoard(); });
+  }
 }
 
 (async function init(){
@@ -798,10 +825,20 @@ function bind(){
   hydrateLocalState();
   const today = new Date();
   const end = new Date(Date.now()+5*86400000);
-  els.planStart.value = today.toISOString().slice(0,10);
-  els.planEnd.value = end.toISOString().slice(0,10);
-  els.boardDate.value = today.toISOString().slice(0,10);
+  if (els.planStart) els.planStart.value = today.toISOString().slice(0,10);
+  if (els.planEnd) els.planEnd.value = end.toISOString().slice(0,10);
+  if (els.boardDate) els.boardDate.value = today.toISOString().slice(0,10);
   renderTrucks();
   await refreshCarriersDatalist();
-  await loadOrders();
+  const needsOrders = Boolean(
+    els.ordersTable ||
+    els.btnReload ||
+    els.btnApplyFilters ||
+    els.btnAssignOrder ||
+    els.btnSuggestPlan ||
+    els.dlg
+  );
+  if (needsOrders) {
+    await loadOrders();
+  }
 })();

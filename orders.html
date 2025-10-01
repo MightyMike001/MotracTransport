@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transportplanner — Orders</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Transportplanner</h1>
+    <div class="sub">Bekijk en bewerk bestaande transporten.</div>
+    <nav class="main-nav">
+      <a href="index.html">Start</a>
+      <a href="aanvraag.html">Nieuwe aanvraag</a>
+      <a href="orders.html" class="active">Orders</a>
+      <a href="planning.html">Planning</a>
+      <a href="vloot.html">Vloot &amp; carriers</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <aside class="sidebar">
+      <section class="card">
+        <h3>Filters</h3>
+        <label>Regio
+          <select id="filterRegion">
+            <option value="">Alle</option>
+            <option>Noord</option>
+            <option>Midden</option>
+            <option>Zuid</option>
+            <option>België</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="filterStatus">
+            <option value="">Alle</option>
+            <option>Nieuw</option>
+            <option>Te plannen</option>
+            <option>Gepland</option>
+            <option>In transport</option>
+            <option>Geleverd</option>
+            <option>Geannuleerd</option>
+          </select>
+        </label>
+        <button id="btnApplyFilters" class="btn ghost">Toepassen</button>
+        <button id="btnReload" class="btn">Vernieuwen</button>
+      </section>
+    </aside>
+
+    <section class="content">
+      <section class="card">
+        <div class="bar">
+          <h2>Orders</h2>
+          <div class="muted small">Klik op een regel om details te bewerken.</div>
+        </div>
+        <div class="table-wrap">
+          <table id="ordersTable">
+            <thead>
+              <tr>
+                <th>Leverdatum</th>
+                <th>Referentie</th>
+                <th>Klant</th>
+                <th>Laadadres</th>
+                <th>Losadres</th>
+                <th>Lading</th>
+                <th>Status</th>
+                <th>Vrachtwagen</th>
+                <th>Gepland</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="9" class="muted">Nog niets geladen…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="editDialog">
+    <form method="dialog" class="card">
+      <h3>Order bewerken</h3>
+      <input type="hidden" id="eId" />
+      <div class="grid2">
+        <label>Status
+          <select id="eStatus">
+            <option>Nieuw</option>
+            <option>Te plannen</option>
+            <option>Gepland</option>
+            <option>In transport</option>
+            <option>Geleverd</option>
+            <option>Geannuleerd</option>
+          </select>
+        </label>
+        <label>Carrier / vrachtwagen
+          <input id="eCarrier" placeholder="Bijv. Beekman Transport" list="carrierList"/>
+          <datalist id="carrierList"></datalist>
+        </label>
+        <label>Geplande datum
+          <input id="ePlanned" type="date" />
+        </label>
+        <label>Tijdslot
+          <select id="eSlot">
+            <option value="">n.v.t.</option>
+            <option>AM</option><option>PM</option><option>Nacht</option>
+          </select>
+        </label>
+      </div>
+      <menu class="menu">
+        <button value="cancel" class="btn ghost">Annuleren</button>
+        <button id="btnSaveEdit" value="default" class="btn primary">Opslaan</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

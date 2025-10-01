@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transportplanner — Vloot &amp; carriers</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Transportplanner</h1>
+    <div class="sub">Beheer lokale vrachtwagens en registreer externe carriers.</div>
+    <nav class="main-nav">
+      <a href="index.html">Start</a>
+      <a href="aanvraag.html">Nieuwe aanvraag</a>
+      <a href="orders.html">Orders</a>
+      <a href="planning.html">Planning</a>
+      <a href="vloot.html" class="active">Vloot &amp; carriers</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="card">
+      <h2>Carriers toevoegen</h2>
+      <p class="muted small">Carriers worden opgeslagen in Supabase en zijn beschikbaar voor de auto-planner en orderbewerkingen.</p>
+      <div class="grid2">
+        <label>Carrier
+          <input id="quickCarrier" placeholder="Bijv. Beekman Transport" />
+        </label>
+        <label>Capaciteit/dag
+          <input id="quickCapacity" type="number" min="1" value="8" />
+        </label>
+        <label>Basisregio
+          <select id="quickRegion">
+            <option>Noord</option><option>Midden</option><option>Zuid</option><option>België</option>
+          </select>
+        </label>
+      </div>
+      <button id="btnAddCarrier" class="btn">Carrier toevoegen</button>
+      <div id="carrierStatus" class="status"></div>
+    </section>
+
+    <section class="card">
+      <div class="bar">
+        <h2>Vrachtwagenbeheer</h2>
+        <span class="muted small">Deze gegevens worden lokaal opgeslagen voor het planbord.</span>
+      </div>
+      <div class="grid4">
+        <label>Naam voertuig
+          <input id="truckName" placeholder="Bijv. Truck 01" />
+        </label>
+        <label>Kenteken
+          <input id="truckPlate" placeholder="00-XX-00" />
+        </label>
+        <label>Chauffeur
+          <input id="truckDriver" placeholder="Naam chauffeur" />
+        </label>
+        <label>Stops per dag
+          <input id="truckCapacity" type="number" min="1" value="6" />
+        </label>
+      </div>
+      <button id="btnAddTruck" class="btn">Vrachtwagen opslaan</button>
+      <div id="truckStatus" class="status"></div>
+      <ul id="truckList" class="truck-list"></ul>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

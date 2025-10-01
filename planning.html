@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transportplanner — Planning</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Transportplanner</h1>
+    <div class="sub">Plan transporten in op basis van capaciteit en beschikbaarheid.</div>
+    <nav class="main-nav">
+      <a href="index.html">Start</a>
+      <a href="aanvraag.html">Nieuwe aanvraag</a>
+      <a href="orders.html">Orders</a>
+      <a href="planning.html" class="active">Planning</a>
+      <a href="vloot.html">Vloot &amp; carriers</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <aside class="sidebar">
+      <section class="card">
+        <h3>Auto-planner</h3>
+        <p class="muted small">Wijst open orders toe op basis van regio, prioriteit en carrier-capaciteit per dag.</p>
+        <label>Startdatum
+          <input type="date" id="planStart" />
+        </label>
+        <label>Einddatum
+          <input type="date" id="planEnd" />
+        </label>
+        <button id="btnSuggestPlan" class="btn primary">Genereer voorstel</button>
+        <button id="btnApplyPlan" class="btn">Opslaan planning</button>
+        <div id="plannerStatus" class="status"></div>
+      </section>
+
+      <section class="card">
+        <h3>Snel overzicht</h3>
+        <p class="muted small">Gebruik het planbord om opdrachten aan voertuigen toe te wijzen. Het overzicht wordt automatisch bijgewerkt na het toepassen van de auto-planner.</p>
+      </section>
+    </aside>
+
+    <section class="content">
+      <section class="card">
+        <div class="bar">
+          <h2>Planbord</h2>
+          <button id="btnClearBoard" class="btn ghost">Wis planning voor gekozen dag</button>
+        </div>
+        <div class="grid4 board-controls">
+          <label>Planningsdatum
+            <input id="boardDate" type="date" />
+          </label>
+          <label>Vrachtwagen
+            <select id="boardTruck"></select>
+          </label>
+          <label>Transport
+            <select id="boardOrder"></select>
+          </label>
+          <label>Tijdslot
+            <select id="boardSlot">
+              <option value="">n.v.t.</option>
+              <option>AM</option>
+              <option>PM</option>
+              <option>Nacht</option>
+            </select>
+          </label>
+        </div>
+        <div class="board-actions">
+          <button id="btnAssignOrder" class="btn primary">Plan transport in vrachtwagen</button>
+          <div id="boardStatus" class="status"></div>
+        </div>
+        <div id="planBoard" class="board-grid"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
