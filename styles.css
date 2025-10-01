@@ -827,6 +827,18 @@ dialog::backdrop {
   border: 1px solid transparent;
 }
 
+.status-badge.neutral {
+  background: rgba(111, 111, 111, 0.1);
+  color: var(--color-muted);
+  border-color: rgba(111, 111, 111, 0.2);
+}
+
+.status-badge.info {
+  background: rgba(26, 115, 232, 0.12);
+  color: #1a73e8;
+  border-color: rgba(26, 115, 232, 0.24);
+}
+
 .status-badge.success {
   background: rgba(46, 125, 50, 0.12);
   color: var(--color-success);
@@ -843,6 +855,28 @@ dialog::backdrop {
   background: rgba(198, 40, 40, 0.12);
   color: var(--color-error);
   border-color: rgba(198, 40, 40, 0.24);
+}
+
+#ordersTable tbody tr.order-row {
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+#ordersTable tbody tr.order-row:hover {
+  background: rgba(226, 0, 26, 0.06);
+}
+
+#ordersTable tbody tr.order-row.is-readonly-order {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+#ordersTable tbody tr.order-row.is-readonly-order:hover {
+  background: rgba(111, 111, 111, 0.08);
+}
+
+.cell-status {
+  white-space: nowrap;
 }
 
 .process-requirement {
