@@ -235,6 +235,19 @@ async function assignRequestReference() {
   }
 }
 
+function getTodayDateValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function applyDefaultReceivedDate() {
+  if (!els.oReceivedAt) {
+    return;
+  }
+  const todayValue = getTodayDateValue();
+  els.oReceivedAt.value = todayValue;
+  els.oReceivedAt.defaultValue = todayValue;
+}
+
 function randomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -1267,7 +1280,7 @@ function collectOrderPayload(articleType) {
     load_type: transportType,
     cargo_type: transportType,
     status,
-    request_received_date: els.oReceivedAt?.value || null,
+    request_received_date: els.oReceivedAt?.value || getTodayDateValue(),
     due_date: els.oDue?.value || null,
     customer_name: customerName,
     customer_number: cleanText(els.oCustomerNumber?.value),
@@ -1316,6 +1329,7 @@ function resetOrderForm(){
   if (els.oTransportType) {
     els.oTransportType.value = "Afleveren";
   }
+  applyDefaultReceivedDate();
   resetArticlesSection();
   if (els.createStatus) {
     setStatus(els.createStatus, "");
@@ -2180,6 +2194,7 @@ async function initAppPage() {
   removeBoundListeners();
   bind(canManagePlanning);
   await assignRequestReference();
+  applyDefaultReceivedDate();
   ensureMinimumArticleRows();
   updateArticleRowsForType(getArticleType());
   hydrateLocalState();
