@@ -70,6 +70,12 @@
     }
   }
 
+  function notify(type, message) {
+    if (typeof window.showToast === "function" && message) {
+      window.showToast(type, message);
+    }
+  }
+
   function formatDate(value) {
     if (!value) return "-";
     const formatted = formatDateTimeDisplay(value);
@@ -132,6 +138,7 @@
     } catch (err) {
       console.error(err);
       setStatus("Kan gebruikers niet laden", "error");
+      notify("error", "Kan gebruikers niet laden");
     }
   }
 
@@ -160,7 +167,9 @@
         is_active: active,
       };
       await window.Users.create(payload);
-      setStatus("Gebruiker toegevoegd", "success");
+      const successMessage = "Gebruiker toegevoegd";
+      setStatus(successMessage, "success");
+      notify("success", successMessage);
       els.form.reset();
       if (els.active) els.active.checked = true;
       await loadUsers(false);
@@ -170,6 +179,7 @@
         ? window.ApiHelpers.formatSupabaseError(err, "onbekende fout")
         : err?.message || "onbekende fout";
       setStatus(`Opslaan mislukt: ${message}`, "error");
+      notify("error", message);
     }
   }
 
@@ -180,11 +190,17 @@
     try {
       setStatus("Status wijzigen…");
       await window.Users.update(id, { is_active: !user.is_active });
-      setStatus("Status bijgewerkt", "success");
+      const successMessage = "Status bijgewerkt";
+      setStatus(successMessage, "success");
+      notify("success", successMessage);
       await loadUsers(false);
     } catch (err) {
       console.error(err);
-      setStatus("Kon status niet wijzigen", "error");
+      const message = window.ApiHelpers?.formatSupabaseError
+        ? window.ApiHelpers.formatSupabaseError(err, "Kon status niet wijzigen")
+        : "Kon status niet wijzigen";
+      setStatus(message, "error");
+      notify("error", message);
     }
   }
 
@@ -198,10 +214,16 @@
       setStatus("Wachtwoord wordt bijgewerkt…");
       const hash = await window.Auth.hashPassword(newPassword);
       await window.Users.setPassword(id, hash);
-      setStatus("Wachtwoord opnieuw ingesteld", "success");
+      const successMessage = "Wachtwoord opnieuw ingesteld";
+      setStatus(successMessage, "success");
+      notify("success", successMessage);
     } catch (err) {
       console.error(err);
-      setStatus("Kon wachtwoord niet bijwerken", "error");
+      const message = window.ApiHelpers?.formatSupabaseError
+        ? window.ApiHelpers.formatSupabaseError(err, "Kon wachtwoord niet bijwerken")
+        : "Kon wachtwoord niet bijwerken";
+      setStatus(message, "error");
+      notify("error", message);
     }
   }
 
@@ -220,11 +242,17 @@
     try {
       setStatus("Rol wordt bijgewerkt…");
       await window.Users.update(id, { role });
-      setStatus("Rol bijgewerkt", "success");
+      const successMessage = "Rol bijgewerkt";
+      setStatus(successMessage, "success");
+      notify("success", successMessage);
       await loadUsers(false);
     } catch (err) {
       console.error(err);
-      setStatus("Kon rol niet bijwerken", "error");
+      const message = window.ApiHelpers?.formatSupabaseError
+        ? window.ApiHelpers.formatSupabaseError(err, "Kon rol niet bijwerken")
+        : "Kon rol niet bijwerken";
+      setStatus(message, "error");
+      notify("error", message);
     }
   }
 
