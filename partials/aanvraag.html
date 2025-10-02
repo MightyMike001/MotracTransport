@@ -238,6 +238,41 @@
             </div>
             <div id="articleList" class="article-list"></div>
             <button type="button" class="btn ghost" id="btnAddArticle">Artikel toevoegen</button>
+            <section class="article-import" aria-label="Artikelen importeren">
+              <div class="article-import__intro">
+                <h5 class="article-import__title">CSV-import</h5>
+                <p class="muted small">
+                  Upload een CSV-bestand met de kolommen “artikel”, “serienummer” en “aantal”.
+                  Controleer de preview voordat je de regels toevoegt.
+                </p>
+              </div>
+              <div class="article-import__actions">
+                <label class="article-import__file">
+                  <input type="file" id="articleCsvInput" accept=".csv,text/csv" aria-label="CSV-bestand voor artikelen" />
+                </label>
+                <button type="button" class="btn ghost small" id="btnClearArticleImport" disabled>Bestand wissen</button>
+              </div>
+              <div id="articleImportStatus" class="status"></div>
+              <div id="articleImportPreview" class="article-import-preview is-hidden" aria-live="polite">
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Rij</th>
+                        <th scope="col">Artikel</th>
+                        <th scope="col">Serienummer</th>
+                        <th scope="col">Aantal</th>
+                        <th scope="col">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="articleImportPreviewBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="article-import__actions">
+                <button type="button" class="btn primary" id="btnApplyArticleImport" disabled>Toevoegen</button>
+              </div>
+            </section>
           </div>
           <aside class="form-panel form-panel-secondary">
             <h5 class="panel-title">Voorbeeld</h5>

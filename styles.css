@@ -477,6 +477,58 @@ h4 {
   box-shadow: var(--shadow-sm);
 }
 
+.article-import {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 16px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+}
+
+.article-import__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.article-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.article-import__file input[type="file"] {
+  max-width: 100%;
+}
+
+.article-import-preview .table-wrap {
+  box-shadow: none;
+}
+
+.article-import-preview table tr.is-invalid {
+  background: #fff4f5;
+}
+
+.article-import-preview table tr.is-invalid th,
+.article-import-preview table tr.is-invalid td {
+  border-bottom-color: #f3cbd4;
+  color: var(--color-error);
+}
+
+.article-import-preview table tr.is-invalid td:last-child {
+  font-weight: 600;
+}
+
+.article-import-preview table tr td:last-child,
+.article-import-preview table tr th:last-child {
+  width: 30%;
+}
+
 .article-row .article-row-actions {
   display: flex;
   justify-content: flex-end;
