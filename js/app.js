@@ -1072,6 +1072,12 @@ let ORDERS_CACHE = [];
 let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
 let PLAN_BOARD = {};
+let SUPABASE_REALTIME_CLIENT = null;
+let ORDERS_REALTIME_CHANNEL = null;
+let ORDERS_REALTIME_SUBSCRIBED = false;
+let ORDERS_REALTIME_HANDLER_BOUND = false;
+let ORDERS_REALTIME_REFRESH_TIMEOUT = null;
+const ORDERS_REALTIME_REFRESH_DELAY = 400;
 const PAGINATION = {
   currentPage: 1,
   pageSize: 20,
@@ -1146,6 +1152,136 @@ function saveTrucks() {
 function savePlanBoard() {
   PLAN_BOARD = sanitizePlanBoard(PLAN_BOARD);
   storageSet(STORAGE_KEYS.board, PLAN_BOARD);
+}
+
+function getSupabaseRealtimeClient() {
+  if (SUPABASE_REALTIME_CLIENT) {
+    return SUPABASE_REALTIME_CLIENT;
+  }
+  const config = window.APP_CONFIG || {};
+  const restUrl = config.SUPABASE_URL || "";
+  const anonKey = config.SUPABASE_ANON_KEY || "";
+  if (!restUrl || !anonKey) {
+    return null;
+  }
+  if (!window.supabase || typeof window.supabase.createClient !== "function") {
+    return null;
+  }
+  let clientUrl = restUrl.replace(/\/rest\/v1\/?$/, "");
+  if (!clientUrl) {
+    clientUrl = restUrl;
+  }
+  clientUrl = clientUrl.replace(/\/$/, "");
+  try {
+    SUPABASE_REALTIME_CLIENT = window.supabase.createClient(clientUrl, anonKey, {
+      auth: { persistSession: false },
+    });
+  } catch (error) {
+    console.warn("Supabase realtime client kon niet worden aangemaakt", error);
+    SUPABASE_REALTIME_CLIENT = null;
+  }
+  return SUPABASE_REALTIME_CLIENT;
+}
+
+function ensureOrdersRealtimeSubscription() {
+  const client = getSupabaseRealtimeClient();
+  if (!client) {
+    return null;
+  }
+  if (
+    !ORDERS_REALTIME_CHANNEL ||
+    ORDERS_REALTIME_CHANNEL.state === "closed" ||
+    ORDERS_REALTIME_CHANNEL.state === "errored"
+  ) {
+    ORDERS_REALTIME_CHANNEL = client.channel("transport-orders-planning");
+    ORDERS_REALTIME_HANDLER_BOUND = false;
+    ORDERS_REALTIME_SUBSCRIBED = false;
+  }
+  if (ORDERS_REALTIME_CHANNEL && !ORDERS_REALTIME_HANDLER_BOUND) {
+    ORDERS_REALTIME_CHANNEL.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "transport_orders" },
+      (payload) => handleOrdersRealtimeChange(payload)
+    );
+    ORDERS_REALTIME_HANDLER_BOUND = true;
+  }
+  if (ORDERS_REALTIME_CHANNEL) {
+    const state = ORDERS_REALTIME_CHANNEL.state;
+    if (!ORDERS_REALTIME_SUBSCRIBED && state !== "joining" && state !== "joined") {
+      ORDERS_REALTIME_CHANNEL
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            ORDERS_REALTIME_SUBSCRIBED = true;
+          } else if (status === "CHANNEL_ERROR" || status === "CLOSED") {
+            ORDERS_REALTIME_SUBSCRIBED = false;
+            ORDERS_REALTIME_CHANNEL = null;
+            ORDERS_REALTIME_HANDLER_BOUND = false;
+            setTimeout(() => ensureOrdersRealtimeSubscription(), 2000);
+          } else if (status === "TIMED_OUT") {
+            ORDERS_REALTIME_SUBSCRIBED = false;
+            ORDERS_REALTIME_CHANNEL = null;
+            ORDERS_REALTIME_HANDLER_BOUND = false;
+            setTimeout(() => ensureOrdersRealtimeSubscription(), 2000);
+          }
+        })
+        .catch((error) => {
+          console.warn("Realtime kanaal kon niet worden gestart", error);
+        });
+    }
+  }
+  return ORDERS_REALTIME_CHANNEL;
+}
+
+function handleOrdersRealtimeChange(payload) {
+  if (!isRelevantOrdersRealtimeChange(payload)) {
+    return;
+  }
+  scheduleOrdersRealtimeRefresh();
+}
+
+function isRelevantOrdersRealtimeChange(payload) {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const eventType = payload.eventType || payload.type;
+  if (eventType === "INSERT" || eventType === "DELETE") {
+    return true;
+  }
+  if (eventType === "UPDATE") {
+    const newRow = payload.new || {};
+    const oldRow = payload.old || {};
+    const fields = [
+      "status",
+      "assigned_carrier",
+      "planned_date",
+      "planned_slot",
+      "due_date",
+      "region",
+      "updated_at",
+    ];
+    return fields.some((field) => {
+      const nextValue = newRow && Object.prototype.hasOwnProperty.call(newRow, field)
+        ? newRow[field]
+        : null;
+      const prevValue = oldRow && Object.prototype.hasOwnProperty.call(oldRow, field)
+        ? oldRow[field]
+        : null;
+      return nextValue !== prevValue;
+    });
+  }
+  return false;
+}
+
+function scheduleOrdersRealtimeRefresh() {
+  if (ORDERS_REALTIME_REFRESH_TIMEOUT) {
+    clearTimeout(ORDERS_REALTIME_REFRESH_TIMEOUT);
+  }
+  ORDERS_REALTIME_REFRESH_TIMEOUT = setTimeout(() => {
+    ORDERS_REALTIME_REFRESH_TIMEOUT = null;
+    Promise.resolve(loadOrders()).catch((error) => {
+      console.error("Realtime bijwerken van orders mislukt", error);
+    });
+  }, ORDERS_REALTIME_REFRESH_DELAY);
 }
 
 function setStatus(el, message, variant = "default") {
@@ -3306,6 +3442,7 @@ async function initAppPage() {
   if (needsOrders) {
     await loadOrders();
   }
+  ensureOrdersRealtimeSubscription();
 }
 
 function destroyAppPage() {
