@@ -1,0 +1,51 @@
+<div class="page process-page" data-route="processen" data-require-auth="true" data-title="Transportplanner — Procesoverzicht">
+  <section class="card">
+    <h2>Samenvatting</h2>
+    <p>
+      Onderstaand overzicht zet de beschreven hoofdprocessen en functionele kernpunten naast de huidige stand van de
+      Transportplanner. Gebruik de statusindicatoren om snel te zien waar de app al voorziet en waar nog uitbreidingen
+      nodig zijn.
+    </p>
+    <p class="muted small">
+      Tip: gebruik de statusfilters om direct de hiaten te bekijken en vorm actiepunten voor ontwikkeling of procesinrichting.
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="bar">
+      <h2>Hoofdprocessen</h2>
+      <label class="status-filter-label">
+        Statusfilter
+        <select id="processFilter" class="status-filter" data-target="processList">
+          <option value="all">Alle statussen</option>
+          <option value="missing">Alleen ontbrekend</option>
+          <option value="partial">Alleen gedeeltelijk</option>
+          <option value="covered">Alleen gedekt</option>
+        </select>
+      </label>
+    </div>
+    <div id="processList" class="process-grid" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <div class="bar">
+      <h2>Functionele kernpunten</h2>
+      <label class="status-filter-label">
+        Statusfilter
+        <select id="coreFilter" class="status-filter" data-target="coreList">
+          <option value="all">Alle statussen</option>
+          <option value="missing">Alleen ontbrekend</option>
+          <option value="partial">Alleen gedeeltelijk</option>
+          <option value="covered">Alleen gedekt</option>
+        </select>
+      </label>
+    </div>
+    <div id="coreList" class="process-grid" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <h2>Actiepunten vanuit vergelijking</h2>
+    <p>Deze lijst bundelt alle verbeterpunten en vormt een roadmap voor vervolgontwikkeling.</p>
+    <ul id="actionList" class="action-list"></ul>
+  </section>
+</div>

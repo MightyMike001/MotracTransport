@@ -1,0 +1,39 @@
+<div class="page login-page" data-route="login" data-title="Transportplanner — Inloggen">
+  <section class="card narrow">
+    <h2>Inloggen</h2>
+    <p class="muted small">Gebruik het e-mailadres en wachtwoord dat is toegewezen in Supabase.</p>
+    <form id="loginForm" class="stack">
+      <label>E-mailadres
+        <input type="email" id="loginEmail" required autocomplete="email" />
+      </label>
+      <label>Wachtwoord
+        <input type="password" id="loginPassword" required autocomplete="current-password" />
+      </label>
+      <button class="btn primary" type="submit" id="btnLogin">Inloggen</button>
+    </form>
+    <div id="loginStatus" class="status" role="status"></div>
+  </section>
+
+  <section class="card narrow">
+    <h2>Account aanvragen</h2>
+    <p class="muted small">
+      Vraag zelf een account aan met je e-mailadres. Een beheerder wijst daarna je definitieve rol toe.
+    </p>
+    <form id="signupForm" class="stack" novalidate>
+      <label>E-mailadres
+        <input type="email" id="signupEmail" required autocomplete="email" placeholder="naam@voorbeeld.nl" />
+      </label>
+      <label>Wachtwoord
+        <input type="password" id="signupPassword" required minlength="6" autocomplete="new-password" />
+      </label>
+      <label>Bevestig wachtwoord
+        <input type="password" id="signupPasswordConfirm" required minlength="6" autocomplete="new-password" />
+      </label>
+      <button class="btn secondary" type="submit" id="btnSignup">Account aanvragen</button>
+    </form>
+    <div id="signupStatus" class="status" role="status"></div>
+    <p class="muted small">
+      Ben je beheerder en wil je iemand anders toevoegen? <a href="create-user.html" data-route="create-user">Gebruik dan het beheerdersformulier</a>.
+    </p>
+  </section>
+</div>

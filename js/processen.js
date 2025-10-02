@@ -1,4 +1,6 @@
 (function () {
+  window.Pages = window.Pages || {};
+
   const STATUS_META = {
     covered: { label: "Gedekt", className: "status-badge success" },
     partial: { label: "Gedeeltelijk", className: "status-badge warning" },
@@ -134,6 +136,28 @@
     },
   ];
 
+  let pageRoot = null;
+  const listeners = [];
+
+  function getRoot() {
+    return pageRoot || document;
+  }
+
+  function addListener(element, type, handler) {
+    if (!element || typeof element.addEventListener !== "function") return;
+    element.addEventListener(type, handler);
+    listeners.push({ element, type, handler });
+  }
+
+  function removeListeners() {
+    while (listeners.length) {
+      const { element, type, handler } = listeners.pop();
+      if (element && typeof element.removeEventListener === "function") {
+        element.removeEventListener(type, handler);
+      }
+    }
+  }
+
   function createProcessCard(item) {
     const article = document.createElement("article");
     article.className = "process-card";
@@ -183,7 +207,8 @@
   }
 
   function renderList(targetId, items) {
-    const container = document.getElementById(targetId);
+    const root = getRoot();
+    const container = root.querySelector(`#${targetId}`);
     if (!container) return;
     container.innerHTML = "";
     items.forEach((item) => {
@@ -196,7 +221,8 @@
     const targetId = selectEl.getAttribute("data-target");
     if (!targetId) return;
     const value = selectEl.value;
-    const container = document.getElementById(targetId);
+    const root = getRoot();
+    const container = root.querySelector(`#${targetId}`);
     if (!container) return;
     const cards = container.querySelectorAll(".process-card");
     cards.forEach((card) => {
@@ -209,15 +235,17 @@
   }
 
   function setupFilters() {
-    const filters = document.querySelectorAll(".status-filter");
+    const root = getRoot();
+    const filters = root.querySelectorAll(".status-filter");
     filters.forEach((filter) => {
-      filter.addEventListener("change", () => applyFilter(filter));
+      addListener(filter, "change", () => applyFilter(filter));
       applyFilter(filter);
     });
   }
 
   function renderActions(items) {
-    const actionList = document.getElementById("actionList");
+    const root = getRoot();
+    const actionList = root.querySelector("#actionList");
     if (!actionList) return;
     const actionMap = new Map();
 
@@ -259,10 +287,22 @@
     });
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
+  function init(context = {}) {
+    pageRoot = context.root || document;
+    removeListeners();
     renderList("processList", PROCESS_DATA);
     renderList("coreList", CORE_DATA);
     setupFilters();
     renderActions([...PROCESS_DATA, ...CORE_DATA]);
-  });
+  }
+
+  function destroy() {
+    removeListeners();
+    pageRoot = null;
+  }
+
+  window.Pages.processen = {
+    init,
+    destroy,
+  };
 })();

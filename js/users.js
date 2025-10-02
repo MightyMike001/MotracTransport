@@ -1,17 +1,22 @@
 (function () {
-  const els = {
-    form: document.getElementById("userForm"),
-    name: document.getElementById("uName"),
-    email: document.getElementById("uEmail"),
-    role: document.getElementById("uRole"),
-    password: document.getElementById("uPassword"),
-    active: document.getElementById("uActive"),
-    status: document.getElementById("userStatus"),
-    tableBody: document.querySelector("#userTable tbody"),
-    reload: document.getElementById("btnReloadUsers"),
-  };
+  window.Pages = window.Pages || {};
 
-  let USER_CACHE = [];
+  function refreshElements(root) {
+    const scope = root || document;
+    return {
+      form: scope.querySelector("#userForm"),
+      name: scope.querySelector("#uName"),
+      email: scope.querySelector("#uEmail"),
+      role: scope.querySelector("#uRole"),
+      password: scope.querySelector("#uPassword"),
+      active: scope.querySelector("#uActive"),
+      status: scope.querySelector("#userStatus"),
+      tableBody: scope.querySelector("#userTable tbody"),
+      reload: scope.querySelector("#btnReloadUsers"),
+    };
+  }
+
+  const DEFAULT_ROLE = "werknemer"; // Houd in sync met de standaardwaarde in partials/users.html
 
   const ROLE_OPTIONS = [
     { value: "in aanvraag", label: "In aanvraag" },
@@ -19,6 +24,25 @@
     { value: "werknemer", label: "Werknemer" },
     { value: "admin", label: "Admin" },
   ];
+
+  let els = {};
+  let USER_CACHE = [];
+  const listeners = [];
+
+  function addListener(element, type, handler) {
+    if (!element || typeof element.addEventListener !== "function") return;
+    element.addEventListener(type, handler);
+    listeners.push({ element, type, handler });
+  }
+
+  function removeListeners() {
+    while (listeners.length) {
+      const { element, type, handler } = listeners.pop();
+      if (element && typeof element.removeEventListener === "function") {
+        element.removeEventListener(type, handler);
+      }
+    }
+  }
 
   function setStatus(message, variant = "default") {
     if (!els.status) return;
@@ -102,7 +126,7 @@
     if (!els.form || !window.Users || !window.Auth) return;
     const name = (els.name?.value || "").trim();
     const email = (els.email?.value || "").trim().toLowerCase();
-    const role = els.role?.value || "werknemer";
+    const role = els.role?.value || DEFAULT_ROLE;
     const password = els.password?.value || "";
     const active = !!els.active?.checked;
 
@@ -205,25 +229,41 @@
     }
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
+  function handleRoleChange(event) {
+    const select = event.target.closest("select[data-action='role']");
+    if (!select) return;
+    const id = select.dataset.id;
+    updateRole(id, select.value);
+  }
+
+  async function init(context = {}) {
+    els = refreshElements(context.root || document);
+    removeListeners();
+    USER_CACHE = [];
     if (els.form) {
-      els.form.addEventListener("submit", handleCreate);
+      addListener(els.form, "submit", handleCreate);
     }
     if (els.reload) {
-      els.reload.addEventListener("click", (event) => {
+      addListener(els.reload, "click", (event) => {
         event.preventDefault();
         loadUsers(true);
       });
     }
     if (els.tableBody) {
-      els.tableBody.addEventListener("click", handleAction);
-      els.tableBody.addEventListener("change", (event) => {
-        const select = event.target.closest("select[data-action='role']");
-        if (!select) return;
-        const id = select.dataset.id;
-        updateRole(id, select.value);
-      });
+      addListener(els.tableBody, "click", handleAction);
+      addListener(els.tableBody, "change", handleRoleChange);
     }
-    loadUsers(true);
-  });
+    await loadUsers(true);
+  }
+
+  function destroy() {
+    removeListeners();
+    els = {};
+    USER_CACHE = [];
+  }
+
+  window.Pages.users = {
+    init,
+    destroy,
+  };
 })();

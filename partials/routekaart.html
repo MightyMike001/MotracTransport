@@ -1,0 +1,25 @@
+<div class="page route-page" data-route="routekaart" data-require-auth="true" data-require-role="planner,admin" data-title="Transportplanner — Routekaart">
+  <section class="card route-card">
+    <div class="bar">
+      <h2>Kaart en route-optimalisatie</h2>
+      <div class="muted small">Selecteer een dag en bekijk hubs, opdrachten en routes per voertuig.</div>
+    </div>
+    <div class="route-controls">
+      <label>Dag
+        <input type="date" id="routesDate" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="toggleShowRoutes" checked /> Toon routes
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="toggleOptimize" /> Optimaliseer volgorde
+      </label>
+      <button class="btn" id="btnRebuildRoutes">Herbereken</button>
+      <button class="btn ghost" id="btnResetView">Reset view</button>
+      <button class="btn ghost" id="btnPrintRoutes">Print / export</button>
+    </div>
+    <div id="routesStatus" class="status" role="status"></div>
+    <div id="routesMap" class="map-container" role="region" aria-label="Routekaart"></div>
+    <div class="route-summary" id="routesSummary"></div>
+  </section>
+</div>
