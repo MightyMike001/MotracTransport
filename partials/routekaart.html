@@ -19,7 +19,23 @@
       <button class="btn ghost" id="btnPrintRoutes">Print / export</button>
     </div>
     <div id="routesStatus" class="status" role="status"></div>
-    <div id="routesMap" class="map-container" role="region" aria-label="Routekaart"></div>
+    <div class="map-shell">
+      <div id="routesMap" class="map-container" role="region" aria-label="Routekaart"></div>
+      <div
+        id="routesEmptyState"
+        class="map-empty-state is-hidden"
+        role="note"
+        aria-live="polite"
+      >
+        <div class="map-empty-state__content">
+          <h3>Geen routes om te tonen</h3>
+          <p>
+            Er zijn geen geplande ritten voor de gekozen dag. Kies een andere datum of plan
+            opdrachten in via de planning en klik daarna op “Herbereken”.
+          </p>
+        </div>
+      </div>
+    </div>
     <div class="route-summary" id="routesSummary"></div>
   </section>
 </div>
