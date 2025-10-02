@@ -427,6 +427,12 @@ function refreshElements() {
     articleList: doc.getElementById("articleList"),
     articleRowTemplate: doc.getElementById("articleRowTemplate"),
     btnAddArticle: doc.getElementById("btnAddArticle"),
+    articleCsvInput: doc.getElementById("articleCsvInput"),
+    articleImportStatus: doc.getElementById("articleImportStatus"),
+    articleImportPreview: doc.getElementById("articleImportPreview"),
+    articleImportPreviewBody: doc.getElementById("articleImportPreviewBody"),
+    btnApplyArticleImport: doc.getElementById("btnApplyArticleImport"),
+    btnClearArticleImport: doc.getElementById("btnClearArticleImport"),
     btnCreate: doc.getElementById("btnCreate"),
     createStatus: doc.getElementById("createStatus"),
     wizardStepperItems: Array.from(doc.querySelectorAll('[data-stepper-step]')),
@@ -945,6 +951,8 @@ const ORDER_WIZARD_STATE = {
 };
 
 let ORDER_FORM_VALIDATOR = null;
+
+let ARTICLE_IMPORT_STATE = null;
 
 const STORAGE_AVAILABLE = (() => {
   try {
@@ -2678,6 +2686,443 @@ function removeArticleRow(row) {
   updateArticleRowsForType(getArticleType());
 }
 
+function isArticleRowEmpty(row, articleType) {
+  if (!row) return true;
+  const productInput = row.querySelector('[data-field="product"]');
+  const serialInput = row.querySelector('[data-field="serial_number"]');
+  const quantityInput = row.querySelector('[data-field="quantity"]');
+  const product = cleanText(productInput?.value);
+  const serialNumber = cleanText(serialInput?.value);
+  const rawQuantity = readInteger(quantityInput?.value);
+  const defaultQuantity = quantityInput ? readInteger(quantityInput.defaultValue) : null;
+  const normalizedType = articleType === "serial" ? "serial" : "non_serial";
+  const isQuantityDefault = rawQuantity === null || (defaultQuantity !== null && rawQuantity === defaultQuantity);
+  if (normalizedType === "serial") {
+    return !product && !serialNumber;
+  }
+  return !product && !serialNumber && isQuantityDefault;
+}
+
+function removeEmptyArticleRows(articleType) {
+  const rows = getArticleRows();
+  for (const row of rows) {
+    if (isArticleRowEmpty(row, articleType)) {
+      row.remove();
+    }
+  }
+}
+
+function detectCsvSeparator(line) {
+  if (!line || typeof line !== "string") {
+    return ";";
+  }
+  const semicolons = (line.match(/;/g) || []).length;
+  const commas = (line.match(/,/g) || []).length;
+  if (semicolons === 0 && commas === 0) {
+    return ";";
+  }
+  return semicolons >= commas ? ";" : ",";
+}
+
+function parseDelimitedValues(text, separator) {
+  const rows = [];
+  if (!text || typeof text !== "string") {
+    return rows;
+  }
+  let value = "";
+  let inQuotes = false;
+  let row = [];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === "\"") {
+      if (inQuotes && text[i + 1] === "\"") {
+        value += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === separator && !inQuotes) {
+      row.push(value);
+      value = "";
+      continue;
+    }
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && text[i + 1] === "\n") {
+        i += 1;
+      }
+      row.push(value);
+      rows.push(row);
+      row = [];
+      value = "";
+      continue;
+    }
+    value += char;
+  }
+  if (value.length > 0 || row.length > 0) {
+    row.push(value);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseArticleCsvContent(text) {
+  if (!text || typeof text !== "string") {
+    return { rows: [] };
+  }
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!normalized.trim()) {
+    return { rows: [] };
+  }
+  const firstLineBreak = normalized.indexOf("\n");
+  const headerLine = firstLineBreak === -1 ? normalized : normalized.slice(0, firstLineBreak);
+  const separator = detectCsvSeparator(headerLine);
+  const rawRows = parseDelimitedValues(normalized, separator);
+  if (!rawRows.length) {
+    return { rows: [] };
+  }
+  const sanitizeCell = (value) => {
+    if (value === undefined || value === null) return "";
+    return String(value).replace(/^\uFEFF/, "").trim();
+  };
+  const header = rawRows[0].map((cell) => sanitizeCell(cell).toLowerCase());
+  const artikelIndex = header.findIndex((cell) => cell === "artikel");
+  const serialIndex = header.findIndex((cell) => cell === "serienummer");
+  const quantityIndex = header.findIndex((cell) => cell === "aantal");
+  const missing = [];
+  if (artikelIndex === -1) missing.push("artikel");
+  if (serialIndex === -1) missing.push("serienummer");
+  if (quantityIndex === -1) missing.push("aantal");
+  if (missing.length) {
+    const formatted = missing.map((column) => `“${column}”`).join(", ");
+    return { error: `Ontbrekende kolommen: ${formatted}.` };
+  }
+  const rows = [];
+  for (let i = 1; i < rawRows.length; i++) {
+    const cells = rawRows[i];
+    if (!cells || !cells.length) {
+      continue;
+    }
+    const product = sanitizeCell(cells[artikelIndex]);
+    const serial = sanitizeCell(cells[serialIndex]);
+    const quantityText = sanitizeCell(cells[quantityIndex]);
+    if (!product && !serial && !quantityText) {
+      continue;
+    }
+    rows.push({
+      rowNumber: i + 1,
+      product,
+      serial_number: serial,
+      quantityText,
+    });
+  }
+  return { rows };
+}
+
+function validateArticleImportRows(rows, articleType) {
+  const normalizedType = articleType === "serial" ? "serial" : "non_serial";
+  const validated = [];
+  for (const row of rows) {
+    const errors = [];
+    const product = cleanText(row.product);
+    const serialNumber = cleanText(row.serial_number);
+    const quantityText = typeof row.quantityText === "string" ? row.quantityText.trim() : "";
+    const quantityValue = quantityText ? readInteger(quantityText) : null;
+    const result = {
+      rowNumber: row.rowNumber,
+      product,
+      productDisplay: row.product || "",
+      serial_number: normalizedType === "serial" ? serialNumber : null,
+      serialDisplay: row.serial_number || "",
+      quantity: normalizedType === "serial" ? 1 : null,
+      quantityDisplay: normalizedType === "serial" ? quantityText || "1" : quantityText,
+      errors,
+      isValid: true,
+    };
+
+    if (!product) {
+      errors.push("Artikel is verplicht.");
+    }
+
+    if (normalizedType === "serial") {
+      if (!serialNumber) {
+        errors.push("Serienummer is verplicht.");
+      }
+      if (quantityText && quantityValue !== 1) {
+        errors.push("Aantal moet 1 zijn voor serienummers.");
+      }
+    } else {
+      if (quantityText.length === 0) {
+        errors.push("Aantal is verplicht.");
+      } else if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
+        errors.push("Aantal moet groter dan nul zijn.");
+      } else {
+        result.quantity = quantityValue;
+        result.quantityDisplay = String(quantityValue);
+      }
+      result.serial_number = null;
+    }
+
+    result.isValid = errors.length === 0;
+    validated.push(result);
+  }
+  return validated;
+}
+
+function updateArticleImportActions(rows) {
+  const state = ARTICLE_IMPORT_STATE;
+  let effectiveRows = Array.isArray(rows) ? rows : null;
+  if (!effectiveRows && state && Array.isArray(state.validatedRows)) {
+    effectiveRows = state.validatedRows;
+  }
+  const total = Array.isArray(effectiveRows) ? effectiveRows.length : 0;
+  const validCount = Array.isArray(effectiveRows)
+    ? effectiveRows.filter((row) => row && row.isValid).length
+    : 0;
+  const hasValidRows = validCount > 0;
+
+  if (els.btnApplyArticleImport) {
+    if (hasValidRows) {
+      els.btnApplyArticleImport.removeAttribute("disabled");
+      els.btnApplyArticleImport.removeAttribute("aria-disabled");
+    } else {
+      els.btnApplyArticleImport.setAttribute("disabled", "disabled");
+      els.btnApplyArticleImport.setAttribute("aria-disabled", "true");
+    }
+  }
+
+  if (els.btnClearArticleImport) {
+    const hasRawRows = Boolean(state && Array.isArray(state.rawRows) && state.rawRows.length);
+    const hasSelection = Boolean(els.articleCsvInput && els.articleCsvInput.value);
+    if (hasRawRows || hasSelection) {
+      els.btnClearArticleImport.removeAttribute("disabled");
+      els.btnClearArticleImport.removeAttribute("aria-disabled");
+    } else {
+      els.btnClearArticleImport.setAttribute("disabled", "disabled");
+      els.btnClearArticleImport.setAttribute("aria-disabled", "true");
+    }
+  }
+
+  return { total, validCount };
+}
+
+function renderArticleImportPreview(rows) {
+  if (!els.articleImportPreview || !els.articleImportPreviewBody) {
+    return;
+  }
+  const body = els.articleImportPreviewBody;
+  body.innerHTML = "";
+  if (!Array.isArray(rows) || rows.length === 0) {
+    els.articleImportPreview.classList.add("is-hidden");
+    const counts = updateArticleImportActions(rows || []);
+    if (counts.total === 0 && els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Geen regels gevonden in het bestand.", "error");
+    }
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    if (!row.isValid) {
+      tr.classList.add("is-invalid");
+    }
+    const rowCell = document.createElement("th");
+    rowCell.scope = "row";
+    rowCell.textContent = row.rowNumber != null ? String(row.rowNumber) : "";
+    tr.appendChild(rowCell);
+
+    const productCell = document.createElement("td");
+    productCell.textContent = row.productDisplay || "";
+    tr.appendChild(productCell);
+
+    const serialCell = document.createElement("td");
+    serialCell.textContent = row.serialDisplay || "";
+    tr.appendChild(serialCell);
+
+    const quantityCell = document.createElement("td");
+    quantityCell.textContent = row.quantityDisplay || "";
+    tr.appendChild(quantityCell);
+
+    const statusCell = document.createElement("td");
+    statusCell.textContent = row.errors.length
+      ? row.errors.join(" ")
+      : "Klaar om toe te voegen";
+    tr.appendChild(statusCell);
+
+    fragment.appendChild(tr);
+  }
+
+  body.appendChild(fragment);
+  els.articleImportPreview.classList.remove("is-hidden");
+
+  const { total, validCount } = updateArticleImportActions(rows);
+  const invalidCount = total - validCount;
+  if (!els.articleImportStatus) {
+    return;
+  }
+  if (invalidCount > 0) {
+    const rijText = invalidCount === 1 ? "rij" : "rijen";
+    if (validCount > 0) {
+      setStatus(
+        els.articleImportStatus,
+        `${validCount} van ${total} regels klaar om toe te voegen. Controleer de rood gemarkeerde ${rijText}.`,
+        "error",
+      );
+    } else {
+      setStatus(
+        els.articleImportStatus,
+        `Geen geldige regels gevonden. Controleer de rood gemarkeerde ${rijText}.`,
+        "error",
+      );
+    }
+  } else {
+    const artikelText = validCount === 1 ? "artikel" : "artikelen";
+    setStatus(els.articleImportStatus, `${validCount} ${artikelText} klaar om toe te voegen.`, "success");
+  }
+}
+
+function refreshArticleImportPreview(options = {}) {
+  const { silent = false } = options;
+  if (!ARTICLE_IMPORT_STATE || !Array.isArray(ARTICLE_IMPORT_STATE.rawRows) || !ARTICLE_IMPORT_STATE.rawRows.length) {
+    if (!silent && els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "");
+    }
+    if (els.articleImportPreview) {
+      els.articleImportPreview.classList.add("is-hidden");
+    }
+    updateArticleImportActions([]);
+    return;
+  }
+  const articleType = getArticleType();
+  if (!articleType) {
+    if (!silent && els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Kies het artikeltype om de import te controleren.", "error");
+    }
+    if (els.articleImportPreview) {
+      els.articleImportPreview.classList.add("is-hidden");
+    }
+    ARTICLE_IMPORT_STATE.validatedRows = [];
+    updateArticleImportActions([]);
+    return;
+  }
+  const validatedRows = validateArticleImportRows(ARTICLE_IMPORT_STATE.rawRows, articleType);
+  ARTICLE_IMPORT_STATE.validatedRows = validatedRows;
+  renderArticleImportPreview(validatedRows);
+}
+
+function resetArticleImport(options = {}) {
+  const { clearInput = true, clearStatus = true } = options;
+  ARTICLE_IMPORT_STATE = null;
+  if (els.articleImportPreviewBody) {
+    els.articleImportPreviewBody.innerHTML = "";
+  }
+  if (els.articleImportPreview) {
+    els.articleImportPreview.classList.add("is-hidden");
+  }
+  if (clearInput && els.articleCsvInput) {
+    els.articleCsvInput.value = "";
+  }
+  if (clearStatus && els.articleImportStatus) {
+    setStatus(els.articleImportStatus, "");
+  }
+  updateArticleImportActions([]);
+}
+
+function processArticleCsvContent(text) {
+  const parsed = parseArticleCsvContent(text);
+  if (parsed.error) {
+    if (els.articleImportStatus) {
+      setStatus(els.articleImportStatus, parsed.error, "error");
+    }
+    resetArticleImport({ clearStatus: false });
+    return;
+  }
+  if (!parsed.rows.length) {
+    if (els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Geen regels gevonden in het bestand.", "error");
+    }
+    resetArticleImport({ clearStatus: false });
+    return;
+  }
+  ARTICLE_IMPORT_STATE = {
+    rawRows: parsed.rows,
+    validatedRows: [],
+  };
+  refreshArticleImportPreview();
+}
+
+function handleArticleCsvChange(event) {
+  const input = event?.target;
+  const file = input && input.files && input.files[0] ? input.files[0] : null;
+  if (!file) {
+    resetArticleImport();
+    return;
+  }
+  resetArticleImport({ clearInput: false });
+  if (els.articleImportStatus) {
+    setStatus(els.articleImportStatus, `Bestand ${file.name} wordt verwerkt…`);
+  }
+  const reader = new FileReader();
+  reader.addEventListener("error", () => {
+    if (els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Het CSV-bestand kan niet worden gelezen.", "error");
+    }
+    resetArticleImport({ clearStatus: false });
+  });
+  reader.addEventListener("load", () => {
+    const text = typeof reader.result === "string" ? reader.result : "";
+    processArticleCsvContent(text);
+  });
+  reader.readAsText(file, "utf-8");
+}
+
+function applyArticleImport(event) {
+  if (event) {
+    event.preventDefault();
+  }
+  if (!ARTICLE_IMPORT_STATE || !Array.isArray(ARTICLE_IMPORT_STATE.rawRows) || !ARTICLE_IMPORT_STATE.rawRows.length) {
+    if (els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Geen import beschikbaar.", "error");
+    }
+    return;
+  }
+  const articleType = getArticleType();
+  if (!articleType) {
+    if (els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Kies eerst het artikeltype.", "error");
+    }
+    return;
+  }
+  const validatedRows = ARTICLE_IMPORT_STATE.validatedRows && ARTICLE_IMPORT_STATE.validatedRows.length
+    ? ARTICLE_IMPORT_STATE.validatedRows
+    : validateArticleImportRows(ARTICLE_IMPORT_STATE.rawRows, articleType);
+  const validRows = validatedRows.filter((row) => row && row.isValid);
+  if (!validRows.length) {
+    if (els.articleImportStatus) {
+      setStatus(els.articleImportStatus, "Geen geldige regels om toe te voegen.", "error");
+    }
+    return;
+  }
+  removeEmptyArticleRows(articleType);
+  for (const row of validRows) {
+    addArticleRow({
+      product: row.product,
+      serial_number: articleType === "serial" ? row.serial_number : null,
+      quantity: articleType === "serial" ? 1 : row.quantity,
+    });
+  }
+  updateArticleRowsForType(articleType);
+  const message = validRows.length === 1
+    ? "1 artikel toegevoegd."
+    : `${validRows.length} artikelen toegevoegd.`;
+  if (els.articleImportStatus) {
+    setStatus(els.articleImportStatus, message, "success");
+  }
+  resetArticleImport({ clearStatus: false });
+}
+
 function resetArticlesSection() {
   if (els.articleTypeInputs) {
     for (const input of els.articleTypeInputs) {
@@ -2689,6 +3134,7 @@ function resetArticlesSection() {
   }
   ensureMinimumArticleRows();
   updateArticleRowsForType(getArticleType());
+  resetArticleImport();
 }
 
 function collectArticles(articleType) {
@@ -3703,6 +4149,8 @@ function bind(canManagePlanning){
     }
   }
   bindClick(els.btnAddArticle, () => addArticleRow());
+  bindClick(els.btnApplyArticleImport, applyArticleImport);
+  bindClick(els.btnClearArticleImport, () => resetArticleImport());
   bindClick(els.btnReload, () => loadOrders());
   bindClick(els.btnExportOrders, () => exportOrdersToCsv());
   bindClick(els.btnAddCarrier, addCarrier);
@@ -3723,10 +4171,16 @@ function bind(canManagePlanning){
       removeArticleRow(row);
     });
   }
+  if (els.articleCsvInput) {
+    addBoundListener(els.articleCsvInput, "change", handleArticleCsvChange);
+  }
   if (els.articleTypeInputs) {
     for (const input of els.articleTypeInputs) {
       addBoundListener(input, "change", () => {
         updateArticleRowsForType(getArticleType());
+        if (ARTICLE_IMPORT_STATE && Array.isArray(ARTICLE_IMPORT_STATE.rawRows) && ARTICLE_IMPORT_STATE.rawRows.length) {
+          refreshArticleImportPreview();
+        }
       });
     }
   }
@@ -3775,6 +4229,7 @@ async function initAppPage() {
   await assignRequestReference();
   applyDefaultReceivedDate();
   ensureMinimumArticleRows();
+  resetArticleImport();
   updateArticleRowsForType(getArticleType());
   hydrateLocalState();
   PLAN_SUGGESTIONS = [];
@@ -3815,6 +4270,7 @@ function destroyAppPage() {
   PLAN_SUGGESTIONS = [];
   DRAG_CONTEXT = null;
   ORDER_FORM_VALIDATOR = null;
+  ARTICLE_IMPORT_STATE = null;
 }
 
 window.Pages = window.Pages || {};
