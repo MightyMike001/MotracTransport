@@ -42,6 +42,274 @@ const enforceDateInputs = typeof DATE_UTILS.enforceDateInputs === "function"
   ? DATE_UTILS.enforceDateInputs
   : () => {};
 
+const VALIDATION_CLASSES = {
+  fieldInvalid: "field-invalid",
+  fieldError: "field-error",
+};
+
+function getFieldContainer(field) {
+  if (!field) return null;
+  if (typeof field.closest === "function") {
+    const container = field.closest(".form-field");
+    if (container) return container;
+    const label = field.closest("label");
+    if (label) return label;
+  }
+  return field.parentElement || null;
+}
+
+function clearFieldError(field) {
+  if (!field) return;
+  const container = getFieldContainer(field);
+  if (!container) return;
+  const errorEl = container.querySelector(`.${VALIDATION_CLASSES.fieldError}`);
+  if (errorEl && errorEl.id && field.hasAttribute("aria-describedby")) {
+    const ids = field
+      .getAttribute("aria-describedby")
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((id) => id !== errorEl.id);
+    if (ids.length) {
+      field.setAttribute("aria-describedby", ids.join(" "));
+    } else {
+      field.removeAttribute("aria-describedby");
+    }
+  }
+  field.removeAttribute("aria-invalid");
+  container.classList.remove(VALIDATION_CLASSES.fieldInvalid);
+  if (errorEl) {
+    errorEl.remove();
+  }
+}
+
+function setFieldError(field, message) {
+  if (!field) return;
+  const container = getFieldContainer(field);
+  if (!container) return;
+  clearFieldError(field);
+  container.classList.add(VALIDATION_CLASSES.fieldInvalid);
+  field.setAttribute("aria-invalid", "true");
+  let errorEl = container.querySelector(`.${VALIDATION_CLASSES.fieldError}`);
+  if (!errorEl) {
+    errorEl = document.createElement("div");
+    errorEl.className = VALIDATION_CLASSES.fieldError;
+    errorEl.setAttribute("role", "alert");
+    container.appendChild(errorEl);
+  }
+  const fieldId = field.id || field.name;
+  if (fieldId) {
+    const errorId = `${fieldId}__error`;
+    errorEl.id = errorId;
+    const describedBy = new Set(
+      (field.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter(Boolean)
+    );
+    describedBy.add(errorId);
+    field.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
+  }
+  errorEl.textContent = message;
+}
+
+function createFormValidator(form, schema, registerListener) {
+  if (!form || !schema || typeof schema !== "object") {
+    return {
+      validate: () => true,
+      reset: () => {},
+    };
+  }
+
+  const entries = Object.entries(schema);
+  const fieldCache = new Map();
+
+  const getField = (key, config) => {
+    if (fieldCache.has(key)) {
+      return fieldCache.get(key);
+    }
+    let field = null;
+    if (config && typeof config.getElement === "function") {
+      field = config.getElement(form);
+    }
+    if (!field) {
+      field = form.querySelector(`#${key}`) || form.querySelector(`[name="${key}"]`);
+    }
+    fieldCache.set(key, field || null);
+    return field || null;
+  };
+
+  const getValue = (field, config) => {
+    if (!field) return "";
+    if (config && typeof config.getValue === "function") {
+      return config.getValue(field, form);
+    }
+    const tag = field.tagName ? field.tagName.toLowerCase() : "";
+    const type = (field.getAttribute && field.getAttribute("type")) || field.type || "";
+    if (type === "checkbox") {
+      return field.checked;
+    }
+    if (type === "radio") {
+      const name = field.name;
+      if (name) {
+        const selected = form.querySelector(`input[name="${name}"]:checked`);
+        return selected ? selected.value : "";
+      }
+      return field.checked ? field.value : "";
+    }
+    if (tag === "select") {
+      return field.value;
+    }
+    const value = field.value;
+    return typeof value === "string" ? value.trim() : value;
+  };
+
+  const collectValues = () => {
+    const values = {};
+    for (const [key, config] of entries) {
+      const field = getField(key, config);
+      values[key] = getValue(field, config);
+    }
+    return values;
+  };
+
+  const getMessage = (rule, fallback) => {
+    if (typeof rule === "string") return rule;
+    if (rule && typeof rule.message === "string") return rule.message;
+    return fallback;
+  };
+
+  const applyRules = (key, config, values) => {
+    const field = getField(key, config);
+    if (!field) return true;
+    clearFieldError(field);
+    const rawValue = values[key];
+    const value = typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    if (config.required) {
+      const isEmpty = value === null || value === undefined || value === "" || value === false;
+      if (isEmpty) {
+        setFieldError(field, getMessage(config.required, "Dit veld is verplicht."));
+        return false;
+      }
+    }
+    if (config.pattern && value) {
+      const pattern = config.pattern instanceof RegExp ? config.pattern : config.pattern.value;
+      if (pattern && typeof pattern.test === "function" && !pattern.test(value)) {
+        setFieldError(field, getMessage(config.pattern, "Ongeldige invoer."));
+        return false;
+      }
+    }
+    if (config.minLength && typeof value === "string") {
+      const limit = typeof config.minLength === "number" ? config.minLength : config.minLength.value;
+      if (Number.isFinite(limit) && value.length < limit) {
+        setFieldError(field, getMessage(config.minLength, `Minimaal ${limit} tekens.`));
+        return false;
+      }
+    }
+    if (config.validate) {
+      try {
+        const result = config.validate(value, values, field);
+        if (result !== true) {
+          const message = typeof result === "string" ? result : getMessage(config.validate, "Ongeldige invoer.");
+          setFieldError(field, message);
+          return false;
+        }
+      } catch (err) {
+        console.error("Validatie fout", err);
+        setFieldError(field, getMessage(config.validate, "Ongeldige invoer."));
+        return false;
+      }
+    }
+    clearFieldError(field);
+    return true;
+  };
+
+  const validateField = (key) => {
+    const config = schema[key];
+    if (!config) return true;
+    const values = collectValues();
+    const valid = applyRules(key, config, values);
+    if (valid && Array.isArray(config.revalidate)) {
+      for (const linkedKey of config.revalidate) {
+        const linkedConfig = schema[linkedKey];
+        if (linkedConfig) {
+          applyRules(linkedKey, linkedConfig, values);
+        }
+      }
+    }
+    return valid;
+  };
+
+  const validateAll = () => {
+    const values = collectValues();
+    let allValid = true;
+    let firstInvalid = null;
+    for (const [key, config] of entries) {
+      const valid = applyRules(key, config, values);
+      if (!valid) {
+        allValid = false;
+        const field = getField(key, config);
+        if (!firstInvalid && field && typeof field.focus === "function") {
+          firstInvalid = field;
+        }
+      }
+    }
+    if (firstInvalid) {
+      firstInvalid.focus();
+    }
+    return allValid;
+  };
+
+  const reset = () => {
+    for (const [key, config] of entries) {
+      const field = getField(key, config);
+      if (field) {
+        clearFieldError(field);
+      }
+    }
+  };
+
+  const addListener = (element, type, handler) => {
+    if (!element || typeof handler !== "function" || typeof type !== "string") return;
+    if (typeof registerListener === "function") {
+      registerListener(element, type, handler);
+    } else {
+      element.addEventListener(type, handler);
+    }
+  };
+
+  const determineEvent = (field) => {
+    if (!field) return "input";
+    const tag = field.tagName ? field.tagName.toLowerCase() : "";
+    const type = (field.getAttribute && field.getAttribute("type")) || field.type || "";
+    if (type === "checkbox" || type === "radio") return "change";
+    if (tag === "select") return "change";
+    if (["date", "time", "number"].includes(type)) return "change";
+    return "input";
+  };
+
+  for (const [key, config] of entries) {
+    const field = getField(key, config);
+    if (!field) continue;
+    const eventType = determineEvent(field);
+    addListener(field, eventType, () => {
+      validateField(key);
+      if (config && Array.isArray(config.revalidate)) {
+        for (const linkedKey of config.revalidate) {
+          validateField(linkedKey);
+        }
+      }
+    });
+    addListener(field, "blur", () => {
+      validateField(key);
+    });
+  }
+
+  return {
+    validate: validateAll,
+    validateField,
+    reset,
+  };
+}
+
 function refreshElements() {
   const doc = document;
   els = {
@@ -150,11 +418,126 @@ function removeBoundListeners() {
   }
 }
 
+function setupOrderFormValidation() {
+  if (!els.orderForm) {
+    ORDER_FORM_VALIDATOR = null;
+    return;
+  }
+  ORDER_FORM_VALIDATOR = createFormValidator(els.orderForm, ORDER_FORM_SCHEMA, addBoundListener);
+  if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
+    ORDER_FORM_VALIDATOR.reset();
+  }
+}
+
 const STORAGE_KEYS = {
   trucks: "transport_trucks_v1",
   board: "transport_board_v1",
   lastReference: "transport_last_reference_v1",
 };
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[+0-9()\s-]{6,}$/;
+
+const ORDER_FORM_SCHEMA = {
+  oRequestReference: {
+    required: "Vul de transport aanvraag referentie in.",
+  },
+  oDue: {
+    required: "Vul de gewenste leverdatum in.",
+  },
+  oCustomerName: {
+    required: "Vul de klantnaam in.",
+  },
+  oOrderReference: {
+    required: "Vul de orderreferentie in.",
+  },
+  oOrderDescription: {
+    required: "Vul de orderomschrijving in.",
+    minLength: {
+      value: 5,
+      message: "Beschrijf de order in minimaal 5 tekens.",
+    },
+  },
+  oOrderContact: {
+    required: "Vul de order contactpersoon in.",
+  },
+  oOrderContactPhone: {
+    required: "Vul het telefoonnummer van de order contactpersoon in.",
+    pattern: {
+      value: PHONE_PATTERN,
+      message: "Gebruik minimaal 6 cijfers of tekens.",
+    },
+  },
+  oOrderContactEmail: {
+    required: "Vul het e-mailadres van de order contactpersoon in.",
+    pattern: {
+      value: EMAIL_PATTERN,
+      message: "Vul een geldig e-mailadres in.",
+    },
+  },
+  oPickupDate: {
+    required: "Vul de laad datum in.",
+  },
+  oPickupTimeFrom: {
+    required: "Vul het begin van het laad tijdslot in.",
+    revalidate: ["oPickupTimeTo"],
+  },
+  oPickupTimeTo: {
+    required: "Vul het einde van het laad tijdslot in.",
+    validate: (value, values) => {
+      if (!value || !values.oPickupTimeFrom) return true;
+      if (values.oPickupTimeFrom > value) {
+        return "Het eindtijdstip ligt vóór de starttijd.";
+      }
+      return true;
+    },
+  },
+  oPickupContact: {
+    required: "Vul de laad contactpersoon in.",
+  },
+  oPickupPhone: {
+    required: "Vul het telefoonnummer van het laad contact in.",
+    pattern: {
+      value: PHONE_PATTERN,
+      message: "Gebruik minimaal 6 cijfers of tekens.",
+    },
+  },
+  oPickupLocation: {
+    required: "Vul de laadlocatie in.",
+  },
+  oDeliveryDate: {
+    required: "Vul de los datum in.",
+  },
+  oDeliveryTimeFrom: {
+    required: "Vul het begin van het los tijdslot in.",
+    revalidate: ["oDeliveryTimeTo"],
+  },
+  oDeliveryTimeTo: {
+    required: "Vul het einde van het los tijdslot in.",
+    validate: (value, values) => {
+      if (!value || !values.oDeliveryTimeFrom) return true;
+      if (values.oDeliveryTimeFrom > value) {
+        return "Het eindtijdstip ligt vóór de starttijd.";
+      }
+      return true;
+    },
+  },
+  oDeliveryContact: {
+    required: "Vul de los contactpersoon in.",
+  },
+  oDeliveryPhone: {
+    required: "Vul het telefoonnummer van het los contact in.",
+    pattern: {
+      value: PHONE_PATTERN,
+      message: "Gebruik minimaal 6 cijfers of tekens.",
+    },
+  },
+  oDeliveryLocation: {
+    required: "Vul de loslocatie in.",
+  },
+};
+
+let ORDER_FORM_VALIDATOR = null;
 
 const STORAGE_AVAILABLE = (() => {
   try {
@@ -1357,6 +1740,9 @@ function resetOrderForm(){
   }
   applyDefaultReceivedDate();
   resetArticlesSection();
+  if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
+    ORDER_FORM_VALIDATOR.reset();
+  }
   if (els.createStatus) {
     setStatus(els.createStatus, "");
   }
@@ -1365,16 +1751,12 @@ function resetOrderForm(){
 async function createOrder(){
   if (!els.oCustomerName || !els.oRequestReference) return;
   const user = getCurrentUser();
+  if (ORDER_FORM_VALIDATOR && !ORDER_FORM_VALIDATOR.validate()) {
+    setStatus(els.createStatus, "Controleer de gemarkeerde velden.", "error");
+    return;
+  }
   const customerName = cleanText(els.oCustomerName.value);
   const requestReference = cleanText(els.oRequestReference.value);
-  if (!requestReference) {
-    setStatus(els.createStatus, "Vul de transport aanvraag referentie in.", "error");
-    return;
-  }
-  if (!customerName) {
-    setStatus(els.createStatus, "Vul de klantnaam in.", "error");
-    return;
-  }
   const articleType = getArticleType();
   if (!articleType) {
     setStatus(els.createStatus, "Kies het artikeltype.", "error");
@@ -2245,6 +2627,7 @@ async function initAppPage() {
   const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
   removeBoundListeners();
   bind(canManagePlanning);
+  setupOrderFormValidation();
   await assignRequestReference();
   applyDefaultReceivedDate();
   ensureMinimumArticleRows();
@@ -2286,6 +2669,7 @@ function destroyAppPage() {
   els = {};
   PLAN_SUGGESTIONS = [];
   DRAG_CONTEXT = null;
+  ORDER_FORM_VALIDATOR = null;
 }
 
 window.Pages = window.Pages || {};
