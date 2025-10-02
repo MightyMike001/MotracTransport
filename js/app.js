@@ -2016,9 +2016,11 @@ function renderOrders(rows) {
       tr.title = tooltip.join("\n");
     }
 
-    const dueCell = document.createElement("td");
     const dueSource = r.due_date || details.delivery?.date;
-    dueCell.textContent = formatDateDisplay(dueSource);
+    const displayDate = formatDateDisplay(dueSource);
+    const referenceLabel = details.reference || details.customerOrderNumber || details.customerNumber || null;
+    const dueCell = document.createElement("td");
+    dueCell.textContent = displayDate;
     tr.appendChild(dueCell);
 
     const refCell = document.createElement("td");
@@ -2060,6 +2062,24 @@ function renderOrders(rows) {
 
     if (canUserEditOrder(r, currentUser)) {
       tr.addEventListener("click", () => openEdit(r));
+      tr.setAttribute("tabindex", "0");
+      tr.setAttribute("role", "button");
+      const labelParts = [
+        displayDate !== "-" ? displayDate : null,
+        r.customer_name || null,
+        referenceLabel,
+      ].filter(Boolean);
+      const accessibleLabel = labelParts.length
+        ? `Order bewerken: ${labelParts.join(" – ")}`
+        : "Order bewerken";
+      tr.setAttribute("aria-label", accessibleLabel);
+      tr.addEventListener("keydown", (event) => {
+        if (event.defaultPrevented) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openEdit(r);
+        }
+      });
     } else {
       tr.classList.add("is-readonly-order");
       if (!tooltip.length && ownerInfo?.name) {
