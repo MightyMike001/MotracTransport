@@ -95,6 +95,11 @@
       if (!adminUser || adminUser.role !== "admin") {
         throw new Error("Alleen admins kunnen nieuwe gebruikers aanmaken");
       }
+      if (!adminUser.is_active) {
+        throw new Error(
+          "Dit admin-account is gedeactiveerd. Neem contact op met een beheerder voor ondersteuning."
+        );
+      }
 
       const newPasswordHash = await window.Auth.hashPassword(newPasswordValue);
       await window.Users.create({
