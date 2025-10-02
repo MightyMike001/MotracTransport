@@ -1,0 +1,9 @@
+# Environment configuration
+.env
+js/env.js
+
+# Dependencies
+node_modules/
+
+# Build output
+/dist/
