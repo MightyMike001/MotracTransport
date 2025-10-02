@@ -47,6 +47,25 @@ const VALIDATION_CLASSES = {
   fieldError: "field-error",
 };
 
+const showToastMessage = (type, message) => {
+  if (typeof window.showToast === "function" && message) {
+    window.showToast(type, message);
+  }
+};
+
+function getSupabaseErrorMessage(error, fallback) {
+  if (window.ApiHelpers?.formatSupabaseError) {
+    return window.ApiHelpers.formatSupabaseError(error, fallback);
+  }
+  if (error && typeof error.message === "string" && error.message.trim()) {
+    return error.message.trim();
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+  return fallback;
+}
+
 function getFieldContainer(field) {
   if (!field) return null;
   if (typeof field.closest === "function") {
@@ -1450,9 +1469,22 @@ async function saveEdit(){
     planned_slot: els.eSlot.value || null,
     updated_at: new Date().toISOString()
   };
-  await Orders.update(id, patch);
-  els.dlg.close();
-  await loadOrders();
+  try {
+    setStatus(els.editStatus, "Opslaan…");
+    await Orders.update(id, patch);
+    const successMessage = "Transport bijgewerkt.";
+    setStatus(els.editStatus, successMessage, "success");
+    showToastMessage("success", successMessage);
+    if (els.dlg?.open) {
+      els.dlg.close();
+    }
+    await loadOrders();
+  } catch (e) {
+    console.error("Kan order niet opslaan", e);
+    const message = getSupabaseErrorMessage(e, "Opslaan mislukt.");
+    setStatus(els.editStatus, message, "error");
+    showToastMessage("error", message);
+  }
 }
 
 async function deleteOrder(event){
@@ -1474,13 +1506,17 @@ async function deleteOrder(event){
     setStatus(els.editStatus, "Verwijderen…");
     await Orders.delete(id);
     await loadOrders();
-    setStatus(els.editStatus, "Transport verwijderd.", "success");
+    const successMessage = "Transport verwijderd.";
+    setStatus(els.editStatus, successMessage, "success");
+    showToastMessage("success", successMessage);
     if (els.dlg?.open) {
       els.dlg.close();
     }
   } catch (e) {
     console.error("Kan order niet verwijderen", e);
-    setStatus(els.editStatus, "Verwijderen mislukt.", "error");
+    const message = getSupabaseErrorMessage(e, "Verwijderen mislukt.");
+    setStatus(els.editStatus, message, "error");
+    showToastMessage("error", message);
   }
 }
 
@@ -1809,7 +1845,9 @@ async function createOrder(){
       throw lineError;
     }
     storageSet(STORAGE_KEYS.lastReference, requestReference);
-    setStatus(els.createStatus, "Transport aangemaakt", "success");
+    const successMessage = "Transport aangemaakt";
+    setStatus(els.createStatus, successMessage, "success");
+    showToastMessage("success", successMessage);
     resetOrderForm();
     await assignRequestReference();
     await loadOrders();
@@ -1824,8 +1862,9 @@ async function createOrder(){
       }
     }
     console.error(e);
-    const message = e && typeof e.message === "string" && e.message.trim() ? e.message : "Mislukt";
+    const message = getSupabaseErrorMessage(e, "Transport opslaan mislukt");
     setStatus(els.createStatus, message, "error");
+    showToastMessage("error", message);
   }
 }
 
@@ -2549,12 +2588,28 @@ async function applyPlan(){
       setStatus(els.plannerStatus, "Er is geen voorstel om op te slaan.");
       return;
     }
-    await Promise.allSettled(tasks);
-    setStatus(els.plannerStatus, "Planning opgeslagen", "success");
+    const results = await Promise.allSettled(tasks);
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length) {
+      const message = getSupabaseErrorMessage(
+        failures[0].reason,
+        failures.length === tasks.length
+          ? "Opslaan van planning mislukt."
+          : "Planning deels opgeslagen. Controleer de orders."
+      );
+      setStatus(els.plannerStatus, message, "error");
+      showToastMessage("error", message);
+    } else {
+      const successMessage = "Planning opgeslagen";
+      setStatus(els.plannerStatus, successMessage, "success");
+      showToastMessage("success", successMessage);
+    }
     await loadOrders();
   } catch (e) {
     console.error("Kan planning niet opslaan", e);
-    setStatus(els.plannerStatus, "Opslaan van planning mislukt.", "error");
+    const message = getSupabaseErrorMessage(e, "Opslaan van planning mislukt.");
+    setStatus(els.plannerStatus, message, "error");
+    showToastMessage("error", message);
   }
 }
 

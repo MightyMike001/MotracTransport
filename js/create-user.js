@@ -45,6 +45,12 @@
     }
   }
 
+  function notify(type, message) {
+    if (typeof window.showToast === "function" && message) {
+      window.showToast(type, message);
+    }
+  }
+
   function normalizeMotracEmail(email) {
     const cleaned = (email || "").trim().toLowerCase();
     if (!cleaned) return "";
@@ -110,7 +116,9 @@
         is_active: true,
       });
 
-      setCreateStatus("Nieuwe gebruiker is aangemaakt", "success");
+      const successMessage = "Nieuwe gebruiker is aangemaakt";
+      setCreateStatus(successMessage, "success");
+      notify("success", successMessage);
       els.form.reset();
       if (els.newUserRole) {
         els.newUserRole.value = "";
@@ -121,6 +129,7 @@
         ? window.ApiHelpers.formatSupabaseError(err, "Gebruiker aanmaken mislukt")
         : err?.message || "Gebruiker aanmaken mislukt";
       setCreateStatus(message, "error");
+      notify("error", message);
     } finally {
       if (els.btnCreate) {
         els.btnCreate.disabled = false;
