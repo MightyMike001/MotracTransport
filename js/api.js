@@ -137,6 +137,14 @@ const Orders = {
     if (filters.status) params.push(`status=eq.${encodeURIComponent(filters.status)}`);
     if (filters.date) params.push(`due_date=eq.${encodeURIComponent(filters.date)}`);
     if (filters.plannedDate) params.push(`planned_date=eq.${encodeURIComponent(filters.plannedDate)}`);
+    if (filters.customer) {
+      const customerTerm = encodeURIComponent(`*${filters.customer}*`);
+      params.push(`customer_name.ilike.${customerTerm}`);
+    }
+    if (filters.customerOrder) {
+      const orderTerm = encodeURIComponent(`*${filters.customerOrder}*`);
+      params.push(`customer_order_number.ilike.${orderTerm}`);
+    }
     if (filters.search) {
       const searchTerm = encodeURIComponent(`*${filters.search}*`);
       params.push(
@@ -147,7 +155,27 @@ const Orders = {
     if (createdBy !== undefined && createdBy !== null && String(createdBy).length) {
       params.push(`created_by=eq.${encodeURIComponent(createdBy)}`);
     }
-    params.push("order=due_date.asc");
+    const sortOption = options.sort;
+    const sortDescriptors = Array.isArray(sortOption) ? sortOption : (sortOption ? [sortOption] : []);
+    const orderClauses = [];
+    for (const descriptor of sortDescriptors) {
+      if (!descriptor || !descriptor.field) continue;
+      const direction = descriptor.direction === "desc" ? "desc" : "asc";
+      let clause = `${descriptor.field}.${direction}`;
+      if (descriptor.nulls === "first") {
+        clause += ".nullsfirst";
+      } else if (descriptor.nulls === "last" || descriptor.nulls === "nullslast") {
+        clause += ".nullslast";
+      }
+      orderClauses.push(clause);
+    }
+    if (!orderClauses.length) {
+      orderClauses.push("due_date.asc");
+    }
+    if (!orderClauses.some((clause) => clause.startsWith("id."))) {
+      orderClauses.push("id.asc");
+    }
+    params.push(`order=${orderClauses.join(",")}`);
 
     const rawQuery = params.length ? `?${params.join("&")}` : "";
     const qs = buildSelectQuery(rawQuery);

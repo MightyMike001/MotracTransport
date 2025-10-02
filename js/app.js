@@ -359,12 +359,16 @@ function createFormValidator(form, schema, registerListener) {
 
 function refreshElements() {
   const doc = document;
+  const ordersTableElement = doc.getElementById("ordersTable");
   els = {
     filterRegion: doc.getElementById("filterRegion"),
     filterStatus: doc.getElementById("filterStatus"),
+    filterCustomer: doc.getElementById("filterCustomer"),
+    filterCustomerOrder: doc.getElementById("filterCustomerOrder"),
     filterQuery: doc.getElementById("filterQuery"),
     filterDate: doc.getElementById("filterDate"),
     btnApplyFilters: doc.getElementById("btnApplyFilters"),
+    btnExportOrders: doc.getElementById("btnExportOrders"),
     planStart: doc.getElementById("planStart"),
     planEnd: doc.getElementById("planEnd"),
     btnSuggestPlan: doc.getElementById("btnSuggestPlan"),
@@ -419,10 +423,14 @@ function refreshElements() {
     orderSummary: doc.getElementById("orderSummary"),
     orderSummaryArticles: doc.getElementById("orderSummaryArticles"),
     btnReload: doc.getElementById("btnReload"),
-    ordersTable: (() => {
-      const table = doc.getElementById("ordersTable");
-      return table ? table.querySelector("tbody") : null;
-    })(),
+    ordersTableElement,
+    ordersTable: ordersTableElement ? ordersTableElement.querySelector("tbody") : null,
+    orderSortHeaders: ordersTableElement
+      ? Array.from(ordersTableElement.querySelectorAll("thead th[data-sort]"))
+      : [],
+    orderSortToggles: ordersTableElement
+      ? Array.from(ordersTableElement.querySelectorAll("thead th[data-sort] .table-sort-button"))
+      : [],
     pager: doc.getElementById("ordersPager"),
     pagerInfo: doc.getElementById("pagerInfo"),
     pagerPrev: doc.getElementById("pagerPrev"),
@@ -1074,6 +1082,25 @@ const PAGINATION = {
 const ORDER_OWNERS = new Map();
 let DRAG_CONTEXT = null;
 
+const DEFAULT_ORDER_SORT_COLUMN = "due_date";
+const ORDER_SORT_CONFIG = {
+  due_date: { field: "due_date", defaultDirection: "asc", nulls: "last" },
+  request_reference: { field: "request_reference", defaultDirection: "asc" },
+  customer_name: { field: "customer_name", defaultDirection: "asc" },
+  customer_order_number: { field: "customer_order_number", defaultDirection: "asc" },
+  pickup_location: { field: "pickup_location", defaultDirection: "asc" },
+  delivery_location: { field: "delivery_location", defaultDirection: "asc" },
+  transport_type: { field: "transport_type", defaultDirection: "asc" },
+  status: { field: "status", defaultDirection: "asc" },
+  assigned_carrier: { field: "assigned_carrier", defaultDirection: "asc" },
+  planned_date: { field: "planned_date", defaultDirection: "asc", nulls: "last" },
+};
+
+const ORDER_SORTING = {
+  column: DEFAULT_ORDER_SORT_COLUMN,
+  direction: ORDER_SORT_CONFIG[DEFAULT_ORDER_SORT_COLUMN]?.defaultDirection || "asc",
+};
+
 function getCurrentUser() {
   if (window.Auth && typeof window.Auth.getUser === "function") {
     return window.Auth.getUser();
@@ -1471,7 +1498,7 @@ async function refreshCarriersDatalist() {
   }
 }
 
-async function fetchAllOrderPages(filters, firstPageResult) {
+async function fetchAllOrderPages(filters, firstPageResult, sortDescriptors) {
   const pageSize = Number(firstPageResult?.pageSize);
   const total = Number(firstPageResult?.total) || 0;
   if (!pageSize || pageSize <= 0) {
@@ -1492,7 +1519,7 @@ async function fetchAllOrderPages(filters, firstPageResult) {
       }
       continue;
     }
-    const next = await Orders.list(filters, { page, pageSize });
+    const next = await Orders.list(filters, { page, pageSize, sort: sortDescriptors });
     if (Array.isArray(next?.rows)) {
       allRows.push(...next.rows);
     }
@@ -1501,6 +1528,83 @@ async function fetchAllOrderPages(filters, firstPageResult) {
     }
   }
   return allRows;
+}
+
+function getOrderSortConfig(column) {
+  if (!column) return null;
+  return ORDER_SORT_CONFIG[column] || null;
+}
+
+function getOrderSortDescriptors() {
+  const descriptors = [];
+  const activeConfig = getOrderSortConfig(ORDER_SORTING.column) || getOrderSortConfig(DEFAULT_ORDER_SORT_COLUMN);
+  if (activeConfig) {
+    descriptors.push({
+      field: activeConfig.field,
+      direction: ORDER_SORTING.direction === "desc" ? "desc" : "asc",
+      nulls: activeConfig.nulls,
+    });
+  }
+  if (!descriptors.some((descriptor) => descriptor.field === "due_date")) {
+    descriptors.push({ field: "due_date", direction: "asc", nulls: "last" });
+  }
+  if (!descriptors.some((descriptor) => descriptor.field === "id")) {
+    descriptors.push({ field: "id", direction: "asc" });
+  }
+  return descriptors;
+}
+
+function updateSortIndicators() {
+  if (!Array.isArray(els.orderSortHeaders)) {
+    return;
+  }
+  const activeColumn = ORDER_SORTING.column;
+  const direction = ORDER_SORTING.direction === "desc" ? "desc" : "asc";
+  for (const header of els.orderSortHeaders) {
+    if (!header || !header.dataset) continue;
+    const sortKey = header.dataset.sort;
+    const isActive = sortKey === activeColumn;
+    header.classList.toggle("is-sorted", isActive);
+    header.classList.toggle("is-sorted-asc", isActive && direction === "asc");
+    header.classList.toggle("is-sorted-desc", isActive && direction === "desc");
+    if (isActive) {
+      header.setAttribute("aria-sort", direction === "desc" ? "descending" : "ascending");
+    } else {
+      header.removeAttribute("aria-sort");
+    }
+  }
+  if (els.ordersTableElement) {
+    els.ordersTableElement.setAttribute("data-sort-column", activeColumn || "");
+    els.ordersTableElement.setAttribute("data-sort-direction", direction);
+  }
+  if (Array.isArray(els.orderSortToggles)) {
+    for (const button of els.orderSortToggles) {
+      const header = typeof button?.closest === "function" ? button.closest("th[data-sort]") : null;
+      if (!header) continue;
+      const sortKey = header.dataset.sort;
+      const nextDirection =
+        sortKey === activeColumn && direction === "asc"
+          ? "desc"
+          : getOrderSortConfig(sortKey)?.defaultDirection || "asc";
+      const label = header.textContent?.trim() || "Kolom";
+      button.setAttribute("aria-label", `Sorteer ${label} (${nextDirection === "desc" ? "aflopend" : "oplopend"})`);
+    }
+  }
+}
+
+function setOrderSort(column) {
+  if (!column) return;
+  const config = getOrderSortConfig(column);
+  if (!config) return;
+  if (ORDER_SORTING.column === column) {
+    ORDER_SORTING.direction = ORDER_SORTING.direction === "asc" ? "desc" : "asc";
+  } else {
+    ORDER_SORTING.column = column;
+    ORDER_SORTING.direction = config.defaultDirection || "asc";
+  }
+  PAGINATION.currentPage = 1;
+  updateSortIndicators();
+  loadOrders({ page: 1 });
 }
 
 async function loadOrders(options = {}) {
@@ -1524,8 +1628,16 @@ async function loadOrders(options = {}) {
     region: els.filterRegion?.value || undefined,
     status: els.filterStatus?.value || undefined,
   };
-  const queryValue = els.filterQuery?.value?.trim();
+  const customerValue = cleanText(els.filterCustomer?.value);
+  const customerOrderValue = cleanText(els.filterCustomerOrder?.value);
+  const queryValue = cleanText(els.filterQuery?.value);
   const dateValue = els.filterDate?.value || undefined;
+  if (customerValue) {
+    listFilters.customer = customerValue;
+  }
+  if (customerOrderValue) {
+    listFilters.customerOrder = customerOrderValue;
+  }
   if (queryValue) {
     listFilters.search = queryValue;
   }
@@ -1540,10 +1652,14 @@ async function loadOrders(options = {}) {
   }
   try {
     const filtersForQuery = { ...listFilters };
-    const queryOptions = usePagination ? {
-      page: PAGINATION.currentPage,
-      pageSize: PAGINATION.pageSize,
-    } : {};
+    const sortDescriptors = getOrderSortDescriptors();
+    const queryOptions = {
+      sort: sortDescriptors,
+    };
+    if (usePagination) {
+      queryOptions.page = PAGINATION.currentPage;
+      queryOptions.pageSize = PAGINATION.pageSize;
+    }
     const firstPage = await Orders.list(filtersForQuery, queryOptions);
     const safeRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
     const totalCount = Number(firstPage?.total) || safeRows.length;
@@ -1559,6 +1675,7 @@ async function loadOrders(options = {}) {
       ORDERS_CACHE = [];
       rememberOrderOwners([]);
       renderOrders([]);
+      updateSortIndicators();
       syncPlanBoardFromOrders();
       renderPlanBoard();
       return;
@@ -1576,11 +1693,12 @@ async function loadOrders(options = {}) {
 
     rememberOrderOwners(safeRows);
     renderOrders(safeRows);
+    updateSortIndicators();
 
     let allRows = safeRows;
     if (usePagination) {
       try {
-        allRows = await fetchAllOrderPages(filtersForQuery, firstPage);
+        allRows = await fetchAllOrderPages(filtersForQuery, firstPage, sortDescriptors);
       } catch (err) {
         console.error("Kan volledige orderlijst niet ophalen", err);
       }
@@ -1601,6 +1719,7 @@ async function loadOrders(options = {}) {
     rememberOrderOwners([]);
     updatePaginationControls();
     setStatus(els.boardStatus, "Laden van orders mislukt.", "error");
+    updateSortIndicators();
   }
 }
 
@@ -1723,6 +1842,71 @@ function renderOrders(rows) {
     tbody.appendChild(tr);
   }
   updatePaginationControls();
+}
+
+function exportOrdersToCsv() {
+  const rows = Array.isArray(ORDERS_CACHE) ? ORDERS_CACHE : [];
+  if (!rows.length) {
+    showToastMessage("info", "Geen orders om te exporteren.");
+    return;
+  }
+  const header = [
+    "Gewenste leverdatum",
+    "Transport aanvraag referentie",
+    "Klant",
+    "Ordernummer klant",
+    "Laadadres",
+    "Losadres",
+    "Transport type",
+    "Status",
+    "Vrachtwagen",
+    "Gepland",
+  ];
+  const escapeValue = (value) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    const stringValue = String(value).replace(/\r?\n|\r/g, " ").trim();
+    if (!stringValue.length) {
+      return "";
+    }
+    if (/[";\n]/.test(stringValue)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  };
+  const dataRows = rows.map((row) => {
+    const details = parseOrderDetails(row);
+    const dueSource = row.due_date || details.delivery?.date;
+    return [
+      formatDateDisplay(dueSource),
+      details.reference || "-",
+      row.customer_name || "-",
+      details.customerOrderNumber || details.customerNumber || "-",
+      formatStop(details.pickup),
+      formatStop(details.delivery),
+      details.transportType || formatCargo(details.cargo) || "-",
+      row.status || "-",
+      row.assigned_carrier || "-",
+      formatPlanned(row),
+    ];
+  });
+  const csvSeparator = ";";
+  const csvLines = [header, ...dataRows].map((line) => line.map(escapeValue).join(csvSeparator));
+  const csvContent = csvLines.join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+  const filename = `orders-${timestamp}.csv`;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => {
+    URL.revokeObjectURL(link.href);
+  }, 0);
+  showToastMessage("success", "CSV-export gestart.");
 }
 
 function updatePaginationControls() {
@@ -3027,6 +3211,7 @@ function bind(canManagePlanning){
   }
   bindClick(els.btnAddArticle, () => addArticleRow());
   bindClick(els.btnReload, () => loadOrders());
+  bindClick(els.btnExportOrders, () => exportOrdersToCsv());
   bindClick(els.btnAddCarrier, addCarrier);
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
@@ -3071,10 +3256,22 @@ function bind(canManagePlanning){
     }
     addBoundListener(els.pagerPageSize, "change", handlePageSizeChange);
   }
+  if (Array.isArray(els.orderSortToggles)) {
+    for (const button of els.orderSortToggles) {
+      addBoundListener(button, "click", (event) => {
+        event.preventDefault();
+        const header = typeof button?.closest === "function" ? button.closest("th[data-sort]") : null;
+        if (!header) return;
+        const column = header.dataset.sort;
+        setOrderSort(column);
+      });
+    }
+  }
 }
 
 async function initAppPage() {
   refreshElements();
+  updateSortIndicators();
   enforceDateInputs(document);
   const user = window.Auth?.getUser ? window.Auth.getUser() : null;
   const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
