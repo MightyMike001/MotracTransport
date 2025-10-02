@@ -999,6 +999,65 @@ td {
   gap: 16px;
 }
 
+.bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bar-actions .muted {
+  margin-right: auto;
+}
+
+th[data-sort] {
+  white-space: nowrap;
+}
+
+.table-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.table-sort-button:hover,
+.table-sort-button:focus-visible {
+  color: var(--color-primary);
+}
+
+.table-sort-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.table-sort-button::after {
+  content: "↕";
+  font-size: 0.75em;
+  opacity: 0.36;
+  transition: opacity 0.2s ease;
+}
+
+th.is-sorted .table-sort-button {
+  font-weight: 600;
+}
+
+th.is-sorted-asc .table-sort-button::after {
+  content: "↑";
+  opacity: 1;
+}
+
+th.is-sorted-desc .table-sort-button::after {
+  content: "↓";
+  opacity: 1;
+}
+
 dialog {
   border: none;
   padding: 0;
