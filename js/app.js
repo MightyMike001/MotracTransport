@@ -1077,6 +1077,7 @@ let ORDERS_REALTIME_CHANNEL = null;
 let ORDERS_REALTIME_SUBSCRIBED = false;
 let ORDERS_REALTIME_HANDLER_BOUND = false;
 let ORDERS_REALTIME_REFRESH_TIMEOUT = null;
+let ORDERS_SKELETON_TIMEOUT = null;
 const ORDERS_REALTIME_REFRESH_DELAY = 400;
 const PAGINATION = {
   currentPage: 1,
@@ -1295,19 +1296,109 @@ function setStatus(el, message, variant = "default") {
   }
 }
 
+function prepareOrdersLoadingState() {
+  if (!els.ordersTable) {
+    return;
+  }
+  stopOrdersSkeleton();
+  const table = els.ordersTableElement
+    || (typeof els.ordersTable.closest === "function" ? els.ordersTable.closest("table") : null);
+  if (table && typeof table.setAttribute === "function") {
+    table.setAttribute("aria-busy", "true");
+  }
+  els.ordersTable.innerHTML = "";
+  ORDERS_SKELETON_TIMEOUT = window.setTimeout(() => {
+    renderOrdersSkeleton();
+  }, 250);
+}
+
+function stopOrdersSkeleton() {
+  if (ORDERS_SKELETON_TIMEOUT) {
+    window.clearTimeout(ORDERS_SKELETON_TIMEOUT);
+    ORDERS_SKELETON_TIMEOUT = null;
+  }
+  const table = els.ordersTableElement
+    || (els.ordersTable && typeof els.ordersTable.closest === "function" ? els.ordersTable.closest("table") : null);
+  if (table && typeof table.removeAttribute === "function") {
+    table.removeAttribute("aria-busy");
+  }
+}
+
+function renderOrdersSkeleton() {
+  if (!els.ordersTable) {
+    return;
+  }
+  ORDERS_SKELETON_TIMEOUT = null;
+  const table = els.ordersTableElement
+    || (typeof els.ordersTable.closest === "function" ? els.ordersTable.closest("table") : null);
+  const columns = Math.max(table ? table.querySelectorAll("thead th").length : 1, 1);
+  const columnWidths = [
+    "45%",
+    "55%",
+    "40%",
+    "50%",
+    "60%",
+    "50%",
+    "45%",
+    "35%",
+    "40%",
+    "35%",
+  ];
+  const rowCount = 4;
+  els.ordersTable.innerHTML = "";
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    const tr = document.createElement("tr");
+    tr.className = "orders-table-skeleton-row";
+    tr.setAttribute("aria-hidden", "true");
+    for (let colIndex = 0; colIndex < columns; colIndex += 1) {
+      const td = document.createElement("td");
+      td.className = "orders-table-skeleton-cell";
+      const span = document.createElement("span");
+      span.className = "orders-table-skeleton-shimmer";
+      span.style.width = columnWidths[colIndex] || "55%";
+      td.appendChild(span);
+      tr.appendChild(td);
+    }
+    els.ordersTable.appendChild(tr);
+  }
+}
+
 function renderOrdersPlaceholder(message, className = "muted") {
   const tbody = els.ordersTable;
   if (!tbody) return;
-  const table = tbody.closest("table");
+  const table = els.ordersTableElement
+    || (typeof tbody.closest === "function" ? tbody.closest("table") : null);
   const columns = table ? table.querySelectorAll("thead th").length : 1;
   const tr = document.createElement("tr");
   const td = document.createElement("td");
   td.colSpan = columns || 1;
   td.className = className;
-  td.textContent = message;
+  if (message instanceof Node) {
+    td.appendChild(message);
+  } else if (message !== undefined && message !== null) {
+    td.textContent = message;
+  }
   tr.appendChild(td);
   tbody.innerHTML = "";
   tbody.appendChild(tr);
+}
+
+function renderOrdersEmptyState() {
+  const container = document.createElement("div");
+  container.className = "orders-empty-state";
+  const title = document.createElement("p");
+  title.className = "orders-empty-state__title";
+  title.textContent = "Geen orders gevonden";
+  const description = document.createElement("p");
+  description.className = "orders-empty-state__description";
+  description.textContent = "Start een nieuwe aanvraag om je eerste order vast te leggen.";
+  const action = document.createElement("a");
+  action.className = "btn primary";
+  action.href = "aanvraag.html";
+  action.setAttribute("data-route", "aanvraag");
+  action.textContent = "Nieuwe aanvraag";
+  container.append(title, description, action);
+  renderOrdersPlaceholder(container, "orders-empty-state-cell");
 }
 
 function cleanText(value) {
@@ -1783,9 +1874,7 @@ async function loadOrders(options = {}) {
   if (currentUser?.role === "werknemer" && currentUser.id !== undefined && currentUser.id !== null) {
     listFilters.createdBy = currentUser.id;
   }
-  if (els.ordersTable) {
-    renderOrdersPlaceholder("Bezig met laden…");
-  }
+  prepareOrdersLoadingState();
   try {
     const filtersForQuery = { ...listFilters };
     const sortDescriptors = getOrderSortDescriptors();
@@ -1797,6 +1886,7 @@ async function loadOrders(options = {}) {
       queryOptions.pageSize = PAGINATION.pageSize;
     }
     const firstPage = await Orders.list(filtersForQuery, queryOptions);
+    stopOrdersSkeleton();
     const safeRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
     const totalCount = Number(firstPage?.total) || safeRows.length;
     const pageSize = usePagination ? (Number(firstPage?.pageSize) || PAGINATION.pageSize) : safeRows.length || PAGINATION.pageSize;
@@ -1845,6 +1935,7 @@ async function loadOrders(options = {}) {
     renderPlanBoard();
   } catch (e) {
     console.error("Kan orders niet laden", e);
+    stopOrdersSkeleton();
     if (els.ordersTable) {
       renderOrdersPlaceholder("Orders laden mislukt. Controleer je verbinding en probeer opnieuw.", "muted error-text");
     }
@@ -1888,7 +1979,7 @@ function renderOrders(rows) {
   }
   tbody.innerHTML = "";
   if (!rows.length) {
-    renderOrdersPlaceholder("Geen orders gevonden");
+    renderOrdersEmptyState();
     updatePaginationControls();
     return;
   }
