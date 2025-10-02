@@ -111,6 +111,7 @@ function removeBoundListeners() {
 const STORAGE_KEYS = {
   trucks: "transport_trucks_v1",
   board: "transport_board_v1",
+  lastReference: "transport_last_reference_v1",
 };
 
 const STORAGE_AVAILABLE = (() => {
@@ -142,6 +143,95 @@ function storageSet(key, value) {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     console.warn("Kan localStorage niet schrijven", e);
+  }
+}
+
+function buildDefaultRequestReference() {
+  const year = new Date().getFullYear();
+  return `TAR-${year}-${String(1).padStart(3, "0")}`;
+}
+
+function parseRequestReference(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+  const match = value.trim().match(/^([A-Za-z]+)-(\d{4})-(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  const [, prefixRaw, yearText, sequenceText] = match;
+  const year = Number(yearText);
+  const sequence = Number(sequenceText);
+  if (!Number.isFinite(year) || !Number.isFinite(sequence)) {
+    return null;
+  }
+  return {
+    prefix: prefixRaw.toUpperCase(),
+    year,
+    sequence,
+    width: sequenceText.length || 3,
+  };
+}
+
+function computeNextRequestReference(latestReference) {
+  const fallback = buildDefaultRequestReference();
+  const parsed = parseRequestReference(latestReference);
+  if (!parsed) {
+    return fallback;
+  }
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const targetYear = parsed.year >= currentYear ? parsed.year : currentYear;
+  const nextSequence = parsed.year === targetYear ? parsed.sequence + 1 : 1;
+  const width = Math.max(parsed.width || 0, 3);
+  return `${parsed.prefix}-${targetYear}-${String(nextSequence).padStart(width, "0")}`;
+}
+
+function compareRequestReferences(a, b) {
+  if (a === b) return 0;
+  const parsedA = parseRequestReference(a);
+  const parsedB = parseRequestReference(b);
+  if (!parsedA && !parsedB) return 0;
+  if (!parsedA) return -1;
+  if (!parsedB) return 1;
+  if (parsedA.prefix !== parsedB.prefix) {
+    return parsedA.prefix > parsedB.prefix ? 1 : -1;
+  }
+  if (parsedA.year !== parsedB.year) {
+    return parsedA.year > parsedB.year ? 1 : -1;
+  }
+  if (parsedA.sequence !== parsedB.sequence) {
+    return parsedA.sequence > parsedB.sequence ? 1 : -1;
+  }
+  return 0;
+}
+
+async function assignRequestReference() {
+  if (!els.oRequestReference) {
+    return;
+  }
+  els.oRequestReference.setAttribute("readonly", "readonly");
+  els.oRequestReference.setAttribute("aria-readonly", "true");
+  const applyValue = (value) => {
+    if (!els.oRequestReference) return;
+    els.oRequestReference.value = value;
+    els.oRequestReference.defaultValue = value;
+  };
+  const storedLatest = storageGet(STORAGE_KEYS.lastReference, null);
+  let candidate = computeNextRequestReference(storedLatest);
+  applyValue(candidate);
+  try {
+    if (window.Orders && typeof window.Orders.latestReference === "function") {
+      const latest = await window.Orders.latestReference();
+      const latestValue = latest?.request_reference || latest?.reference || null;
+      const serverCandidate = computeNextRequestReference(latestValue);
+      if (compareRequestReferences(serverCandidate, candidate) > 0) {
+        candidate = serverCandidate;
+        applyValue(candidate);
+      }
+    }
+  } catch (error) {
+    console.warn("Kan laatste transportreferentie niet ophalen", error);
   }
 }
 
@@ -1281,8 +1371,10 @@ async function createOrder(){
         article_type: articleType,
       });
     }
+    storageSet(STORAGE_KEYS.lastReference, requestReference);
     setStatus(els.createStatus, "Transport aangemaakt", "success");
     resetOrderForm();
+    await assignRequestReference();
     await loadOrders();
   } catch (e) {
     console.error(e);
@@ -2087,6 +2179,7 @@ async function initAppPage() {
   const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
   removeBoundListeners();
   bind(canManagePlanning);
+  await assignRequestReference();
   ensureMinimumArticleRows();
   updateArticleRowsForType(getArticleType());
   hydrateLocalState();

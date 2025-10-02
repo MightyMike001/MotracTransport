@@ -195,6 +195,16 @@ const Orders = {
   create: (o) => sbInsert("transport_orders", [o]).then(r => r[0]),
   update: (id, patch) => sbUpdate("transport_orders", `id=eq.${id}`, patch),
   delete: (id) => sbDelete("transport_orders", `id=eq.${id}`),
+  latestReference: async () => {
+    const query = "?select=request_reference,reference,created_at&request_reference=not.is.null&order=created_at.desc&limit=1";
+    const response = await fetch(`${SUPABASE_URL}/transport_orders${query}`, { headers: SB_HEADERS });
+    const data = await response.json();
+    if (!response.ok) throw new Error(JSON.stringify(data));
+    if (!Array.isArray(data) || !data.length) {
+      return null;
+    }
+    return data[0];
+  },
 };
 
 const Lines = {
