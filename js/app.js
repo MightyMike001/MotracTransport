@@ -44,9 +44,6 @@ const els = {
   oDeliveryPhone: document.getElementById("oDeliveryPhone"),
   oDeliveryLocation: document.getElementById("oDeliveryLocation"),
   oDeliveryInstructions: document.getElementById("oDeliveryInstructions"),
-  oPallets: document.getElementById("oPallets"),
-  oWeight: document.getElementById("oWeight"),
-  oVolume: document.getElementById("oVolume"),
   articleTypeInputs: document.querySelectorAll('input[name="articleType"]'),
   articleList: document.getElementById("articleList"),
   articleRowTemplate: document.getElementById("articleRowTemplate"),
@@ -359,24 +356,19 @@ function mergeStops(target, source) {
 
 function normalizeCargo(cargo) {
   if (!cargo || typeof cargo === "boolean") {
-    return { type: null, pallets: null, weight: null, volume: null };
+    return { type: null };
   }
   if (typeof cargo === "string") {
     return {
       type: cleanText(cargo),
-      pallets: null,
-      weight: null,
-      volume: null,
     };
   }
   if (typeof cargo !== "object") {
-    return { type: null, pallets: null, weight: null, volume: null };
+    return { type: null };
   }
+  const type = cleanText(cargo.type);
   return {
-    type: cargo.type ?? null,
-    pallets: cargo.pallets ?? null,
-    weight: cargo.weight ?? null,
-    volume: cargo.volume ?? null,
+    type: type || null,
   };
 }
 
@@ -385,9 +377,6 @@ function mergeCargo(target, source) {
   const incoming = normalizeCargo(source);
   return {
     type: base.type || incoming.type || null,
-    pallets: base.pallets ?? incoming.pallets ?? null,
-    weight: base.weight ?? incoming.weight ?? null,
-    volume: base.volume ?? incoming.volume ?? null,
   };
 }
 
@@ -440,10 +429,7 @@ function parseOrderDetails(order) {
     instructions: cleanText(order.delivery_instructions),
   });
   details.cargo = normalizeCargo({
-    type: details.transportType ?? null,
-    pallets: order.pallets ?? order.cargo_pallets ?? null,
-    weight: order.weight_kg ?? order.cargo_weight ?? null,
-    volume: order.volume_m3 ?? order.cargo_volume ?? null,
+    type: details.transportType ?? order.cargo_type ?? null,
   });
 
   const contactName = cleanText(order.customer_contact ?? order.contact);
@@ -522,12 +508,8 @@ function formatStop(stop) {
 
 function formatCargo(cargo) {
   if (!cargo) return "-";
-  const parts = [];
-  if (cargo.type) parts.push(cargo.type);
-  if (cargo.pallets) parts.push(`${cargo.pallets} pallets`);
-  if (cargo.weight) parts.push(`${cargo.weight} kg`);
-  if (cargo.volume) parts.push(`${cargo.volume} m³`);
-  return parts.length ? parts.join(" • ") : "-";
+  const type = cleanText(cargo.type);
+  return type || "-";
 }
 
 function formatPlanned(row) {
@@ -1062,7 +1044,6 @@ function addArticleRow(prefill = null) {
     const productInput = row.querySelector('[data-field="product"]');
     const serialInput = row.querySelector('[data-field="serial_number"]');
     const quantityInput = row.querySelector('[data-field="quantity"]');
-    const weightInput = row.querySelector('[data-field="weight"]');
     if (productInput && prefill.product) {
       productInput.value = prefill.product;
     }
@@ -1071,9 +1052,6 @@ function addArticleRow(prefill = null) {
     }
     if (quantityInput && prefill.quantity !== undefined && prefill.quantity !== null) {
       quantityInput.value = String(prefill.quantity);
-    }
-    if (weightInput && prefill.weight_kg !== undefined && prefill.weight_kg !== null) {
-      weightInput.value = String(prefill.weight_kg);
     }
   }
   return row;
@@ -1107,14 +1085,12 @@ function collectArticles(articleType) {
     const productInput = row.querySelector('[data-field="product"]');
     const serialInput = row.querySelector('[data-field="serial_number"]');
     const quantityInput = row.querySelector('[data-field="quantity"]');
-    const weightInput = row.querySelector('[data-field="weight"]');
     const product = cleanText(productInput?.value);
     const serialNumber = cleanText(serialInput?.value);
-    const weight = readNumber(weightInput?.value);
     const rawQuantity = readInteger(quantityInput?.value);
     const defaultQuantity = quantityInput ? readInteger(quantityInput.defaultValue) : null;
     const isQuantityDefault = rawQuantity === null || (defaultQuantity !== null && rawQuantity === defaultQuantity);
-    const isEmpty = !product && !serialNumber && weight === null && (normalizedType === "serial" || isQuantityDefault);
+    const isEmpty = !product && !serialNumber && (normalizedType === "serial" || isQuantityDefault);
     if (isEmpty) {
       continue;
     }
@@ -1132,7 +1108,6 @@ function collectArticles(articleType) {
       items.push({
         product,
         quantity: 1,
-        weight_kg: weight,
         serial_number: serialNumber,
       });
     } else {
@@ -1145,7 +1120,6 @@ function collectArticles(articleType) {
       items.push({
         product,
         quantity,
-        weight_kg: weight,
         serial_number: null,
       });
     }
@@ -1207,9 +1181,6 @@ function collectOrderPayload(articleType) {
     delivery_contact_phone: cleanText(els.oDeliveryPhone?.value),
     delivery_location: cleanText(els.oDeliveryLocation?.value),
     delivery_instructions: deliveryInstructions,
-    pallets: readInteger(els.oPallets?.value),
-    weight_kg: readNumber(els.oWeight?.value),
-    volume_m3: readNumber(els.oVolume?.value),
     instructions: combinedNotes || null,
     notes: combinedNotes || null,
     article_type: articleType === "serial" ? "serial" : articleType === "non_serial" ? "non_serial" : null,
@@ -1282,7 +1253,6 @@ async function createOrder(){
         order_id: created.id,
         product: line.product,
         quantity: line.quantity,
-        weight_kg: line.weight_kg,
         serial_number: line.serial_number,
         article_type: articleType,
       });

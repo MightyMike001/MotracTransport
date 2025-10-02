@@ -201,8 +201,7 @@
       card.appendChild(header);
       const meta = document.createElement("div");
       meta.className = "muted small";
-      const weightText = group.weightKnown ? `${group.totalWeight.toFixed(0)} kg` : "onbekend gewicht";
-      meta.textContent = `Afstand ${group.distance.toFixed(1)} km • Gewicht ${weightText}`;
+      meta.textContent = `Afstand ${group.distance.toFixed(1)} km`;
       card.appendChild(meta);
       const list = document.createElement("ul");
       for (const stop of group.stops){
@@ -329,17 +328,10 @@
         const polylinePoints = [ [hub.lat, hub.lng] ];
         let distance = 0;
         let cursor = { lat: hub.lat, lng: hub.lng };
-        let totalWeight = 0;
-        let weightKnown = false;
         for (const stop of orderedStops){
           polylinePoints.push([stop.latlng.lat, stop.latlng.lng]);
           distance += haversine(cursor, stop.latlng);
           cursor = stop.latlng;
-          const weight = stop.details?.cargo?.weight;
-          if (Number.isFinite(weight)) {
-            totalWeight += weight;
-            weightKnown = true;
-          }
         }
         polylinePoints.push([hub.lat, hub.lng]);
         distance += haversine(cursor, { lat: hub.lat, lng: hub.lng });
@@ -360,8 +352,6 @@
           label: carrier,
           stops: orderedStops,
           distance,
-          totalWeight,
-          weightKnown,
           color,
         });
       }
