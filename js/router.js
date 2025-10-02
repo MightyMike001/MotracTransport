@@ -193,6 +193,9 @@
       if (window.Auth && typeof window.Auth.applyRoleVisibility === "function") {
         window.Auth.applyRoleVisibility();
       }
+      if (window.DateUtils && typeof window.DateUtils.enforceDateInputs === "function") {
+        window.DateUtils.enforceDateInputs(rootElement || appRoot);
+      }
       currentRoute = routeKey;
       const module = getPageModule(routeKey);
       if (module && typeof module.init === "function") {

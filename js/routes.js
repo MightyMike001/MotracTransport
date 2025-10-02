@@ -1,6 +1,33 @@
 (function () {
   window.Pages = window.Pages || {};
 
+  const DATE_UTILS = window.DateUtils || {};
+  const formatDateDisplay = typeof DATE_UTILS.formatDateDisplay === "function"
+    ? DATE_UTILS.formatDateDisplay
+    : (value) => {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return typeof value === "string" && value.trim() ? value : "-";
+        }
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      };
+  const getTodayDateValue = typeof DATE_UTILS.getTodayDateValue === "function"
+    ? DATE_UTILS.getTodayDateValue
+    : () => {
+        const today = new Date();
+        const day = String(today.getDate()).padStart(2, "0");
+        const month = String(today.getMonth() + 1).padStart(2, "0");
+        const year = today.getFullYear();
+        return `${year}-${month}-${day}`;
+      };
+  const enforceDateInputs = typeof DATE_UTILS.enforceDateInputs === "function"
+    ? DATE_UTILS.enforceDateInputs
+    : () => {};
+
   function refreshElements(root) {
     const scope = root || document;
     return {
@@ -110,10 +137,10 @@
   }
 
   function ensureDate() {
-    if (!els.date) return new Date().toISOString().slice(0, 10);
+    if (!els.date) return getTodayDateValue();
     let value = els.date.value;
     if (!value) {
-      value = new Date().toISOString().slice(0, 10);
+      value = getTodayDateValue();
       els.date.value = value;
     }
     return value;
@@ -264,7 +291,7 @@
       backlog.appendChild(header);
       const hint = document.createElement("div");
       hint.className = "muted small";
-      hint.textContent = `Deze opdrachten staan nog los van een voertuig op ${new Date(date).toLocaleDateString("nl-NL")}.`;
+      hint.textContent = `Deze opdrachten staan nog los van een voertuig op ${formatDateDisplay(date)}.`;
       backlog.appendChild(hint);
       const list = document.createElement("ul");
       for (const stop of unplanned) {
@@ -403,7 +430,7 @@
       }
 
       renderSummary(grouped, backlog, date);
-      setStatus(`Kaart bijgewerkt voor ${new Date(date).toLocaleDateString("nl-NL")}.`, "success");
+      setStatus(`Kaart bijgewerkt voor ${formatDateDisplay(date)}.`, "success");
     } catch (e) {
       console.error("Kan routes niet laden", e);
       setStatus("Routes laden mislukt. Probeer het opnieuw.", "error");
@@ -421,6 +448,7 @@
 
   async function init(context = {}) {
     els = refreshElements(context.root || document);
+    enforceDateInputs(context.root || document);
     if (!els.map) {
       return;
     }
