@@ -89,6 +89,75 @@ async function tryWrap(operation, options = {}) {
   throw lastError;
 }
 
+function getActiveSessionUser() {
+  try {
+    if (window.Auth && typeof window.Auth.getUser === "function") {
+      return window.Auth.getUser();
+    }
+  } catch (error) {
+    console.warn("Kan actieve gebruiker niet bepalen", error);
+  }
+  return null;
+}
+
+function sanitizeAuditPayload(payload) {
+  if (payload === undefined || payload === null) {
+    return null;
+  }
+  if (payload instanceof Date) {
+    return payload.toISOString();
+  }
+  if (typeof payload === "string" || typeof payload === "number" || typeof payload === "boolean") {
+    return payload;
+  }
+  try {
+    return JSON.parse(JSON.stringify(payload));
+  } catch (error) {
+    return String(payload);
+  }
+}
+
+const AuditLog = {
+  async recordOrderAction(orderId, action, payload = null) {
+    const numericOrderId = Number(orderId);
+    if (!Number.isFinite(numericOrderId) || !action) {
+      return null;
+    }
+
+    const activeUser = getActiveSessionUser();
+    const entry = {
+      order_id: numericOrderId,
+      action,
+      user_id: activeUser?.id ?? null,
+      user_name: activeUser?.name || activeUser?.full_name || activeUser?.email || null,
+      payload: sanitizeAuditPayload(payload),
+    };
+
+    try {
+      const rows = await sbInsert("audit_log", [entry]);
+      return Array.isArray(rows) ? rows[0] : rows;
+    } catch (error) {
+      console.warn("Audit-logboek schrijven mislukt", error);
+      return null;
+    }
+  },
+
+  async listByOrder(orderId, options = {}) {
+    const numericOrderId = Number(orderId);
+    if (!Number.isFinite(numericOrderId)) {
+      return [];
+    }
+    const limitValue = Number.isFinite(options.limit) ? Math.max(1, Math.min(100, options.limit)) : 50;
+    const queryParts = [
+      `order_id=eq.${numericOrderId}`,
+      "order=ts.desc",
+      `limit=${limitValue}`,
+    ];
+    const query = `?${queryParts.join("&")}`;
+    return sbSelect("audit_log", query);
+  },
+};
+
 function buildSelectQuery(query = "") {
   const trimmed = (query || "").trim();
   if (!trimmed) {
@@ -306,9 +375,31 @@ const Orders = {
       pageSize: hasPagination ? pageSizeValue : (Array.isArray(data) ? data.length : 0),
     };
   },
-  create: (o) => sbInsert("transport_orders", [o]).then(r => r[0]),
-  update: (id, patch) => sbUpdate("transport_orders", `id=eq.${id}`, patch),
-  delete: (id) => sbDelete("transport_orders", `id=eq.${id}`),
+  create: async (o) => {
+    const rows = await sbInsert("transport_orders", [o]);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (created && created.id !== undefined && created.id !== null) {
+      await AuditLog.recordOrderAction(created.id, "create", { data: created }).catch(() => {});
+    }
+    return created;
+  },
+  update: async (id, patch) => {
+    const rows = await sbUpdate("transport_orders", `id=eq.${id}`, patch);
+    const updated = Array.isArray(rows) ? rows[0] : rows;
+    const numericOrderId = Number(id ?? updated?.id);
+    if (Number.isFinite(numericOrderId)) {
+      await AuditLog.recordOrderAction(numericOrderId, "update", { patch, result: updated }).catch(() => {});
+    }
+    return rows;
+  },
+  delete: async (id) => {
+    const numericOrderId = Number(id);
+    const result = await sbDelete("transport_orders", `id=eq.${id}`);
+    if (result && Number.isFinite(numericOrderId)) {
+      await AuditLog.recordOrderAction(numericOrderId, "delete", null).catch(() => {});
+    }
+    return result;
+  },
   latestReference: async () => {
     const query = "?select=request_reference,reference,created_at&request_reference=not.is.null&order=created_at.desc&limit=1";
     const { response, data } = await tryWrap(async () => {
@@ -356,4 +447,5 @@ window.Orders = Orders;
 window.Lines = Lines;
 window.Carriers = Carriers;
 window.Users = Users;
+window.AuditLog = AuditLog;
 window.ApiHelpers = Object.assign({}, window.ApiHelpers, { formatSupabaseError, tryWrap });
