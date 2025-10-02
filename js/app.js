@@ -28,6 +28,20 @@ const formatDateForInput = typeof DATE_UTILS.formatDateForInput === "function"
       return `${year}-${month}-${day}`;
     };
 
+const formatDateTimeDisplay = typeof DATE_UTILS.formatDateTimeDisplay === "function"
+  ? DATE_UTILS.formatDateTimeDisplay
+  : (value) => {
+      if (!value) return "-";
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return "-";
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${day}-${month}-${year} ${hours}:${minutes}`;
+    };
+
 const getTodayDateValue = typeof DATE_UTILS.getTodayDateValue === "function"
   ? DATE_UTILS.getTodayDateValue
   : () => {
@@ -445,6 +459,7 @@ function refreshElements() {
     editStatus: doc.getElementById("editStatus"),
     btnDeleteOrder: doc.getElementById("btnDeleteOrder"),
     btnSaveEdit: doc.getElementById("btnSaveEdit"),
+    orderAuditLog: doc.getElementById("orderAuditLog"),
     carrierList: doc.getElementById("carrierList"),
     truckName: doc.getElementById("truckName"),
     truckPlate: doc.getElementById("truckPlate"),
@@ -1078,6 +1093,7 @@ let ORDERS_REALTIME_SUBSCRIBED = false;
 let ORDERS_REALTIME_HANDLER_BOUND = false;
 let ORDERS_REALTIME_REFRESH_TIMEOUT = null;
 let ORDERS_SKELETON_TIMEOUT = null;
+let ORDER_AUDIT_LOG_STATE = { token: 0, orderId: null };
 const ORDERS_REALTIME_REFRESH_DELAY = 400;
 const PAGINATION = {
   currentPage: 1,
@@ -2230,6 +2246,232 @@ function handlePageSizeChange(event) {
   loadOrders({ page: 1, pageSize: value });
 }
 
+function formatAuditActionLabel(action) {
+  if (!action) return "Onbekende actie";
+  const normalized = String(action).toLowerCase();
+  if (normalized === "create") return "Aangemaakt";
+  if (normalized === "update") return "Bijgewerkt";
+  if (normalized === "delete") return "Verwijderd";
+  return action;
+}
+
+const AUDIT_FIELD_LABELS = {
+  status: "Status",
+  assigned_carrier: "Carrier / vrachtwagen",
+  planned_date: "Geplande datum",
+  planned_slot: "Tijdslot",
+};
+
+const AUDIT_IGNORED_FIELDS = new Set([
+  "updated_at",
+  "created_at",
+  "id",
+  "order_id",
+  "user_id",
+  "user_name",
+  "ts",
+]);
+
+function humanizeKey(key) {
+  if (!key) return "Onbekend veld";
+  return key
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatAuditFieldLabel(field) {
+  if (!field) return "Veld";
+  if (Object.prototype.hasOwnProperty.call(AUDIT_FIELD_LABELS, field)) {
+    return AUDIT_FIELD_LABELS[field];
+  }
+  return humanizeKey(field);
+}
+
+function formatAuditFieldValue(field, value) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+  if (typeof value === "boolean") {
+    return value ? "Ja" : "Nee";
+  }
+  if (field === "planned_date") {
+    return formatDateDisplay(value);
+  }
+  if (value instanceof Date) {
+    return formatDateTimeDisplay(value);
+  }
+  return String(value);
+}
+
+function extractAuditEntryChanges(entry) {
+  if (!entry || typeof entry !== "object") {
+    return [];
+  }
+  const payload = entry.payload;
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+  const changes = [];
+  if (entry.action === "update" && payload.patch && typeof payload.patch === "object") {
+    for (const [field, value] of Object.entries(payload.patch)) {
+      if (AUDIT_IGNORED_FIELDS.has(field)) continue;
+      changes.push({ field, value });
+    }
+  } else if (entry.action === "create") {
+    const snapshot = payload.data || payload.result || null;
+    if (snapshot && typeof snapshot === "object") {
+      for (const [field, value] of Object.entries(snapshot)) {
+        if (value === undefined || value === null || value === "") continue;
+        if (AUDIT_IGNORED_FIELDS.has(field)) continue;
+        if (!Object.prototype.hasOwnProperty.call(AUDIT_FIELD_LABELS, field)) continue;
+        changes.push({ field, value });
+      }
+    }
+  } else if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    for (const [field, value] of Object.entries(payload)) {
+      if (value === undefined) continue;
+      if (AUDIT_IGNORED_FIELDS.has(field)) continue;
+      changes.push({ field, value });
+    }
+  }
+  return changes;
+}
+
+function renderAuditEntryDetails(entry, container) {
+  if (!container) return;
+  const changes = extractAuditEntryChanges(entry);
+  if (!changes.length) {
+    const payload = entry?.payload;
+    if (typeof payload === "string" && payload.trim()) {
+      const message = document.createElement("p");
+      message.className = "audit-log__message";
+      message.textContent = payload.trim();
+      container.appendChild(message);
+      return;
+    }
+    if (typeof payload === "number" || typeof payload === "boolean") {
+      const message = document.createElement("p");
+      message.className = "audit-log__message";
+      message.textContent = String(payload);
+      container.appendChild(message);
+      return;
+    }
+    if (entry && entry.action === "delete") {
+      const message = document.createElement("p");
+      message.className = "audit-log__message muted";
+      message.textContent = "Transport verwijderd.";
+      container.appendChild(message);
+    }
+    return;
+  }
+
+  const list = document.createElement("dl");
+  list.className = "audit-log__changes";
+  for (const change of changes) {
+    const label = document.createElement("dt");
+    label.textContent = formatAuditFieldLabel(change.field);
+    list.appendChild(label);
+
+    const value = document.createElement("dd");
+    value.textContent = formatAuditFieldValue(change.field, change.value);
+    list.appendChild(value);
+  }
+  container.appendChild(list);
+}
+
+function renderOrderAuditLogPlaceholder(message, className = "muted small") {
+  if (!els.orderAuditLog) return;
+  els.orderAuditLog.innerHTML = "";
+  const placeholder = document.createElement("p");
+  placeholder.className = className;
+  placeholder.textContent = message;
+  els.orderAuditLog.appendChild(placeholder);
+}
+
+function renderOrderAuditLogEntries(entries) {
+  if (!els.orderAuditLog) return;
+  if (!Array.isArray(entries) || !entries.length) {
+    renderOrderAuditLogPlaceholder("Nog geen logboekregels voor deze order.");
+    return;
+  }
+  els.orderAuditLog.innerHTML = "";
+  const list = document.createElement("ul");
+  list.className = "audit-log";
+  for (const entry of entries) {
+    const item = document.createElement("li");
+    item.className = "audit-log__item";
+
+    const meta = document.createElement("div");
+    meta.className = "audit-log__meta";
+
+    const timeEl = document.createElement("time");
+    timeEl.className = "audit-log__time";
+    if (entry?.ts) {
+      timeEl.dateTime = entry.ts;
+      timeEl.textContent = formatDateTimeDisplay(entry.ts);
+    } else {
+      timeEl.textContent = "-";
+    }
+    meta.appendChild(timeEl);
+
+    const actor = document.createElement("span");
+    actor.className = "audit-log__actor";
+    actor.textContent = entry?.user_name || "Onbekend";
+    meta.appendChild(actor);
+
+    const action = document.createElement("span");
+    action.className = "audit-log__action";
+    action.textContent = formatAuditActionLabel(entry?.action);
+    meta.appendChild(action);
+
+    item.appendChild(meta);
+
+    const detailsContainer = document.createElement("div");
+    detailsContainer.className = "audit-log__details";
+    renderAuditEntryDetails(entry, detailsContainer);
+    if (detailsContainer.childNodes.length) {
+      item.appendChild(detailsContainer);
+    }
+
+    list.appendChild(item);
+  }
+  els.orderAuditLog.appendChild(list);
+}
+
+async function loadOrderAuditLog(orderId) {
+  if (!els.orderAuditLog) return;
+  const numericOrderId = Number(orderId);
+  if (!Number.isFinite(numericOrderId)) {
+    renderOrderAuditLogPlaceholder("Logboek niet beschikbaar.");
+    return;
+  }
+  if (!window.AuditLog || typeof window.AuditLog.listByOrder !== "function") {
+    renderOrderAuditLogPlaceholder("Logboek niet beschikbaar.");
+    return;
+  }
+
+  ORDER_AUDIT_LOG_STATE.token += 1;
+  const requestToken = ORDER_AUDIT_LOG_STATE.token;
+  ORDER_AUDIT_LOG_STATE.orderId = numericOrderId;
+  renderOrderAuditLogPlaceholder("Logboek laden…");
+
+  try {
+    const entries = await window.AuditLog.listByOrder(numericOrderId, { limit: 25 });
+    if (ORDER_AUDIT_LOG_STATE.token !== requestToken) {
+      return;
+    }
+    renderOrderAuditLogEntries(entries);
+  } catch (error) {
+    if (ORDER_AUDIT_LOG_STATE.token !== requestToken) {
+      return;
+    }
+    console.error("Kan auditlog niet laden", error);
+    renderOrderAuditLogPlaceholder("Logboek laden mislukt.", "muted small error-text");
+  }
+}
+
 function openEdit(row){
   if (!els.dlg) return;
   const user = getCurrentUser();
@@ -2245,6 +2487,10 @@ function openEdit(row){
   els.ePlanned.value = row.planned_date || "";
   els.eSlot.value = row.planned_slot || "";
   setStatus(els.editStatus, "");
+  if (els.orderAuditLog) {
+    renderOrderAuditLogPlaceholder("Logboek laden…");
+    loadOrderAuditLog(row.id);
+  }
   els.dlg.showModal();
 }
 
