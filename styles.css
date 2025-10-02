@@ -233,6 +233,15 @@ h4 {
   box-shadow: var(--shadow-sm);
 }
 
+.order-card {
+  background: #fdecee;
+  border-color: #f3cbd4;
+}
+
+.order-card .bar h2 {
+  margin-bottom: 0;
+}
+
 @media (max-width: 640px) {
   .site-header {
     padding: 20px 16px;
@@ -382,6 +391,54 @@ h4 {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.section-grid-balanced {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .section-grid,
+  .section-grid-balanced {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-panel .stack {
+  gap: 12px;
+}
+
+.form-panel-secondary {
+  background: #fff4f5;
+  border-color: #f3cbd4;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .article-list {
