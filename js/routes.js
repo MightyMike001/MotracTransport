@@ -32,6 +32,7 @@
     const scope = root || document;
     return {
       map: scope.querySelector("#routesMap"),
+      emptyState: scope.querySelector("#routesEmptyState"),
       date: scope.querySelector("#routesDate"),
       toggleRoutes: scope.querySelector("#toggleShowRoutes"),
       toggleOptimize: scope.querySelector("#toggleOptimize"),
@@ -136,6 +137,24 @@
     }
   }
 
+  function showEmptyState({ title, message }) {
+    if (!els.emptyState) return;
+    const heading = els.emptyState.querySelector("h3");
+    const paragraph = els.emptyState.querySelector("p");
+    if (heading && title) {
+      heading.textContent = title;
+    }
+    if (paragraph && message) {
+      paragraph.textContent = message;
+    }
+    els.emptyState.classList.remove("is-hidden");
+  }
+
+  function hideEmptyState() {
+    if (!els.emptyState) return;
+    els.emptyState.classList.add("is-hidden");
+  }
+
   function ensureDate() {
     if (!els.date) return getTodayDateValue();
     let value = els.date.value;
@@ -238,6 +257,28 @@
     });
   }
 
+  function buildRouteSegment(start, end) {
+    const segment = [];
+    const distance = haversine(start, end);
+    const steps = Math.max(6, Math.ceil(distance / 25));
+    const latDiff = end.lat - start.lat;
+    const lngDiff = end.lng - start.lng;
+    const length = Math.hypot(latDiff, lngDiff) || 1;
+    const normalLat = -lngDiff / length;
+    const normalLng = latDiff / length;
+    const controlStrength = Math.min(distance / 90, 0.35);
+    const midLat = (start.lat + end.lat) / 2 + normalLat * controlStrength;
+    const midLng = (start.lng + end.lng) / 2 + normalLng * controlStrength;
+    for (let step = 0; step <= steps; step += 1) {
+      const t = step / steps;
+      const oneMinusT = 1 - t;
+      const lat = oneMinusT * oneMinusT * start.lat + 2 * oneMinusT * t * midLat + t * t * end.lat;
+      const lng = oneMinusT * oneMinusT * start.lng + 2 * oneMinusT * t * midLng + t * t * end.lng;
+      segment.push([lat, lng]);
+    }
+    return segment;
+  }
+
   function renderSummary(groups, unplanned, date) {
     if (!els.summary) return;
     els.summary.innerHTML = "";
@@ -312,6 +353,7 @@
     const showRoutes = els.toggleRoutes ? !!els.toggleRoutes.checked : true;
     const optimize = els.toggleOptimize ? !!els.toggleOptimize.checked : false;
     setStatus("Routes laden…");
+    hideEmptyState();
     try {
       const [ordersResult, trucks] = await Promise.all([
         Orders.list({}),
@@ -394,11 +436,17 @@
         let distance = 0;
         let cursor = { lat: hub.lat, lng: hub.lng };
         for (const stop of orderedStops) {
-          polylinePoints.push([stop.latlng.lat, stop.latlng.lng]);
+          const segment = buildRouteSegment(cursor, stop.latlng);
+          for (let i = 1; i < segment.length; i += 1) {
+            polylinePoints.push(segment[i]);
+          }
           distance += haversine(cursor, stop.latlng);
           cursor = stop.latlng;
         }
-        polylinePoints.push([hub.lat, hub.lng]);
+        const returnSegment = buildRouteSegment(cursor, { lat: hub.lat, lng: hub.lng });
+        for (let i = 1; i < returnSegment.length; i += 1) {
+          polylinePoints.push(returnSegment[i]);
+        }
         distance += haversine(cursor, { lat: hub.lat, lng: hub.lng });
         if (showRoutes) {
           const routeLine = L.polyline(polylinePoints, {
@@ -418,6 +466,17 @@
           stops: orderedStops,
           distance,
           color,
+        });
+      }
+
+      const hasRoutes = grouped.length > 0;
+      if (!hasRoutes) {
+        const message = backlog.length
+          ? `Nog geen routes ingepland voor ${formatDateDisplay(date)}. Wijs opdrachten toe aan een voertuig en kies daarna “Herbereken”.`
+          : `Geen geplande opdrachten op ${formatDateDisplay(date)}. Plan ritten in de planning of kies een andere dag.`;
+        showEmptyState({
+          title: backlog.length ? "Nog geen toegewezen routes" : "Geen routes om te tonen",
+          message,
         });
       }
 
@@ -467,6 +526,16 @@
     addListener(els.btnPrint, "click", (event) => {
       event.preventDefault();
       window.print();
+    });
+    addListener(window, "beforeprint", () => {
+      if (map && typeof map.invalidateSize === "function") {
+        setTimeout(() => map.invalidateSize(true), 0);
+      }
+    });
+    addListener(window, "afterprint", () => {
+      if (map && typeof map.invalidateSize === "function") {
+        setTimeout(() => map.invalidateSize(true), 0);
+      }
     });
     addListener(els.toggleRoutes, "change", refreshRoutes);
     addListener(els.toggleOptimize, "change", refreshRoutes);

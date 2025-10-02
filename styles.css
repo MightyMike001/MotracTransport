@@ -738,6 +738,10 @@ h4 {
   display: none !important;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1323,12 +1327,45 @@ dialog::backdrop {
   gap: 8px;
 }
 
+.map-shell {
+  position: relative;
+}
+
 .map-container {
   width: 100%;
   height: 520px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   overflow: hidden;
+}
+
+.map-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.88);
+  text-align: center;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.map-empty-state__content {
+  max-width: 420px;
+  display: grid;
+  gap: 12px;
+}
+
+.map-empty-state h3 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.map-empty-state p {
+  margin: 0;
+  font-size: 14px;
 }
 
 .route-summary {
@@ -1397,6 +1434,58 @@ dialog::backdrop {
   gap: 8px;
   font-size: 13px;
   color: var(--color-muted);
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .site-header,
+  .route-controls .btn,
+  .auth-area,
+  .main-nav,
+  .toast-container,
+  .status {
+    display: none !important;
+  }
+
+  .page.route-page {
+    padding: 0;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: none;
+  }
+
+  .map-container {
+    height: 360px;
+    border: 1px solid var(--color-border);
+  }
+
+  .map-empty-state {
+    position: static;
+    background: none;
+    pointer-events: auto;
+    padding: 16px 0;
+  }
+
+  .route-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .route-summary-card {
+    box-shadow: none;
+  }
+
+  .route-summary-card ul {
+    gap: 4px;
+  }
+
+  @page {
+    margin: 12mm;
+  }
 }
 
 .status-filter {
