@@ -57,9 +57,6 @@ create table if not exists public.transport_orders (
   delivery_instructions text,
   load_type text,
   cargo_type text,
-  pallets integer,
-  weight_kg numeric,
-  volume_m3 numeric,
   instructions text,
   notes text,
   article_type text,
@@ -112,9 +109,6 @@ alter table public.transport_orders add column if not exists delivery_contact_ph
 alter table public.transport_orders add column if not exists delivery_instructions text;
 alter table public.transport_orders add column if not exists load_type text;
 alter table public.transport_orders add column if not exists cargo_type text;
-alter table public.transport_orders add column if not exists pallets integer;
-alter table public.transport_orders add column if not exists weight_kg numeric;
-alter table public.transport_orders add column if not exists volume_m3 numeric;
 alter table public.transport_orders add column if not exists instructions text;
 alter table public.transport_orders add column if not exists notes text;
 alter table public.transport_orders add column if not exists article_type text;
@@ -202,12 +196,10 @@ create table if not exists public.transport_lines (
   order_id bigint not null references public.transport_orders(id) on delete cascade,
   product text not null,
   quantity integer not null default 1,
-  weight_kg numeric,
   serial_number text,
   article_type text
 );
 
-alter table public.transport_lines add column if not exists weight_kg numeric;
 alter table public.transport_lines add column if not exists quantity integer;
 alter table public.transport_lines alter column quantity set default 1;
 alter table public.transport_lines add column if not exists serial_number text;

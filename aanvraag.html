@@ -267,24 +267,13 @@
               </label>
             </div>
           </div>
-          <div class="grid3">
-            <label>Pallets
-              <input id="oPallets" type="number" min="0" step="1" />
-            </label>
-            <label>Gewicht (kg)
-              <input id="oWeight" type="number" min="0" step="0.1" />
-            </label>
-            <label>Volume (m³)
-              <input id="oVolume" type="number" min="0" step="0.1" />
-            </label>
-          </div>
           <div id="articleList" class="article-list"></div>
           <button type="button" class="btn ghost" id="btnAddArticle">Artikel toevoegen</button>
         </section>
 
         <template id="articleRowTemplate">
           <div class="article-row">
-            <div class="grid4">
+            <div class="grid3">
               <label>Artikel
                 <input data-field="product" placeholder="Bijv. Heftruck, reachtruck" />
               </label>
@@ -293,9 +282,6 @@
               </label>
               <label class="quantity-field">Aantal
                 <input data-field="quantity" type="number" min="1" value="1" />
-              </label>
-              <label>Gewicht (kg)
-                <input data-field="weight" type="number" min="0" step="0.1" />
               </label>
             </div>
             <div class="article-row-actions">
