@@ -1,0 +1,39 @@
+<div class="page create-user-page" data-route="create-user" data-title="Transportplanner — Nieuwe gebruiker">
+  <section class="card narrow">
+    <h2>Nieuwe gebruiker aanmaken</h2>
+    <p class="muted small">Vul je eigen admin-inloggegevens in en daarna de gegevens van de nieuwe gebruiker.</p>
+    <form id="createUserForm" class="stack" novalidate>
+      <fieldset class="stack">
+        <legend>Admin authenticatie</legend>
+        <label>Admin e-mailadres
+          <input type="email" id="adminEmail" required placeholder="jouw.naam@motrac.nl" />
+        </label>
+        <label>Admin wachtwoord
+          <input type="password" id="adminPassword" required autocomplete="current-password" />
+        </label>
+      </fieldset>
+      <fieldset class="stack">
+        <legend>Nieuwe gebruiker</legend>
+        <label>Naam
+          <input type="text" id="newUserName" required placeholder="Bijv. Sara Chauffeur" />
+        </label>
+        <label>E-mailadres
+          <input type="email" id="newUserEmail" required placeholder="voornaam.achternaam@motrac.nl" />
+        </label>
+        <label>Rol
+          <select id="newUserRole" required>
+            <option value="" disabled selected>Kies een rol…</option>
+            <option value="planner">Planner</option>
+            <option value="werknemer">Werknemer</option>
+          </select>
+        </label>
+        <label>Tijdelijk wachtwoord
+          <input type="password" id="newUserPassword" required minlength="6" placeholder="Minimaal 6 tekens" />
+        </label>
+      </fieldset>
+      <button class="btn primary" type="submit" id="btnCreateUser">Gebruiker aanmaken</button>
+    </form>
+    <div id="createUserStatus" class="status" role="status"></div>
+    <p class="muted small"><a href="login.html" data-route="login">Terug naar inloggen</a></p>
+  </section>
+</div>

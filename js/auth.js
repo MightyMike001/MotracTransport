@@ -115,7 +115,7 @@
     if (!area) return;
     const user = getUser();
     if (!user) {
-      area.innerHTML = '<a class="btn primary small" href="login.html">Inloggen</a>';
+      area.innerHTML = '<a class="btn primary small" href="login.html" data-route="login">Inloggen</a>';
       return;
     }
     area.innerHTML = `
@@ -150,37 +150,9 @@
     });
   }
 
-  function isLoginPage() {
-    return window.location.pathname.endsWith("/login.html") || window.location.pathname.endsWith("login.html");
-  }
-
   function enforceAccess() {
-    const body = document.body;
-    if (!body) return;
-    const requireAuth = body.dataset.requireAuth === "true";
-    const requireRoleAttr = body.dataset.requireRole;
-    const user = getUser();
-
-    if (requireAuth && !user) {
-      if (!isLoginPage()) {
-        window.location.href = "login.html";
-      }
-      return;
-    }
-
-    if (requireRoleAttr) {
-      const requiredRoles = requireRoleAttr
-        .split(",")
-        .map((r) => r.trim())
-        .filter(Boolean);
-      if (!user || (requiredRoles.length && !requiredRoles.includes(user.role))) {
-        window.location.href = "index.html";
-        return;
-      }
-    }
-
-    if (isLoginPage() && user) {
-      window.location.href = "index.html";
+    if (window.Router && typeof window.Router.handleAuthChange === "function") {
+      window.Router.handleAuthChange();
     }
   }
 
@@ -214,6 +186,7 @@
     logout,
     hashPassword,
     onChange,
+    applyRoleVisibility,
   };
 
   document.addEventListener("DOMContentLoaded", () => {

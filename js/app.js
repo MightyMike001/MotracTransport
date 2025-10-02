@@ -1,88 +1,112 @@
-const els = {
-  filterRegion: document.getElementById("filterRegion"),
-  filterStatus: document.getElementById("filterStatus"),
-  filterQuery: document.getElementById("filterQuery"),
-  filterDate: document.getElementById("filterDate"),
-  btnApplyFilters: document.getElementById("btnApplyFilters"),
-  planStart: document.getElementById("planStart"),
-  planEnd: document.getElementById("planEnd"),
-  btnSuggestPlan: document.getElementById("btnSuggestPlan"),
-  btnApplyPlan: document.getElementById("btnApplyPlan"),
-  plannerStatus: document.getElementById("plannerStatus"),
-  quickCarrier: document.getElementById("quickCarrier"),
-  quickCapacity: document.getElementById("quickCapacity"),
-  quickRegion: document.getElementById("quickRegion"),
-  btnAddCarrier: document.getElementById("btnAddCarrier"),
-  carrierStatus: document.getElementById("carrierStatus"),
-  orderForm: document.getElementById("orderForm"),
-  oRequestReference: document.getElementById("oRequestReference"),
-  oTransportType: document.getElementById("oTransportType"),
-  oStatus: document.getElementById("oStatus"),
-  oReceivedAt: document.getElementById("oReceivedAt"),
-  oDue: document.getElementById("oDue"),
-  oCustomerName: document.getElementById("oCustomerName"),
-  oCustomerNumber: document.getElementById("oCustomerNumber"),
-  oCustomerOrderNumber: document.getElementById("oCustomerOrderNumber"),
-  oOrderReference: document.getElementById("oOrderReference"),
-  oOrderDescription: document.getElementById("oOrderDescription"),
-  oOrderContact: document.getElementById("oOrderContact"),
-  oOrderContactPhone: document.getElementById("oOrderContactPhone"),
-  oOrderContactEmail: document.getElementById("oOrderContactEmail"),
-  oPickupConfirmed: document.getElementById("oPickupConfirmed"),
-  oPickupDate: document.getElementById("oPickupDate"),
-  oPickupTimeFrom: document.getElementById("oPickupTimeFrom"),
-  oPickupTimeTo: document.getElementById("oPickupTimeTo"),
-  oPickupContact: document.getElementById("oPickupContact"),
-  oPickupPhone: document.getElementById("oPickupPhone"),
-  oPickupLocation: document.getElementById("oPickupLocation"),
-  oPickupInstructions: document.getElementById("oPickupInstructions"),
-  oDeliveryConfirmed: document.getElementById("oDeliveryConfirmed"),
-  oDeliveryDate: document.getElementById("oDeliveryDate"),
-  oDeliveryTimeFrom: document.getElementById("oDeliveryTimeFrom"),
-  oDeliveryTimeTo: document.getElementById("oDeliveryTimeTo"),
-  oDeliveryContact: document.getElementById("oDeliveryContact"),
-  oDeliveryPhone: document.getElementById("oDeliveryPhone"),
-  oDeliveryLocation: document.getElementById("oDeliveryLocation"),
-  oDeliveryInstructions: document.getElementById("oDeliveryInstructions"),
-  articleTypeInputs: document.querySelectorAll('input[name="articleType"]'),
-  articleList: document.getElementById("articleList"),
-  articleRowTemplate: document.getElementById("articleRowTemplate"),
-  btnAddArticle: document.getElementById("btnAddArticle"),
-  btnCreate: document.getElementById("btnCreate"),
-  createStatus: document.getElementById("createStatus"),
-  btnReload: document.getElementById("btnReload"),
-  ordersTable: (() => {
-    const table = document.getElementById("ordersTable");
-    return table ? table.querySelector("tbody") : null;
-  })(),
-  pager: document.getElementById("ordersPager"),
-  pagerInfo: document.getElementById("pagerInfo"),
-  pagerPrev: document.getElementById("pagerPrev"),
-  pagerNext: document.getElementById("pagerNext"),
-  pagerPageSize: document.getElementById("pagerPageSize"),
-  dlg: document.getElementById("editDialog"),
-  eId: document.getElementById("eId"),
-  eStatus: document.getElementById("eStatus"),
-  eCarrier: document.getElementById("eCarrier"),
-  ePlanned: document.getElementById("ePlanned"),
-  eSlot: document.getElementById("eSlot"),
-  editStatus: document.getElementById("editStatus"),
-  btnDeleteOrder: document.getElementById("btnDeleteOrder"),
-  btnSaveEdit: document.getElementById("btnSaveEdit"),
-  carrierList: document.getElementById("carrierList"),
-  truckName: document.getElementById("truckName"),
-  truckPlate: document.getElementById("truckPlate"),
-  truckDriver: document.getElementById("truckDriver"),
-  truckCapacity: document.getElementById("truckCapacity"),
-  btnAddTruck: document.getElementById("btnAddTruck"),
-  truckStatus: document.getElementById("truckStatus"),
-  truckList: document.getElementById("truckList"),
-  boardDate: document.getElementById("boardDate"),
-  boardRegion: document.getElementById("boardRegion"),
-  boardStatus: document.getElementById("boardStatus"),
-  btnClearBoard: document.getElementById("btnClearBoard"),
-  planBoard: document.getElementById("planBoard"),
-};
+let els = {};
+
+function refreshElements() {
+  const doc = document;
+  els = {
+    filterRegion: doc.getElementById("filterRegion"),
+    filterStatus: doc.getElementById("filterStatus"),
+    filterQuery: doc.getElementById("filterQuery"),
+    filterDate: doc.getElementById("filterDate"),
+    btnApplyFilters: doc.getElementById("btnApplyFilters"),
+    planStart: doc.getElementById("planStart"),
+    planEnd: doc.getElementById("planEnd"),
+    btnSuggestPlan: doc.getElementById("btnSuggestPlan"),
+    btnApplyPlan: doc.getElementById("btnApplyPlan"),
+    plannerStatus: doc.getElementById("plannerStatus"),
+    quickCarrier: doc.getElementById("quickCarrier"),
+    quickCapacity: doc.getElementById("quickCapacity"),
+    quickRegion: doc.getElementById("quickRegion"),
+    btnAddCarrier: doc.getElementById("btnAddCarrier"),
+    carrierStatus: doc.getElementById("carrierStatus"),
+    orderForm: doc.getElementById("orderForm"),
+    oRequestReference: doc.getElementById("oRequestReference"),
+    oTransportType: doc.getElementById("oTransportType"),
+    oStatus: doc.getElementById("oStatus"),
+    oReceivedAt: doc.getElementById("oReceivedAt"),
+    oDue: doc.getElementById("oDue"),
+    oCustomerName: doc.getElementById("oCustomerName"),
+    oCustomerNumber: doc.getElementById("oCustomerNumber"),
+    oCustomerOrderNumber: doc.getElementById("oCustomerOrderNumber"),
+    oOrderReference: doc.getElementById("oOrderReference"),
+    oOrderDescription: doc.getElementById("oOrderDescription"),
+    oOrderContact: doc.getElementById("oOrderContact"),
+    oOrderContactPhone: doc.getElementById("oOrderContactPhone"),
+    oOrderContactEmail: doc.getElementById("oOrderContactEmail"),
+    oPickupConfirmed: doc.getElementById("oPickupConfirmed"),
+    oPickupDate: doc.getElementById("oPickupDate"),
+    oPickupTimeFrom: doc.getElementById("oPickupTimeFrom"),
+    oPickupTimeTo: doc.getElementById("oPickupTimeTo"),
+    oPickupContact: doc.getElementById("oPickupContact"),
+    oPickupPhone: doc.getElementById("oPickupPhone"),
+    oPickupLocation: doc.getElementById("oPickupLocation"),
+    oPickupInstructions: doc.getElementById("oPickupInstructions"),
+    oDeliveryConfirmed: doc.getElementById("oDeliveryConfirmed"),
+    oDeliveryDate: doc.getElementById("oDeliveryDate"),
+    oDeliveryTimeFrom: doc.getElementById("oDeliveryTimeFrom"),
+    oDeliveryTimeTo: doc.getElementById("oDeliveryTimeTo"),
+    oDeliveryContact: doc.getElementById("oDeliveryContact"),
+    oDeliveryPhone: doc.getElementById("oDeliveryPhone"),
+    oDeliveryLocation: doc.getElementById("oDeliveryLocation"),
+    oDeliveryInstructions: doc.getElementById("oDeliveryInstructions"),
+    articleTypeInputs: doc.querySelectorAll('input[name="articleType"]'),
+    articleList: doc.getElementById("articleList"),
+    articleRowTemplate: doc.getElementById("articleRowTemplate"),
+    btnAddArticle: doc.getElementById("btnAddArticle"),
+    btnCreate: doc.getElementById("btnCreate"),
+    createStatus: doc.getElementById("createStatus"),
+    btnReload: doc.getElementById("btnReload"),
+    ordersTable: (() => {
+      const table = doc.getElementById("ordersTable");
+      return table ? table.querySelector("tbody") : null;
+    })(),
+    pager: doc.getElementById("ordersPager"),
+    pagerInfo: doc.getElementById("pagerInfo"),
+    pagerPrev: doc.getElementById("pagerPrev"),
+    pagerNext: doc.getElementById("pagerNext"),
+    pagerPageSize: doc.getElementById("pagerPageSize"),
+    dlg: doc.getElementById("editDialog"),
+    eId: doc.getElementById("eId"),
+    eStatus: doc.getElementById("eStatus"),
+    eCarrier: doc.getElementById("eCarrier"),
+    ePlanned: doc.getElementById("ePlanned"),
+    eSlot: doc.getElementById("eSlot"),
+    editStatus: doc.getElementById("editStatus"),
+    btnDeleteOrder: doc.getElementById("btnDeleteOrder"),
+    btnSaveEdit: doc.getElementById("btnSaveEdit"),
+    carrierList: doc.getElementById("carrierList"),
+    truckName: doc.getElementById("truckName"),
+    truckPlate: doc.getElementById("truckPlate"),
+    truckDriver: doc.getElementById("truckDriver"),
+    truckCapacity: doc.getElementById("truckCapacity"),
+    btnAddTruck: doc.getElementById("btnAddTruck"),
+    truckStatus: doc.getElementById("truckStatus"),
+    truckList: doc.getElementById("truckList"),
+    boardDate: doc.getElementById("boardDate"),
+    boardRegion: doc.getElementById("boardRegion"),
+    boardStatus: doc.getElementById("boardStatus"),
+    btnClearBoard: doc.getElementById("btnClearBoard"),
+    planBoard: doc.getElementById("planBoard"),
+  };
+}
+
+const BOUND_LISTENERS = [];
+
+function addBoundListener(element, type, handler) {
+  if (!element || typeof element.addEventListener !== "function" || typeof handler !== "function") {
+    return;
+  }
+  element.addEventListener(type, handler);
+  BOUND_LISTENERS.push({ element, type, handler });
+}
+
+function removeBoundListeners() {
+  for (const binding of BOUND_LISTENERS.splice(0, BOUND_LISTENERS.length)) {
+    const { element, type, handler } = binding;
+    if (element && typeof element.removeEventListener === "function") {
+      element.removeEventListener(type, handler);
+    }
+  }
+}
 
 const STORAGE_KEYS = {
   trucks: "transport_trucks_v1",
@@ -2005,7 +2029,7 @@ function bind(canManagePlanning){
     }
     el.removeAttribute("disabled");
     el.removeAttribute("aria-disabled");
-    el.addEventListener("click", handler);
+    addBoundListener(el, "click", handler);
   };
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
@@ -2016,12 +2040,12 @@ function bind(canManagePlanning){
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
   bindClick(els.btnDeleteOrder, deleteOrder);
   if (els.btnSaveEdit) {
-    els.btnSaveEdit.addEventListener("click", (e)=>{ e.preventDefault(); saveEdit(); });
+    addBoundListener(els.btnSaveEdit, "click", (e)=>{ e.preventDefault(); saveEdit(); });
   }
   bindClick(els.btnAddTruck, addTruck);
   bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
   if (els.articleList) {
-    els.articleList.addEventListener("click", (event) => {
+    addBoundListener(els.articleList, "click", (event) => {
       const removeButton = event.target.closest('[data-action="remove-article"]');
       if (!removeButton) return;
       event.preventDefault();
@@ -2031,44 +2055,49 @@ function bind(canManagePlanning){
   }
   if (els.articleTypeInputs) {
     for (const input of els.articleTypeInputs) {
-      input.addEventListener("change", () => {
+      addBoundListener(input, "change", () => {
         updateArticleRowsForType(getArticleType());
       });
     }
   }
   if (els.boardDate) {
-    els.boardDate.addEventListener("change", () => { renderPlanBoard(); });
+    addBoundListener(els.boardDate, "change", () => { renderPlanBoard(); });
   }
   if (els.boardRegion) {
-    els.boardRegion.addEventListener("change", () => { renderPlanBoard(); });
+    addBoundListener(els.boardRegion, "change", () => { renderPlanBoard(); });
   }
   if (els.pagerPrev) {
-    els.pagerPrev.addEventListener("click", goToPreviousPage);
+    addBoundListener(els.pagerPrev, "click", goToPreviousPage);
   }
   if (els.pagerNext) {
-    els.pagerNext.addEventListener("click", goToNextPage);
+    addBoundListener(els.pagerNext, "click", goToNextPage);
   }
   if (els.pagerPageSize) {
     const defaultSize = Number(els.pagerPageSize.value);
     if (Number.isFinite(defaultSize) && defaultSize > 0) {
       PAGINATION.pageSize = defaultSize;
     }
-    els.pagerPageSize.addEventListener("change", handlePageSizeChange);
+    addBoundListener(els.pagerPageSize, "change", handlePageSizeChange);
   }
 }
 
-(async function init(){
+async function initAppPage() {
+  refreshElements();
   const user = window.Auth?.getUser ? window.Auth.getUser() : null;
   const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
+  removeBoundListeners();
   bind(canManagePlanning);
   ensureMinimumArticleRows();
   updateArticleRowsForType(getArticleType());
   hydrateLocalState();
+  PLAN_SUGGESTIONS = [];
+  ORDERS_CACHE = [];
+  DRAG_CONTEXT = null;
   const today = new Date();
-  const end = new Date(Date.now()+5*86400000);
-  if (els.planStart) els.planStart.value = today.toISOString().slice(0,10);
-  if (els.planEnd) els.planEnd.value = end.toISOString().slice(0,10);
-  if (els.boardDate) els.boardDate.value = today.toISOString().slice(0,10);
+  const end = new Date(Date.now() + 5 * 86400000);
+  if (els.planStart) els.planStart.value = today.toISOString().slice(0, 10);
+  if (els.planEnd) els.planEnd.value = end.toISOString().slice(0, 10);
+  if (els.boardDate) els.boardDate.value = today.toISOString().slice(0, 10);
   renderTrucks();
   await refreshCarriersDatalist();
   const needsOrders = Boolean(
@@ -2081,4 +2110,29 @@ function bind(canManagePlanning){
   if (needsOrders) {
     await loadOrders();
   }
-})();
+}
+
+function destroyAppPage() {
+  removeBoundListeners();
+  if (els.dlg && typeof els.dlg.close === "function" && els.dlg.open) {
+    try {
+      els.dlg.close();
+    } catch (err) {
+      console.warn("Kan dialoog niet sluiten", err);
+    }
+  }
+  els = {};
+  PLAN_SUGGESTIONS = [];
+  DRAG_CONTEXT = null;
+}
+
+window.Pages = window.Pages || {};
+const sharedAppModule = {
+  init: () => initAppPage(),
+  destroy: destroyAppPage,
+};
+
+window.Pages.aanvraag = sharedAppModule;
+window.Pages.orders = sharedAppModule;
+window.Pages.planning = sharedAppModule;
+window.Pages.vloot = sharedAppModule;

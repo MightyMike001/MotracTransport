@@ -1,0 +1,54 @@
+<div class="page planning-page" data-route="planning" data-require-auth="true" data-require-role="planner,admin" data-title="Transportplanner — Planning">
+  <div class="wrap">
+    <aside class="sidebar">
+      <section class="card">
+        <h3>Auto-planner</h3>
+        <p class="muted small">Wijst open orders toe op basis van regio, prioriteit en carrier-capaciteit per dag.</p>
+        <label>Startdatum
+          <input type="date" id="planStart" />
+        </label>
+        <label>Einddatum
+          <input type="date" id="planEnd" />
+        </label>
+        <button id="btnSuggestPlan" class="btn primary">Genereer voorstel</button>
+        <button id="btnApplyPlan" class="btn">Opslaan planning</button>
+        <div id="plannerStatus" class="status"></div>
+      </section>
+
+      <section class="card">
+        <h3>Snel overzicht</h3>
+        <p class="muted small">Gebruik het planbord om opdrachten aan voertuigen toe te wijzen. Het overzicht wordt automatisch bijgewerkt na het toepassen van de auto-planner.</p>
+      </section>
+    </aside>
+
+    <section class="content">
+      <section class="card plan-card">
+        <div class="bar plan-bar">
+          <div class="plan-bar-text">
+            <h2>Planbord</h2>
+            <div class="muted small">Sleep opdrachten naar vrachtwagens en terug naar ongepland om ze te herverdelen.</div>
+          </div>
+          <div class="plan-controls">
+            <label>Planningsdatum
+              <input id="boardDate" type="date" />
+            </label>
+            <label>Regiofocus
+              <select id="boardRegion">
+                <option value="">Alle regio's</option>
+                <option>Noord</option>
+                <option>Midden</option>
+                <option>Zuid</option>
+                <option>België</option>
+              </select>
+            </label>
+            <button id="btnClearBoard" class="btn ghost">Wis planning voor dag</button>
+          </div>
+        </div>
+        <div class="board-status-row">
+          <div id="boardStatus" class="status"></div>
+        </div>
+        <div id="planBoard" class="plan-grid"></div>
+      </section>
+    </section>
+  </div>
+</div>

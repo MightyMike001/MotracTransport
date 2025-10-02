@@ -1,17 +1,20 @@
-(function(){
-  const els = {
-    map: document.getElementById("routesMap"),
-    date: document.getElementById("routesDate"),
-    toggleRoutes: document.getElementById("toggleShowRoutes"),
-    toggleOptimize: document.getElementById("toggleOptimize"),
-    btnRebuild: document.getElementById("btnRebuildRoutes"),
-    btnResetView: document.getElementById("btnResetView"),
-    btnPrint: document.getElementById("btnPrintRoutes"),
-    status: document.getElementById("routesStatus"),
-    summary: document.getElementById("routesSummary"),
-  };
+(function () {
+  window.Pages = window.Pages || {};
 
-  if (!els.map) return;
+  function refreshElements(root) {
+    const scope = root || document;
+    return {
+      map: scope.querySelector("#routesMap"),
+      date: scope.querySelector("#routesDate"),
+      toggleRoutes: scope.querySelector("#toggleShowRoutes"),
+      toggleOptimize: scope.querySelector("#toggleOptimize"),
+      btnRebuild: scope.querySelector("#btnRebuildRoutes"),
+      btnResetView: scope.querySelector("#btnResetView"),
+      btnPrint: scope.querySelector("#btnPrintRoutes"),
+      status: scope.querySelector("#routesStatus"),
+      summary: scope.querySelector("#routesSummary"),
+    };
+  }
 
   const STORAGE_KEYS = {
     trucks: "transport_trucks_v1",
@@ -48,12 +51,43 @@
     "#455A64",
   ];
 
-  let map;
-  let markersLayer;
-  let routesLayer;
+  let els = {};
+  let map = null;
+  let markersLayer = null;
+  let routesLayer = null;
   let lastBounds = null;
+  const listeners = [];
 
-  function readLocal(key, fallback){
+  function addListener(element, type, handler) {
+    if (!element || typeof element.addEventListener !== "function") return;
+    element.addEventListener(type, handler);
+    listeners.push({ element, type, handler });
+  }
+
+  function removeListeners() {
+    while (listeners.length) {
+      const { element, type, handler } = listeners.pop();
+      if (element && typeof element.removeEventListener === "function") {
+        element.removeEventListener(type, handler);
+      }
+    }
+  }
+
+  function destroyMap() {
+    if (map && typeof map.remove === "function") {
+      try {
+        map.remove();
+      } catch (err) {
+        console.warn("Kan kaart niet verwijderen", err);
+      }
+    }
+    map = null;
+    markersLayer = null;
+    routesLayer = null;
+    lastBounds = null;
+  }
+
+  function readLocal(key, fallback) {
     try {
       const raw = window.localStorage.getItem(key);
       if (!raw) return fallback;
@@ -64,7 +98,7 @@
     }
   }
 
-  function setStatus(message, variant = "default"){
+  function setStatus(message, variant = "default") {
     if (!els.status) return;
     els.status.textContent = message;
     els.status.classList.remove("status-error", "status-success");
@@ -75,17 +109,18 @@
     }
   }
 
-  function ensureDate(){
-    if (!els.date) return new Date().toISOString().slice(0,10);
+  function ensureDate() {
+    if (!els.date) return new Date().toISOString().slice(0, 10);
     let value = els.date.value;
-    if (!value){
-      value = new Date().toISOString().slice(0,10);
+    if (!value) {
+      value = new Date().toISOString().slice(0, 10);
       els.date.value = value;
     }
     return value;
   }
 
-  function initMap(){
+  function initMap() {
+    destroyMap();
     map = L.map(els.map, {
       zoomControl: true,
       scrollWheelZoom: true,
@@ -95,19 +130,20 @@
     }).addTo(map);
     markersLayer = L.layerGroup().addTo(map);
     routesLayer = L.layerGroup().addTo(map);
+    lastBounds = null;
   }
 
-  function hashString(value){
+  function hashString(value) {
     let hash = 0;
     const text = value || "";
-    for (let i = 0; i < text.length; i += 1){
+    for (let i = 0; i < text.length; i += 1) {
       hash = (hash << 5) - hash + text.charCodeAt(i);
       hash |= 0;
     }
     return hash;
   }
 
-  function jitterCoordinate(base, key){
+  function jitterCoordinate(base, key) {
     const hash = hashString(key);
     const latOffset = ((hash % 1000) / 1000) * 0.6 - 0.3;
     const lngOffset = ((((hash / 1000) | 0) % 1000) / 1000) * 0.6 - 0.3;
@@ -117,12 +153,12 @@
     };
   }
 
-  function geocodeLocation(name, region){
+  function geocodeLocation(name, region) {
     const normalized = (region && REGION_CENTERS[region]) ? REGION_CENTERS[region] : REGION_CENTERS.Midden;
     return jitterCoordinate(normalized, name || region || "loc");
   }
 
-  function haversine(a, b){
+  function haversine(a, b) {
     const toRad = (deg) => (deg * Math.PI) / 180;
     const R = 6371;
     const dLat = toRad(b.lat - a.lat);
@@ -135,20 +171,20 @@
     return R * c;
   }
 
-  function orderStops(stops, start, optimize){
+  function orderStops(stops, start, optimize) {
     if (!optimize) {
       return stops;
     }
     const remaining = stops.slice();
     const ordered = [];
     let current = start;
-    while (remaining.length){
+    while (remaining.length) {
       let bestIndex = 0;
       let bestDistance = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < remaining.length; i += 1){
+      for (let i = 0; i < remaining.length; i += 1) {
         const candidate = remaining[i];
         const distance = haversine(current, candidate.latlng);
-        if (distance < bestDistance){
+        if (distance < bestDistance) {
           bestDistance = distance;
           bestIndex = i;
         }
@@ -160,13 +196,13 @@
     return ordered;
   }
 
-  function chooseHubForStops(stops){
+  function chooseHubForStops(stops) {
     const region = stops.find((s) => s.region)?.region;
     const hubId = REGION_TO_HUB[region] || "midden";
     return HUBS.find((h) => h.id === hubId) || HUBS[1];
   }
 
-  function buildMarker(latlng, options){
+  function buildMarker(latlng, options) {
     return L.circleMarker([latlng.lat, latlng.lng], {
       radius: 8,
       weight: 2,
@@ -175,17 +211,17 @@
     });
   }
 
-  function renderSummary(groups, unplanned, date){
+  function renderSummary(groups, unplanned, date) {
     if (!els.summary) return;
     els.summary.innerHTML = "";
-    if (!groups.length && !unplanned.length){
+    if (!groups.length && !unplanned.length) {
       const empty = document.createElement("div");
       empty.className = "muted";
       empty.textContent = "Geen routes beschikbaar voor de geselecteerde dag.";
       els.summary.appendChild(empty);
       return;
     }
-    for (const group of groups){
+    for (const group of groups) {
       const card = document.createElement("article");
       card.className = "route-summary-card";
       const header = document.createElement("header");
@@ -204,7 +240,7 @@
       meta.textContent = `Afstand ${group.distance.toFixed(1)} km`;
       card.appendChild(meta);
       const list = document.createElement("ul");
-      for (const stop of group.stops){
+      for (const stop of group.stops) {
         const item = document.createElement("li");
         const ref = stop.details.reference || stop.order.customer_name || `Order #${stop.order.id}`;
         const location = stop.details.delivery?.location || stop.order.customer_city || "Onbekend";
@@ -214,7 +250,7 @@
       card.appendChild(list);
       els.summary.appendChild(card);
     }
-    if (unplanned.length){
+    if (unplanned.length) {
       const backlog = document.createElement("article");
       backlog.className = "route-summary-card unplanned";
       const header = document.createElement("header");
@@ -231,7 +267,7 @@
       hint.textContent = `Deze opdrachten staan nog los van een voertuig op ${new Date(date).toLocaleDateString("nl-NL")}.`;
       backlog.appendChild(hint);
       const list = document.createElement("ul");
-      for (const stop of unplanned){
+      for (const stop of unplanned) {
         const item = document.createElement("li");
         const ref = stop.details.reference || stop.order.customer_name || `Order #${stop.order.id}`;
         const location = stop.details.delivery?.location || stop.order.customer_city || "Onbekend";
@@ -243,7 +279,8 @@
     }
   }
 
-  async function refreshRoutes(){
+  async function refreshRoutes() {
+    if (!map || !markersLayer || !routesLayer) return;
     const date = ensureDate();
     const showRoutes = els.toggleRoutes ? !!els.toggleRoutes.checked : true;
     const optimize = els.toggleOptimize ? !!els.toggleOptimize.checked : false;
@@ -262,29 +299,30 @@
       routesLayer.clearLayers();
       const bounds = L.latLngBounds([]);
 
-      const hubs = HUBS.map((hub) => {
+      HUBS.forEach((hub) => {
         const marker = L.marker([hub.lat, hub.lng], { title: hub.name });
         marker.bindPopup(`<strong>${hub.name}</strong>`);
         marker.addTo(markersLayer);
         bounds.extend([hub.lat, hub.lng]);
-        return hub;
       });
 
       const dateOrders = orders.filter((order) => {
         if (["Geleverd", "Geannuleerd"].includes(order.status || "")) return false;
-        if (order.planned_date){
+        if (order.planned_date) {
           return order.planned_date === date;
         }
         return order.due_date === date;
       });
 
-      for (const order of dateOrders){
+      for (const order of dateOrders) {
         const details = window.parseOrderDetails ? window.parseOrderDetails(order) : { delivery: { location: order.customer_city } };
-        const region = order.region || (details.delivery?.region) || "Midden";
+        const region = order.region || details.delivery?.region || "Midden";
         const deliveryName = details.delivery?.location || order.customer_city || order.customer_name || "Locatie onbekend";
         const latlng = geocodeLocation(deliveryName, region);
-        const markerColor = order.assigned_carrier ? (colorMap.get(order.assigned_carrier) || COLOR_SCALE[colorIndex % COLOR_SCALE.length]) : "#6F6F6F";
-        if (order.assigned_carrier && !colorMap.has(order.assigned_carrier)){
+        const markerColor = order.assigned_carrier
+          ? colorMap.get(order.assigned_carrier) || COLOR_SCALE[colorIndex % COLOR_SCALE.length]
+          : "#6F6F6F";
+        if (order.assigned_carrier && !colorMap.has(order.assigned_carrier)) {
           colorMap.set(order.assigned_carrier, markerColor);
           colorIndex += 1;
         }
@@ -306,7 +344,7 @@
           latlng,
           region,
         };
-        if (order.assigned_carrier){
+        if (order.assigned_carrier) {
           assignments.push(stop);
         } else {
           backlog.push(stop);
@@ -314,28 +352,28 @@
       }
 
       const grouped = [];
-      const ordersByCarrier = assignments.reduce((map, stop) => {
+      const ordersByCarrier = assignments.reduce((mapCarrier, stop) => {
         const key = stop.order.assigned_carrier;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(stop);
-        return map;
+        if (!mapCarrier.has(key)) mapCarrier.set(key, []);
+        mapCarrier.get(key).push(stop);
+        return mapCarrier;
       }, new Map());
 
-      for (const [carrier, stops] of ordersByCarrier.entries()){
+      for (const [carrier, stops] of ordersByCarrier.entries()) {
         const color = colorMap.get(carrier) || COLOR_SCALE[0];
         const hub = chooseHubForStops(stops);
         const orderedStops = orderStops(stops, { lat: hub.lat, lng: hub.lng }, optimize);
-        const polylinePoints = [ [hub.lat, hub.lng] ];
+        const polylinePoints = [[hub.lat, hub.lng]];
         let distance = 0;
         let cursor = { lat: hub.lat, lng: hub.lng };
-        for (const stop of orderedStops){
+        for (const stop of orderedStops) {
           polylinePoints.push([stop.latlng.lat, stop.latlng.lng]);
           distance += haversine(cursor, stop.latlng);
           cursor = stop.latlng;
         }
         polylinePoints.push([hub.lat, hub.lng]);
         distance += haversine(cursor, { lat: hub.lat, lng: hub.lng });
-        if (showRoutes){
+        if (showRoutes) {
           const routeLine = L.polyline(polylinePoints, {
             color,
             weight: 4,
@@ -344,7 +382,7 @@
           routeLine.bindPopup(`<strong>${carrier}</strong><br/>${orderedStops.length} stops • ${distance.toFixed(1)} km`);
           routeLine.addTo(routesLayer);
         }
-        for (const point of polylinePoints){
+        for (const point of polylinePoints) {
           bounds.extend(point);
         }
         grouped.push({
@@ -356,7 +394,7 @@
         });
       }
 
-      if (bounds.isValid()){
+      if (bounds.isValid()) {
         map.fitBounds(bounds.pad(0.2));
         lastBounds = bounds;
       } else {
@@ -365,30 +403,57 @@
       }
 
       renderSummary(grouped, backlog, date);
-      setStatus(`Kaart bijgewerkt voor ${new Date(date).toLocaleDateString("nl-NL")}.`);
+      setStatus(`Kaart bijgewerkt voor ${new Date(date).toLocaleDateString("nl-NL")}.`, "success");
     } catch (e) {
       console.error("Kan routes niet laden", e);
       setStatus("Routes laden mislukt. Probeer het opnieuw.", "error");
     }
   }
 
-  function bindEvents(){
-    if (els.btnRebuild) els.btnRebuild.addEventListener("click", refreshRoutes);
-    if (els.btnResetView) els.btnResetView.addEventListener("click", () => {
-      if (lastBounds && lastBounds.isValid()){
-        map.fitBounds(lastBounds.pad(0.1));
-      } else {
-        map.setView([52.2, 5.3], 7);
-      }
-    });
-    if (els.btnPrint) els.btnPrint.addEventListener("click", () => window.print());
-    if (els.toggleRoutes) els.toggleRoutes.addEventListener("change", refreshRoutes);
-    if (els.toggleOptimize) els.toggleOptimize.addEventListener("change", refreshRoutes);
-    if (els.date) els.date.addEventListener("change", refreshRoutes);
+  function resetView() {
+    if (!map) return;
+    if (lastBounds && lastBounds.isValid()) {
+      map.fitBounds(lastBounds.pad(0.1));
+    } else {
+      map.setView([52.2, 5.3], 7);
+    }
   }
 
-  initMap();
-  ensureDate();
-  bindEvents();
-  refreshRoutes();
+  async function init(context = {}) {
+    els = refreshElements(context.root || document);
+    if (!els.map) {
+      return;
+    }
+    destroyMap();
+    removeListeners();
+    initMap();
+    ensureDate();
+    addListener(els.btnRebuild, "click", (event) => {
+      event.preventDefault();
+      refreshRoutes();
+    });
+    addListener(els.btnResetView, "click", (event) => {
+      event.preventDefault();
+      resetView();
+    });
+    addListener(els.btnPrint, "click", (event) => {
+      event.preventDefault();
+      window.print();
+    });
+    addListener(els.toggleRoutes, "change", refreshRoutes);
+    addListener(els.toggleOptimize, "change", refreshRoutes);
+    addListener(els.date, "change", refreshRoutes);
+    await refreshRoutes();
+  }
+
+  function destroy() {
+    removeListeners();
+    destroyMap();
+    els = {};
+  }
+
+  window.Pages.routekaart = {
+    init,
+    destroy,
+  };
 })();

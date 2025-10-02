@@ -1,0 +1,119 @@
+<div class="page orders-page" data-route="orders" data-require-auth="true" data-title="Transportplanner — Orders">
+  <div class="wrap">
+    <aside class="sidebar">
+      <section class="card">
+        <h3>Filters</h3>
+        <label>Regio
+          <select id="filterRegion">
+            <option value="">Alle</option>
+            <option>Noord</option>
+            <option>Midden</option>
+            <option>Zuid</option>
+            <option>België</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="filterStatus">
+            <option value="">Alle</option>
+            <option>Nieuw</option>
+            <option>Te plannen</option>
+            <option>Gepland</option>
+            <option>In transport</option>
+            <option>Geleverd</option>
+            <option>Geannuleerd</option>
+          </select>
+        </label>
+        <label>Zoekopdracht
+          <input id="filterQuery" type="search" placeholder="Klant, referentie of notitie" />
+        </label>
+        <label>Leverdatum
+          <input id="filterDate" type="date" />
+        </label>
+        <button id="btnApplyFilters" class="btn ghost">Toepassen</button>
+        <button id="btnReload" class="btn">Vernieuwen</button>
+      </section>
+    </aside>
+
+    <section class="content">
+      <section class="card">
+        <div class="bar">
+          <h2>Orders</h2>
+          <div class="muted small">Klik op een regel om details te bewerken.</div>
+        </div>
+        <div class="table-wrap">
+          <table id="ordersTable">
+            <thead>
+              <tr>
+                <th>Gewenste leverdatum</th>
+                <th>Transport aanvraag referentie</th>
+                <th>Klant</th>
+                <th>Ordernummer klant</th>
+                <th>Laadadres</th>
+                <th>Losadres</th>
+                <th>Transport type</th>
+                <th>Status</th>
+                <th>Vrachtwagen</th>
+                <th>Gepland</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="10" class="muted">Nog niets geladen…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <nav class="pager is-hidden" id="ordersPager" aria-label="Paginering">
+          <button type="button" class="btn ghost" id="pagerPrev" aria-label="Vorige pagina">&laquo; Vorige</button>
+          <span id="pagerInfo" class="pager-info">Geen resultaten</span>
+          <button type="button" class="btn ghost" id="pagerNext" aria-label="Volgende pagina">Volgende &raquo;</button>
+          <label class="pager-size" for="pagerPageSize">Per pagina
+            <select id="pagerPageSize">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </nav>
+      </section>
+    </section>
+  </div>
+
+  <dialog id="editDialog">
+    <form method="dialog" class="card">
+      <h3>Order bewerken</h3>
+      <input type="hidden" id="eId" />
+      <div class="grid2">
+        <label>Status
+          <select id="eStatus">
+            <option>Nieuw</option>
+            <option>Te plannen</option>
+            <option>Gepland</option>
+            <option>In transport</option>
+            <option>Geleverd</option>
+            <option>Geannuleerd</option>
+          </select>
+        </label>
+        <label>Carrier / vrachtwagen
+          <input id="eCarrier" placeholder="Bijv. Beekman Transport" list="carrierList" />
+          <datalist id="carrierList"></datalist>
+        </label>
+        <label>Geplande datum
+          <input id="ePlanned" type="date" />
+        </label>
+        <label>Tijdslot
+          <select id="eSlot">
+            <option value="">n.v.t.</option>
+            <option>AM</option>
+            <option>PM</option>
+            <option>Nacht</option>
+          </select>
+        </label>
+      </div>
+      <div id="editStatus" class="status"></div>
+      <menu class="menu">
+        <button value="cancel" class="btn ghost">Annuleren</button>
+        <button id="btnDeleteOrder" type="button" class="btn danger" data-role-visible="admin,planner,werknemer">Verwijderen</button>
+        <button id="btnSaveEdit" value="default" class="btn primary">Opslaan</button>
+      </menu>
+    </form>
+  </dialog>
+</div>

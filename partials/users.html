@@ -1,0 +1,54 @@
+<div class="page users-page" data-route="users" data-require-auth="true" data-require-role="admin" data-title="Transportplanner — Gebruikersbeheer">
+  <section class="card">
+    <h2>Nieuwe gebruiker toevoegen</h2>
+    <form id="userForm" class="grid2">
+      <label>Naam
+        <input id="uName" placeholder="Bijv. Jan Planner" required />
+      </label>
+      <label>E-mailadres
+        <input id="uEmail" type="email" placeholder="planner@bedrijf.nl" required />
+      </label>
+      <label>Rol
+        <select id="uRole" required>
+          <option value="admin">Admin</option>
+          <option value="planner">Planner</option>
+          <option value="werknemer">Werknemer</option>
+        </select>
+      </label>
+      <label>Tijdelijk wachtwoord
+        <input id="uPassword" type="password" required minlength="6" placeholder="Minimaal 6 tekens" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="uActive" checked /> Actief account
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn primary">Gebruiker opslaan</button>
+      </div>
+    </form>
+    <div id="userStatus" class="status" role="status"></div>
+  </section>
+
+  <section class="card">
+    <div class="bar">
+      <h2>Bestaande gebruikers</h2>
+      <button class="btn ghost small" id="btnReloadUsers">Vernieuwen</button>
+    </div>
+    <div class="table-wrap">
+      <table id="userTable">
+        <thead>
+          <tr>
+            <th>Naam</th>
+            <th>E-mail</th>
+            <th>Rol</th>
+            <th>Status</th>
+            <th>Aangemaakt</th>
+            <th>Acties</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="6" class="muted">Nog geen gebruikers geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

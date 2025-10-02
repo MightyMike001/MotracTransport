@@ -1,25 +1,60 @@
 (function () {
+  window.Pages = window.Pages || {};
+
+  function refreshElements(root) {
+    const scope = root || document;
+    return {
+      loginForm: scope.querySelector("#loginForm"),
+      loginEmail: scope.querySelector("#loginEmail"),
+      loginPassword: scope.querySelector("#loginPassword"),
+      loginButton: scope.querySelector("#btnLogin"),
+      loginStatus: scope.querySelector("#loginStatus"),
+      signupForm: scope.querySelector("#signupForm"),
+      signupEmail: scope.querySelector("#signupEmail"),
+      signupPassword: scope.querySelector("#signupPassword"),
+      signupPasswordConfirm: scope.querySelector("#signupPasswordConfirm"),
+      signupButton: scope.querySelector("#btnSignup"),
+      signupStatus: scope.querySelector("#signupStatus"),
+    };
+  }
+
+  let els = {};
+  const listeners = [];
+
+  function addListener(element, type, handler) {
+    if (!element || typeof element.addEventListener !== "function") return;
+    element.addEventListener(type, handler);
+    listeners.push({ element, type, handler });
+  }
+
+  function removeListeners() {
+    while (listeners.length) {
+      const { element, type, handler } = listeners.pop();
+      if (element && typeof element.removeEventListener === "function") {
+        element.removeEventListener(type, handler);
+      }
+    }
+  }
+
   function setStatus(message, variant = "default") {
-    const el = document.getElementById("loginStatus");
-    if (!el) return;
-    el.textContent = message;
-    el.classList.remove("status-error", "status-success");
+    if (!els.loginStatus) return;
+    els.loginStatus.textContent = message;
+    els.loginStatus.classList.remove("status-error", "status-success");
     if (variant === "error") {
-      el.classList.add("status-error");
+      els.loginStatus.classList.add("status-error");
     } else if (variant === "success") {
-      el.classList.add("status-success");
+      els.loginStatus.classList.add("status-success");
     }
   }
 
   function setSignupStatus(message, variant = "default") {
-    const el = document.getElementById("signupStatus");
-    if (!el) return;
-    el.textContent = message;
-    el.classList.remove("status-error", "status-success");
+    if (!els.signupStatus) return;
+    els.signupStatus.textContent = message;
+    els.signupStatus.classList.remove("status-error", "status-success");
     if (variant === "error") {
-      el.classList.add("status-error");
+      els.signupStatus.classList.add("status-error");
     } else if (variant === "success") {
-      el.classList.add("status-success");
+      els.signupStatus.classList.add("status-success");
     }
   }
 
@@ -57,93 +92,102 @@
     return String(err);
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    const form = document.getElementById("loginForm");
-    const email = document.getElementById("loginEmail");
-    const password = document.getElementById("loginPassword");
-    const button = document.getElementById("btnLogin");
-
-    const signupForm = document.getElementById("signupForm");
-    const signupEmail = document.getElementById("signupEmail");
-    const signupPassword = document.getElementById("signupPassword");
-    const signupPasswordConfirm = document.getElementById("signupPasswordConfirm");
-    const signupButton = document.getElementById("btnSignup");
-
-    if (!form || !window.Auth) return;
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!email || !password) return;
-      const mailValue = email.value;
-      const passValue = password.value;
-
-      setStatus("Controleren…");
-      button.disabled = true;
-
-      try {
-        await window.Auth.login(mailValue, passValue);
-        setStatus("Succesvol ingelogd, even geduld…", "success");
-        window.setTimeout(() => {
-          window.location.href = "index.html";
-        }, 400);
-      } catch (err) {
-        console.error(err);
-        setStatus(err.message || "Inloggen mislukt", "error");
-      } finally {
-        button.disabled = false;
-      }
-    });
-
-    if (signupForm && window.Users && window.Auth) {
-      signupForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-
-        const emailValue = normalizeEmail(signupEmail?.value);
-        const passwordValue = signupPassword?.value || "";
-        const confirmValue = signupPasswordConfirm?.value || "";
-
-        if (!emailValue || !emailValue.includes("@")) {
-          setSignupStatus("Vul een geldig e-mailadres in", "error");
-          return;
-        }
-
-        if (!passwordValue || passwordValue.length < 6) {
-          setSignupStatus("Het wachtwoord moet minimaal 6 tekens bevatten", "error");
-          return;
-        }
-
-        if (passwordValue !== confirmValue) {
-          setSignupStatus("De wachtwoorden komen niet overeen", "error");
-          return;
-        }
-
-        try {
-          setSignupStatus("Account wordt aangevraagd…");
-          if (signupButton) signupButton.disabled = true;
-
-          const passwordHash = await window.Auth.hashPassword(passwordValue);
-          const fullName = deriveNameFromEmail(emailValue);
-
-          await window.Users.create({
-            full_name: fullName,
-            email: emailValue,
-            role: "in aanvraag",
-            password_hash: passwordHash,
-            is_active: true,
-          });
-
-          setSignupStatus(
-            "Account aangevraagd! Je kunt nu inloggen. Een beheerder wijst binnenkort je rol toe.",
-            "success"
-          );
-          signupForm.reset();
-        } catch (err) {
-          console.error(err);
-          setSignupStatus(formatApiError(err), "error");
-        } finally {
-          if (signupButton) signupButton.disabled = false;
-        }
-      });
+  async function handleLogin(event) {
+    event.preventDefault();
+    if (!els.loginEmail || !els.loginPassword || !window.Auth) return;
+    const mailValue = els.loginEmail.value;
+    const passValue = els.loginPassword.value;
+    setStatus("Controleren…");
+    if (els.loginButton) {
+      els.loginButton.disabled = true;
     }
-  });
+    try {
+      await window.Auth.login(mailValue, passValue);
+      setStatus("Succesvol ingelogd, even geduld…", "success");
+      window.setTimeout(() => {
+        if (window.Router && typeof window.Router.navigate === "function") {
+          window.Router.navigate("start", { replace: true });
+        }
+      }, 300);
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "Inloggen mislukt", "error");
+    } finally {
+      if (els.loginButton) {
+        els.loginButton.disabled = false;
+      }
+    }
+  }
+
+  async function handleSignup(event) {
+    event.preventDefault();
+    if (!els.signupForm || !window.Users || !window.Auth) return;
+
+    const emailValue = normalizeEmail(els.signupEmail?.value);
+    const passwordValue = els.signupPassword?.value || "";
+    const confirmValue = els.signupPasswordConfirm?.value || "";
+
+    if (!emailValue || !emailValue.includes("@")) {
+      setSignupStatus("Vul een geldig e-mailadres in", "error");
+      return;
+    }
+
+    if (!passwordValue || passwordValue.length < 6) {
+      setSignupStatus("Het wachtwoord moet minimaal 6 tekens bevatten", "error");
+      return;
+    }
+
+    if (passwordValue !== confirmValue) {
+      setSignupStatus("De wachtwoorden komen niet overeen", "error");
+      return;
+    }
+
+    try {
+      setSignupStatus("Account wordt aangevraagd…");
+      if (els.signupButton) els.signupButton.disabled = true;
+
+      const passwordHash = await window.Auth.hashPassword(passwordValue);
+      const fullName = deriveNameFromEmail(emailValue);
+
+      await window.Users.create({
+        full_name: fullName,
+        email: emailValue,
+        role: "in aanvraag",
+        password_hash: passwordHash,
+        is_active: true,
+      });
+
+      setSignupStatus(
+        "Account aangevraagd! Je kunt nu inloggen. Een beheerder wijst binnenkort je rol toe.",
+        "success"
+      );
+      els.signupForm.reset();
+    } catch (err) {
+      console.error(err);
+      setSignupStatus(formatApiError(err), "error");
+    } finally {
+      if (els.signupButton) els.signupButton.disabled = false;
+    }
+  }
+
+  function init(context = {}) {
+    els = refreshElements(context.root || document);
+    removeListeners();
+    if (els.loginForm) {
+      addListener(els.loginForm, "submit", handleLogin);
+    }
+    if (els.signupForm) {
+      addListener(els.signupForm, "submit", handleSignup);
+    }
+  }
+
+  function destroy() {
+    removeListeners();
+    els = {};
+  }
+
+  window.Pages.login = {
+    init,
+    destroy,
+  };
 })();
