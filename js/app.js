@@ -1362,6 +1362,7 @@ async function createOrder(){
     return;
   }
   setStatus(els.createStatus, "Bezig…");
+  let createdOrderId = null;
   try {
     const payload = collectOrderPayload(articleType);
     payload.customer_name = customerName;
@@ -1376,14 +1377,28 @@ async function createOrder(){
       }
     }
     const created = await Orders.create(payload);
-    for (const line of articleLines) {
-      await Lines.create({
-        order_id: created.id,
-        product: line.product,
-        quantity: line.quantity,
-        serial_number: line.serial_number,
-        article_type: articleType,
-      });
+    createdOrderId = created?.id ?? null;
+    try {
+      for (const line of articleLines) {
+        await Lines.create({
+          order_id: created.id,
+          product: line.product,
+          quantity: line.quantity,
+          serial_number: line.serial_number,
+          article_type: articleType,
+        });
+      }
+    } catch (lineError) {
+      if (createdOrderId) {
+        try {
+          await Orders.delete(createdOrderId);
+        } catch (rollbackError) {
+          console.error("Kan order niet terugdraaien", rollbackError);
+        } finally {
+          createdOrderId = null;
+        }
+      }
+      throw lineError;
     }
     storageSet(STORAGE_KEYS.lastReference, requestReference);
     setStatus(els.createStatus, "Transport aangemaakt", "success");
@@ -1391,8 +1406,18 @@ async function createOrder(){
     await assignRequestReference();
     await loadOrders();
   } catch (e) {
+    if (createdOrderId) {
+      try {
+        await Orders.delete(createdOrderId);
+      } catch (rollbackError) {
+        console.error("Kan order niet terugdraaien", rollbackError);
+      } finally {
+        createdOrderId = null;
+      }
+    }
     console.error(e);
-    setStatus(els.createStatus, "Mislukt", "error");
+    const message = e && typeof e.message === "string" && e.message.trim() ? e.message : "Mislukt";
+    setStatus(els.createStatus, message, "error");
   }
 }
 
