@@ -426,7 +426,7 @@ h4 {
   align-items: start;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 768px) {
   .section-grid,
   .section-grid-balanced {
     grid-template-columns: 1fr;
@@ -542,7 +542,7 @@ h4 {
   white-space: nowrap;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .form-toggle {
     flex-direction: column;
     align-items: flex-start;
@@ -728,25 +728,45 @@ h4 {
   color: var(--color-muted);
 }
 
-@media (max-width: 720px) {
-  .wizard-actions {
-    justify-content: flex-start;
+@media (max-width: 768px) {
+  .wizard-panel {
+    padding-bottom: 112px;
   }
-  .wizard-actions .btn {
+
+  .wizard-actions,
+  .wizard-actions-final {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: inherit;
+    padding: 16px 0;
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -6px 18px rgba(43, 43, 43, 0.12);
+    justify-content: flex-start;
+    z-index: 5;
+  }
+
+  .wizard-actions .btn,
+  .wizard-actions-final .btn {
     flex: 1 1 auto;
   }
+
   .wizard-actions-final {
     flex-direction: column;
     align-items: stretch;
   }
+
   .wizard-actions-final #btnCreate,
   .wizard-actions-final .btn {
     margin-left: 0;
     width: 100%;
   }
+
   .stepper {
     gap: 8px;
   }
+
   .stepper-item {
     flex: 1 1 100%;
     justify-content: center;
@@ -946,7 +966,7 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .grid2 {
     grid-template-columns: 1fr;
   }
