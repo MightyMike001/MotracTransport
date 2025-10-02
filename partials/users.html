@@ -31,7 +31,22 @@
   <section class="card">
     <div class="bar">
       <h2>Bestaande gebruikers</h2>
-      <button class="btn ghost small" id="btnReloadUsers">Vernieuwen</button>
+      <div class="bar-actions">
+        <label class="sr-only" for="userSearch">Zoek op e-mail of rol</label>
+        <input
+          id="userSearch"
+          type="search"
+          placeholder="Zoek op e-mail of rol"
+          autocomplete="off"
+        />
+        <label class="sr-only" for="userStatusFilter">Filter op status</label>
+        <select id="userStatusFilter">
+          <option value="all">Alle gebruikers</option>
+          <option value="active">Alleen actief</option>
+          <option value="inactive">Alleen gedeactiveerd</option>
+        </select>
+        <button class="btn ghost small" id="btnReloadUsers">Vernieuwen</button>
+      </div>
     </div>
     <div class="table-wrap">
       <table id="userTable">

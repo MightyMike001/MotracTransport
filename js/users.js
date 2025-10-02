@@ -26,6 +26,8 @@
       password: scope.querySelector("#uPassword"),
       active: scope.querySelector("#uActive"),
       status: scope.querySelector("#userStatus"),
+      search: scope.querySelector("#userSearch"),
+      statusFilter: scope.querySelector("#userStatusFilter"),
       tableBody: scope.querySelector("#userTable tbody"),
       reload: scope.querySelector("#btnReloadUsers"),
     };
@@ -42,6 +44,7 @@
 
   let els = {};
   let USER_CACHE = [];
+  let filters = { query: "", status: "all" };
   const listeners = [];
 
   function addListener(element, type, handler) {
@@ -83,6 +86,35 @@
       return typeof value === "string" && value.trim() ? value : "-";
     }
     return formatted;
+  }
+
+  function applyFilters() {
+    if (!Array.isArray(USER_CACHE)) return [];
+    const query = (filters.query || "").trim().toLowerCase();
+    const statusFilter = filters.status || "all";
+
+    return USER_CACHE.filter((user) => {
+      let matchesQuery = true;
+      if (query) {
+        const email = (user.email || "").toLowerCase();
+        const role = (user.role || "").toLowerCase();
+        matchesQuery = email.includes(query) || role.includes(query);
+      }
+
+      let matchesStatus = true;
+      if (statusFilter === "active") {
+        matchesStatus = !!user.is_active;
+      } else if (statusFilter === "inactive") {
+        matchesStatus = !user.is_active;
+      }
+
+      return matchesQuery && matchesStatus;
+    });
+  }
+
+  function updateFilters(partial = {}) {
+    filters = { ...filters, ...partial };
+    renderUsers(applyFilters());
   }
 
   function renderUsers(users) {
@@ -133,7 +165,7 @@
     try {
       if (showMessage) setStatus("Gebruikers laden…");
       USER_CACHE = await window.Users.list();
-      renderUsers(USER_CACHE);
+      renderUsers(applyFilters());
       if (showMessage) setStatus("Gebruikers bijgewerkt", "success");
     } catch (err) {
       console.error(err);
@@ -187,6 +219,11 @@
     if (!window.Users) return;
     const user = USER_CACHE.find((u) => u.id === id);
     if (!user) return;
+    const actionLabel = user.is_active ? "deactiveren" : "activeren";
+    const confirmMessage = `Weet je zeker dat je ${user.full_name} wilt ${actionLabel}?`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
     try {
       setStatus("Status wijzigen…");
       await window.Users.update(id, { is_active: !user.is_active });
@@ -208,11 +245,18 @@
     if (!window.Users || !window.Auth) return;
     const user = USER_CACHE.find((u) => u.id === id);
     if (!user) return;
+    const confirmReset = window.confirm(
+      `Weet je zeker dat je het wachtwoord van ${user.full_name} wilt resetten?`
+    );
+    if (!confirmReset) {
+      return;
+    }
     const newPassword = window.prompt(`Nieuw wachtwoord voor ${user.full_name}:`);
-    if (!newPassword) return;
+    const passwordValue = (newPassword || "").trim();
+    if (!passwordValue) return;
     try {
       setStatus("Wachtwoord wordt bijgewerkt…");
-      const hash = await window.Auth.hashPassword(newPassword);
+      const hash = await window.Auth.hashPassword(passwordValue);
       await window.Users.setPassword(id, hash);
       const successMessage = "Wachtwoord opnieuw ingesteld";
       setStatus(successMessage, "success");
@@ -278,10 +322,20 @@
     updateRole(id, select.value);
   }
 
+  function handleSearchInput(event) {
+    updateFilters({ query: event.target.value || "" });
+  }
+
+  function handleStatusFilter(event) {
+    const value = event.target.value || "all";
+    updateFilters({ status: value });
+  }
+
   async function init(context = {}) {
     els = refreshElements(context.root || document);
     removeListeners();
     USER_CACHE = [];
+    filters = { query: "", status: "all" };
     if (els.form) {
       addListener(els.form, "submit", handleCreate);
     }
@@ -290,6 +344,14 @@
         event.preventDefault();
         loadUsers(true);
       });
+    }
+    if (els.search) {
+      els.search.value = filters.query;
+      addListener(els.search, "input", handleSearchInput);
+    }
+    if (els.statusFilter) {
+      els.statusFilter.value = filters.status;
+      addListener(els.statusFilter, "change", handleStatusFilter);
     }
     if (els.tableBody) {
       addListener(els.tableBody, "click", handleAction);
@@ -302,6 +364,7 @@
     removeListeners();
     els = {};
     USER_CACHE = [];
+    filters = { query: "", status: "all" };
   }
 
   window.Pages.users = {
