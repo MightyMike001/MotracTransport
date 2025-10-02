@@ -845,14 +845,53 @@ textarea {
   box-shadow: var(--shadow-sm);
 }
 
+.btn:focus-visible {
+  outline: 3px solid rgba(226, 0, 26, 0.35);
+  outline-offset: 2px;
+}
+
 .btn.primary {
   background: var(--color-primary);
   color: #ffffff;
   border-color: var(--color-primary);
 }
 
+.btn.primary:hover,
+.btn.primary:focus-visible {
+  background: #b80017;
+  border-color: #b80017;
+  color: #ffffff;
+}
+
 .btn.ghost {
   background: var(--color-background);
+}
+
+.btn.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn.btn-with-icon .btn-with-icon__symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.btn.primary.btn-with-icon:hover .btn-with-icon__symbol,
+.btn.primary.btn-with-icon:focus-visible .btn-with-icon__symbol {
+  background: #ffffff;
+  color: var(--color-primary);
 }
 
 .btn.small {
