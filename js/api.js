@@ -14,6 +14,81 @@ const SB_HEADERS = {
   "Authorization": "Bearer " + SUPABASE_ANON_KEY
 };
 
+const DEFAULT_RETRY_ATTEMPTS = 2;
+const DEFAULT_RETRY_DELAY = 400;
+const NETWORK_ERROR_MESSAGE =
+  "Kan geen verbinding maken met de server. Controleer je netwerk en probeer het opnieuw.";
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isNavigatorOffline() {
+  if (typeof window === "undefined" || !window.navigator) return false;
+  if (typeof window.navigator.onLine === "boolean") {
+    return window.navigator.onLine === false;
+  }
+  return false;
+}
+
+function isLikelyNetworkError(error) {
+  if (!error) return false;
+  if (isNavigatorOffline()) return true;
+  const message =
+    typeof error === "string"
+      ? error.toLowerCase()
+      : typeof error.message === "string"
+        ? error.message.toLowerCase()
+        : "";
+  if (!message) return false;
+  return (
+    message.includes("failed to fetch") ||
+    message.includes("networkerror") ||
+    message.includes("network error") ||
+    message.includes("load failed") ||
+    message.includes("network request failed")
+  );
+}
+
+async function tryWrap(operation, options = {}) {
+  if (typeof operation !== "function") {
+    throw new TypeError("tryWrap verwacht een functie die een Promise teruggeeft");
+  }
+
+  const retries = Number.isInteger(options.retries)
+    ? Math.max(0, options.retries)
+    : DEFAULT_RETRY_ATTEMPTS;
+  const retryDelay = Number.isInteger(options.retryDelay)
+    ? Math.max(0, options.retryDelay)
+    : DEFAULT_RETRY_DELAY;
+
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt <= retries) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt === retries) {
+        break;
+      }
+      attempt += 1;
+      if (retryDelay > 0) {
+        await wait(retryDelay * attempt);
+      }
+    }
+  }
+
+  if (isLikelyNetworkError(lastError)) {
+    const wrappedError = new Error(options.networkMessage || NETWORK_ERROR_MESSAGE);
+    wrappedError.cause = lastError;
+    throw wrappedError;
+  }
+
+  throw lastError;
+}
+
 function buildSelectQuery(query = "") {
   const trimmed = (query || "").trim();
   if (!trimmed) {
@@ -35,42 +110,50 @@ function buildSelectQuery(query = "") {
 }
 
 async function sbSelect(table, query = "") {
-  const normalizedQuery = buildSelectQuery(query);
-  const r = await fetch(`${SUPABASE_URL}/${table}${normalizedQuery}`, { headers: SB_HEADERS });
-  const data = await r.json();
-  if (!r.ok) throw new Error(JSON.stringify(data));
-  return data;
+  return tryWrap(async () => {
+    const normalizedQuery = buildSelectQuery(query);
+    const r = await fetch(`${SUPABASE_URL}/${table}${normalizedQuery}`, { headers: SB_HEADERS });
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+    return data;
+  });
 }
 
 async function sbInsert(table, rows) {
-  const r = await fetch(`${SUPABASE_URL}/${table}`, {
-    method: "POST",
-    headers: { ...SB_HEADERS, "Prefer": "return=representation" },
-    body: JSON.stringify(rows)
+  return tryWrap(async () => {
+    const r = await fetch(`${SUPABASE_URL}/${table}`, {
+      method: "POST",
+      headers: { ...SB_HEADERS, "Prefer": "return=representation" },
+      body: JSON.stringify(rows)
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+    return data;
   });
-  const data = await r.json();
-  if (!r.ok) throw new Error(JSON.stringify(data));
-  return data;
 }
 
 async function sbUpdate(table, match, patch) {
-  const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
-    method: "PATCH",
-    headers: { ...SB_HEADERS, "Prefer": "return=representation" },
-    body: JSON.stringify(patch)
+  return tryWrap(async () => {
+    const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
+      method: "PATCH",
+      headers: { ...SB_HEADERS, "Prefer": "return=representation" },
+      body: JSON.stringify(patch)
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+    return data;
   });
-  const data = await r.json();
-  if (!r.ok) throw new Error(JSON.stringify(data));
-  return data;
 }
 
 async function sbDelete(table, match) {
-  const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
-    method: "DELETE",
-    headers: SB_HEADERS
+  return tryWrap(async () => {
+    const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
+      method: "DELETE",
+      headers: SB_HEADERS
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return true;
   });
-  if (!r.ok) throw new Error(await r.text());
-  return true;
 }
 
 function tryParseJson(value) {
@@ -195,9 +278,12 @@ const Orders = {
       headers.Prefer = "count=exact";
     }
 
-    const response = await fetch(`${SUPABASE_URL}/transport_orders${qs}`, { headers });
-    const data = await response.json();
-    if (!response.ok) throw new Error(JSON.stringify(data));
+    const { response, data } = await tryWrap(async () => {
+      const response = await fetch(`${SUPABASE_URL}/transport_orders${qs}`, { headers });
+      const data = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(data));
+      return { response, data };
+    });
 
     let total = Array.isArray(data) ? data.length : 0;
     if (hasPagination) {
@@ -225,9 +311,12 @@ const Orders = {
   delete: (id) => sbDelete("transport_orders", `id=eq.${id}`),
   latestReference: async () => {
     const query = "?select=request_reference,reference,created_at&request_reference=not.is.null&order=created_at.desc&limit=1";
-    const response = await fetch(`${SUPABASE_URL}/transport_orders${query}`, { headers: SB_HEADERS });
-    const data = await response.json();
-    if (!response.ok) throw new Error(JSON.stringify(data));
+    const { response, data } = await tryWrap(async () => {
+      const response = await fetch(`${SUPABASE_URL}/transport_orders${query}`, { headers: SB_HEADERS });
+      const data = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(data));
+      return { response, data };
+    });
     if (!Array.isArray(data) || !data.length) {
       return null;
     }
@@ -267,4 +356,4 @@ window.Orders = Orders;
 window.Lines = Lines;
 window.Carriers = Carriers;
 window.Users = Users;
-window.ApiHelpers = Object.assign({}, window.ApiHelpers, { formatSupabaseError });
+window.ApiHelpers = Object.assign({}, window.ApiHelpers, { formatSupabaseError, tryWrap });
