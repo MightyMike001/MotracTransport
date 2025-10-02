@@ -6,52 +6,60 @@
     </div>
     <form id="orderForm" class="form-sections" novalidate>
       <section class="form-section">
-        <div class="grid3">
-          <label>Transport aanvraag referentie
-            <input id="oRequestReference" placeholder="Bijv. TAR-2024-001" readonly aria-readonly="true" />
-          </label>
-          <label>Betreft
-            <select id="oTransportType" disabled>
-              <option value="Afleveren" selected>Afleveren</option>
-            </select>
-          </label>
-          <input id="oStatus" type="hidden" value="Nieuw" />
-        </div>
-        <div class="grid3">
-          <input id="oReceivedAt" type="hidden" />
-          <label>Gewenste leverdatum
-            <input id="oDue" type="date" />
-          </label>
-          <label>Ordernummer klant
-            <input id="oCustomerOrderNumber" placeholder="Bijv. PO-20311" />
-          </label>
-        </div>
-        <div class="grid3">
-          <label>Klantnaam
-            <input id="oCustomerName" placeholder="Klant BV" />
-          </label>
-          <label>Klantnummer
-            <input id="oCustomerNumber" placeholder="Bijv. 123456" />
-          </label>
-          <label>Order referentie
-            <input id="oOrderReference" placeholder="Interne referentie" />
-          </label>
-        </div>
-        <div class="grid3">
-          <label class="form-field-full">Order omschrijving
-            <textarea id="oOrderDescription" rows="2" placeholder="Bijvoorbeeld: levering reachtruck aan vestiging Antwerpen"></textarea>
-          </label>
-        </div>
-        <div class="grid3">
-          <label>Order contactpersoon
-            <input id="oOrderContact" placeholder="Naam contactpersoon" />
-          </label>
-          <label>Order contactpersoon telefoon
-            <input id="oOrderContactPhone" placeholder="Bijv. +31 6 12345678" />
-          </label>
-          <label>Order contactpersoon e-mail
-            <input id="oOrderContactEmail" type="email" placeholder="naam@klant.nl" />
-          </label>
+        <div class="section-grid">
+          <div class="form-panel">
+            <div class="grid2">
+              <label>Transport aanvraag referentie
+                <input id="oRequestReference" placeholder="Bijv. TAR-2024-001" readonly aria-readonly="true" />
+              </label>
+              <label>Betreft
+                <select id="oTransportType" disabled>
+                  <option value="Afleveren" selected>Afleveren</option>
+                </select>
+              </label>
+              <input id="oStatus" type="hidden" value="Nieuw" />
+            </div>
+            <div class="grid2">
+              <input id="oReceivedAt" type="hidden" />
+              <label>Gewenste leverdatum
+                <input id="oDue" type="date" />
+              </label>
+              <label>Ordernummer klant
+                <input id="oCustomerOrderNumber" placeholder="Bijv. PO-20311" />
+              </label>
+            </div>
+            <div class="grid2">
+              <label>Klantnaam
+                <input id="oCustomerName" placeholder="Klant BV" />
+              </label>
+              <label>Klantnummer
+                <input id="oCustomerNumber" placeholder="Bijv. 123456" />
+              </label>
+            </div>
+            <div class="grid2">
+              <label class="form-field-full">Order referentie
+                <input id="oOrderReference" placeholder="Interne referentie" />
+              </label>
+            </div>
+            <label class="form-field-full">Order omschrijving
+              <textarea id="oOrderDescription" rows="3" placeholder="Bijvoorbeeld: levering reachtruck aan vestiging Antwerpen"></textarea>
+            </label>
+          </div>
+          <aside class="form-panel form-panel-secondary">
+            <h5 class="panel-title">Order contact</h5>
+            <p class="muted small">Contactgegevens voor de uitvoering van dit transport.</p>
+            <div class="stack">
+              <label>Order contactpersoon
+                <input id="oOrderContact" placeholder="Naam contactpersoon" />
+              </label>
+              <label>Order contactpersoon telefoon
+                <input id="oOrderContactPhone" placeholder="Bijv. +31 6 12345678" />
+              </label>
+              <label>Order contactpersoon e-mail
+                <input id="oOrderContactEmail" type="email" placeholder="naam@klant.nl" />
+              </label>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -66,32 +74,41 @@
             </label>
           </div>
         </div>
-        <div class="grid3">
-          <label class="checkbox">
-            <input type="checkbox" id="oPickupConfirmed" />
-            <span>Bevestigd</span>
-          </label>
-          <label>Pickup datum
-            <input id="oPickupDate" type="date" />
-          </label>
-          <label>Pickup tijdslot start
-            <input id="oPickupTimeFrom" type="time" />
-          </label>
-          <label>Pickup tijdslot eind
-            <input id="oPickupTimeTo" type="time" />
-          </label>
-          <label>Pickup contactpersoon
-            <input id="oPickupContact" placeholder="Naam laadcontact" />
-          </label>
-          <label>Pickup contact telefoon
-            <input id="oPickupPhone" placeholder="Telefoon laadcontact" />
-          </label>
-          <label class="form-field-full">Locatie
-            <input id="oPickupLocation" placeholder="Straat, nummer, plaats" />
-          </label>
-          <label class="form-field-full">Laadinstructies
-            <textarea id="oPickupInstructions" rows="2" placeholder="Aanmeldbalie, documenten, toegangsprocedures..."></textarea>
-          </label>
+        <div class="section-grid section-grid-balanced">
+          <div class="form-panel">
+            <div class="grid2">
+              <label class="checkbox form-field-full">
+                <input type="checkbox" id="oPickupConfirmed" />
+                <span>Bevestigd</span>
+              </label>
+              <label>Pickup datum
+                <input id="oPickupDate" type="date" />
+              </label>
+              <label>Pickup tijdslot start
+                <input id="oPickupTimeFrom" type="time" />
+              </label>
+              <label>Pickup tijdslot eind
+                <input id="oPickupTimeTo" type="time" />
+              </label>
+            </div>
+          </div>
+          <aside class="form-panel form-panel-secondary">
+            <h5 class="panel-title">Contact & locatie</h5>
+            <div class="stack">
+              <label>Pickup contactpersoon
+                <input id="oPickupContact" placeholder="Naam laadcontact" />
+              </label>
+              <label>Pickup contact telefoon
+                <input id="oPickupPhone" placeholder="Telefoon laadcontact" />
+              </label>
+              <label>Locatie
+                <input id="oPickupLocation" placeholder="Straat, nummer, plaats" />
+              </label>
+              <label>Laadinstructies
+                <textarea id="oPickupInstructions" rows="3" placeholder="Aanmeldbalie, documenten, toegangsprocedures..."></textarea>
+              </label>
+            </div>
+          </aside>
         </div>
         <button type="button" class="btn ghost" disabled>Laadlocatie toevoegen</button>
       </section>
@@ -107,54 +124,71 @@
             </label>
           </div>
         </div>
-        <div class="grid3">
-          <label class="checkbox">
-            <input type="checkbox" id="oDeliveryConfirmed" />
-            <span>Bevestigd</span>
-          </label>
-          <label>Losdatum
-            <input id="oDeliveryDate" type="date" />
-          </label>
-          <label>Los tijdslot start
-            <input id="oDeliveryTimeFrom" type="time" />
-          </label>
-          <label>Los tijdslot eind
-            <input id="oDeliveryTimeTo" type="time" />
-          </label>
-          <label>Los contactpersoon
-            <input id="oDeliveryContact" placeholder="Naam loscontact" />
-          </label>
-          <label>Los contact telefoon
-            <input id="oDeliveryPhone" placeholder="Telefoon loscontact" />
-          </label>
-          <label class="form-field-full">Locatie
-            <input id="oDeliveryLocation" placeholder="Straat, nummer, plaats" />
-          </label>
-          <label class="form-field-full">Losinstructies
-            <textarea id="oDeliveryInstructions" rows="2" placeholder="Aanmelding, openingstijden, bijzonderheden..."></textarea>
-          </label>
+        <div class="section-grid section-grid-balanced">
+          <div class="form-panel">
+            <div class="grid2">
+              <label class="checkbox form-field-full">
+                <input type="checkbox" id="oDeliveryConfirmed" />
+                <span>Bevestigd</span>
+              </label>
+              <label>Losdatum
+                <input id="oDeliveryDate" type="date" />
+              </label>
+              <label>Los tijdslot start
+                <input id="oDeliveryTimeFrom" type="time" />
+              </label>
+              <label>Los tijdslot eind
+                <input id="oDeliveryTimeTo" type="time" />
+              </label>
+            </div>
+          </div>
+          <aside class="form-panel form-panel-secondary">
+            <h5 class="panel-title">Contact & locatie</h5>
+            <div class="stack">
+              <label>Los contactpersoon
+                <input id="oDeliveryContact" placeholder="Naam loscontact" />
+              </label>
+              <label>Los contact telefoon
+                <input id="oDeliveryPhone" placeholder="Telefoon loscontact" />
+              </label>
+              <label>Locatie
+                <input id="oDeliveryLocation" placeholder="Straat, nummer, plaats" />
+              </label>
+              <label>Losinstructies
+                <textarea id="oDeliveryInstructions" rows="3" placeholder="Aanmelding, openingstijden, bijzonderheden..."></textarea>
+              </label>
+            </div>
+          </aside>
         </div>
         <button type="button" class="btn ghost" disabled>Losadres toevoegen</button>
       </section>
 
       <section class="form-section">
         <h4 class="section-title">Artikelen</h4>
-        <p class="muted small">Selecteer of het om serienummer gebonden of niet serienummer gebonden artikelen gaat en voeg alle artikelen toe.</p>
-        <div class="form-toggle">
-          <span class="toggle-label">Artikeltype</span>
-          <div class="toggle-group">
-            <label class="toggle-option">
-              <input type="radio" name="articleType" value="serial" id="articleTypeSerial" />
-              <span>Serienummer gebonden artikel</span>
-            </label>
-            <label class="toggle-option">
-              <input type="radio" name="articleType" value="non_serial" id="articleTypeNonSerial" />
-              <span>Niet serienummer gebonden artikel</span>
-            </label>
+        <div class="section-grid">
+          <div class="form-panel">
+            <p class="muted small">Selecteer of het om serienummer gebonden of niet serienummer gebonden artikelen gaat en voeg alle artikelen toe.</p>
+            <div class="form-toggle">
+              <span class="toggle-label">Artikeltype</span>
+              <div class="toggle-group">
+                <label class="toggle-option">
+                  <input type="radio" name="articleType" value="serial" id="articleTypeSerial" />
+                  <span>Serienummer gebonden artikel</span>
+                </label>
+                <label class="toggle-option">
+                  <input type="radio" name="articleType" value="non_serial" id="articleTypeNonSerial" />
+                  <span>Niet serienummer gebonden artikel</span>
+                </label>
+              </div>
+            </div>
+            <div id="articleList" class="article-list"></div>
+            <button type="button" class="btn ghost" id="btnAddArticle">Artikel toevoegen</button>
           </div>
+          <aside class="form-panel form-panel-secondary">
+            <h5 class="panel-title">Voorbeeld</h5>
+            <p class="muted small">Gebruik dit overzicht om alle te vervoeren artikelen inclusief serienummers vast te leggen.</p>
+          </aside>
         </div>
-        <div id="articleList" class="article-list"></div>
-        <button type="button" class="btn ghost" id="btnAddArticle">Artikel toevoegen</button>
       </section>
 
       <template id="articleRowTemplate">
