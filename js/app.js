@@ -1,5 +1,47 @@
 let els = {};
 
+const DATE_UTILS = window.DateUtils || {};
+
+const formatDateDisplay = typeof DATE_UTILS.formatDateDisplay === "function"
+  ? DATE_UTILS.formatDateDisplay
+  : (value) => {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return typeof value === "string" && value.trim() ? value : "-";
+      }
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    };
+
+const formatDateForInput = typeof DATE_UTILS.formatDateForInput === "function"
+  ? DATE_UTILS.formatDateForInput
+  : (value) => {
+      if (!value && value !== 0) return "";
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${year}-${month}-${day}`;
+    };
+
+const getTodayDateValue = typeof DATE_UTILS.getTodayDateValue === "function"
+  ? DATE_UTILS.getTodayDateValue
+  : () => {
+      const today = new Date();
+      const day = String(today.getDate()).padStart(2, "0");
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const year = today.getFullYear();
+      return `${year}-${month}-${day}`;
+    };
+
+const enforceDateInputs = typeof DATE_UTILS.enforceDateInputs === "function"
+  ? DATE_UTILS.enforceDateInputs
+  : () => {};
+
 function refreshElements() {
   const doc = document;
   els = {
@@ -233,10 +275,6 @@ async function assignRequestReference() {
   } catch (error) {
     console.warn("Kan laatste transportreferentie niet ophalen", error);
   }
-}
-
-function getTodayDateValue() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function applyDefaultReceivedDate() {
@@ -653,18 +691,6 @@ function formatPlanned(row) {
     parts.push(`(${row.planned_slot})`);
   }
   return parts.join(" ").trim() || "-";
-}
-
-function formatDateDisplay(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return typeof value === "string" && value.trim() ? value : "-";
-  return d.toLocaleDateString("nl-NL", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 async function refreshCarriersDatalist() {
@@ -1616,11 +1642,11 @@ function syncPlanBoardFromOrders(){
 
 function ensureBoardDate(){
   if (!els.boardDate) {
-    return new Date().toISOString().slice(0,10);
+    return getTodayDateValue();
   }
   let value = els.boardDate.value;
   if (!value) {
-    value = new Date().toISOString().slice(0,10);
+    value = getTodayDateValue();
     els.boardDate.value = value;
   }
   return value;
@@ -2081,7 +2107,7 @@ async function suggestPlan(){
     const end = new Date(els.planEnd.value || Date.now()+5*86400000);
     const dates = [];
     for (let d = new Date(start); d <= end; d = new Date(d.getTime()+86400000)){
-      dates.push(d.toISOString().slice(0,10));
+      dates.push(formatDateForInput(d));
     }
     const cap = {};
     for (const day of dates){
@@ -2214,6 +2240,7 @@ function bind(canManagePlanning){
 
 async function initAppPage() {
   refreshElements();
+  enforceDateInputs(document);
   const user = window.Auth?.getUser ? window.Auth.getUser() : null;
   const canManagePlanning = Boolean(user && (user.role === "planner" || user.role === "admin"));
   removeBoundListeners();
@@ -2228,9 +2255,11 @@ async function initAppPage() {
   DRAG_CONTEXT = null;
   const today = new Date();
   const end = new Date(Date.now() + 5 * 86400000);
-  if (els.planStart) els.planStart.value = today.toISOString().slice(0, 10);
-  if (els.planEnd) els.planEnd.value = end.toISOString().slice(0, 10);
-  if (els.boardDate) els.boardDate.value = today.toISOString().slice(0, 10);
+  const todayValue = formatDateForInput(today);
+  const endValue = formatDateForInput(end);
+  if (els.planStart) els.planStart.value = todayValue;
+  if (els.planEnd) els.planEnd.value = endValue;
+  if (els.boardDate) els.boardDate.value = todayValue;
   renderTrucks();
   await refreshCarriersDatalist();
   const needsOrders = Boolean(

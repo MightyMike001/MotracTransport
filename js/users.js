@@ -1,6 +1,21 @@
 (function () {
   window.Pages = window.Pages || {};
 
+  const DATE_UTILS = window.DateUtils || {};
+  const formatDateTimeDisplay = typeof DATE_UTILS.formatDateTimeDisplay === "function"
+    ? DATE_UTILS.formatDateTimeDisplay
+    : (value) => {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return `${day}-${month}-${year} ${hours}:${minutes}`;
+      };
+
   function refreshElements(root) {
     const scope = root || document;
     return {
@@ -57,12 +72,11 @@
 
   function formatDate(value) {
     if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString("nl-NL", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    const formatted = formatDateTimeDisplay(value);
+    if (!formatted || formatted === "-") {
+      return typeof value === "string" && value.trim() ? value : "-";
+    }
+    return formatted;
   }
 
   function renderUsers(users) {
