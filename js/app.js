@@ -134,6 +134,8 @@ function createFormValidator(form, schema, registerListener) {
   if (!form || !schema || typeof schema !== "object") {
     return {
       validate: () => true,
+      validateField: () => true,
+      validateGroup: () => true,
       reset: () => {},
     };
   }
@@ -257,6 +259,31 @@ function createFormValidator(form, schema, registerListener) {
     return valid;
   };
 
+  const validateGroup = (keys) => {
+    if (!Array.isArray(keys) || keys.length === 0) {
+      return validateAll();
+    }
+    const values = collectValues();
+    let allValid = true;
+    let firstInvalid = null;
+    for (const key of keys) {
+      const config = schema[key];
+      if (!config) continue;
+      const valid = applyRules(key, config, values);
+      if (!valid) {
+        allValid = false;
+        const field = getField(key, config);
+        if (!firstInvalid && field && typeof field.focus === "function") {
+          firstInvalid = field;
+        }
+      }
+    }
+    if (firstInvalid) {
+      firstInvalid.focus();
+    }
+    return allValid;
+  };
+
   const validateAll = () => {
     const values = collectValues();
     let allValid = true;
@@ -325,6 +352,7 @@ function createFormValidator(form, schema, registerListener) {
   return {
     validate: validateAll,
     validateField,
+    validateGroup,
     reset,
   };
 }
@@ -383,6 +411,13 @@ function refreshElements() {
     btnAddArticle: doc.getElementById("btnAddArticle"),
     btnCreate: doc.getElementById("btnCreate"),
     createStatus: doc.getElementById("createStatus"),
+    wizardStepperItems: Array.from(doc.querySelectorAll('[data-stepper-step]')),
+    wizardPanels: Array.from(doc.querySelectorAll('[data-order-step]')),
+    wizardNextButtons: Array.from(doc.querySelectorAll('[data-action="wizard-next"]')),
+    wizardPrevButtons: Array.from(doc.querySelectorAll('[data-action="wizard-prev"]')),
+    wizardStatus: doc.getElementById("wizardStatus"),
+    orderSummary: doc.getElementById("orderSummary"),
+    orderSummaryArticles: doc.getElementById("orderSummaryArticles"),
     btnReload: doc.getElementById("btnReload"),
     ordersTable: (() => {
       const table = doc.getElementById("ordersTable");
@@ -446,6 +481,301 @@ function setupOrderFormValidation() {
   if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
     ORDER_FORM_VALIDATOR.reset();
   }
+}
+
+function getWizardPanels() {
+  return Array.isArray(els.wizardPanels) ? els.wizardPanels : [];
+}
+
+function findWizardPanel(step) {
+  return getWizardPanels().find((panel) => Number(panel?.getAttribute?.("data-order-step")) === step) || null;
+}
+
+function resetWizardStatus() {
+  if (els.wizardStatus) {
+    setStatus(els.wizardStatus, "");
+  }
+}
+
+function updateWizardStepper(step) {
+  if (!Array.isArray(els.wizardStepperItems)) {
+    return;
+  }
+  for (const item of els.wizardStepperItems) {
+    const itemStep = Number(item?.getAttribute?.("data-stepper-step"));
+    const isCurrent = itemStep === step;
+    const isComplete = Number.isFinite(itemStep) && itemStep < step;
+    if (isCurrent) {
+      item.setAttribute("aria-current", "step");
+    } else {
+      item.removeAttribute("aria-current");
+    }
+    item.classList.toggle("is-current", isCurrent);
+    item.classList.toggle("is-complete", isComplete);
+  }
+}
+
+function setWizardStep(step) {
+  const panels = getWizardPanels();
+  if (!panels.length) {
+    ORDER_WIZARD_STATE.currentStep = 1;
+    ORDER_WIZARD_STATE.totalSteps = 1;
+    return;
+  }
+  const total = panels.length;
+  ORDER_WIZARD_STATE.totalSteps = total;
+  const targetStep = Math.min(Math.max(1, Number(step) || 1), total);
+  ORDER_WIZARD_STATE.currentStep = targetStep;
+  for (const panel of panels) {
+    const panelStep = Number(panel.getAttribute("data-order-step"));
+    const isActive = panelStep === targetStep;
+    panel.classList.toggle("is-active", isActive);
+    if (isActive) {
+      panel.removeAttribute("hidden");
+    } else {
+      panel.setAttribute("hidden", "hidden");
+    }
+  }
+  updateWizardStepper(targetStep);
+  resetWizardStatus();
+  if (targetStep === ORDER_WIZARD_STATE.totalSteps) {
+    updateOrderSummary();
+  }
+  const activePanel = findWizardPanel(targetStep);
+  if (activePanel) {
+    const focusTarget = activePanel.querySelector(
+      "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])"
+    );
+    if (focusTarget && typeof focusTarget.focus === "function") {
+      focusTarget.focus({ preventScroll: false });
+    }
+  }
+}
+
+function goToWizardStep(step) {
+  setWizardStep(step);
+}
+
+function validateWizardStep(step) {
+  resetWizardStatus();
+  if (ORDER_FORM_VALIDATOR && Array.isArray(ORDER_WIZARD_STEP_FIELDS[step]) && ORDER_WIZARD_STEP_FIELDS[step].length) {
+    if (!ORDER_FORM_VALIDATOR.validateGroup(ORDER_WIZARD_STEP_FIELDS[step])) {
+      if (els.wizardStatus) {
+        setStatus(els.wizardStatus, "Controleer de gemarkeerde velden.", "error");
+      }
+      return false;
+    }
+  }
+  if (step === 4) {
+    const articleType = getArticleType();
+    if (!articleType) {
+      if (els.wizardStatus) {
+        setStatus(els.wizardStatus, "Kies het artikeltype.", "error");
+      }
+      return false;
+    }
+    try {
+      collectArticles(articleType);
+    } catch (articleError) {
+      if (els.wizardStatus) {
+        setStatus(
+          els.wizardStatus,
+          articleError?.message || "Controleer de artikelen.",
+          "error"
+        );
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+function goToNextWizardStep() {
+  const current = ORDER_WIZARD_STATE.currentStep || 1;
+  if (!validateWizardStep(current)) {
+    return;
+  }
+  const nextStep = Math.min(current + 1, ORDER_WIZARD_STATE.totalSteps || current + 1);
+  setWizardStep(nextStep);
+}
+
+function goToPreviousWizardStep() {
+  const current = ORDER_WIZARD_STATE.currentStep || 1;
+  const previousStep = Math.max(1, current - 1);
+  setWizardStep(previousStep);
+}
+
+function findWizardStepWithErrors() {
+  const panels = getWizardPanels();
+  for (const panel of panels) {
+    if (!panel) continue;
+    const hasError = panel.querySelector(`.${VALIDATION_CLASSES.fieldInvalid}`);
+    if (hasError) {
+      const step = Number(panel.getAttribute("data-order-step"));
+      if (Number.isFinite(step)) {
+        return step;
+      }
+    }
+  }
+  return null;
+}
+
+function getSelectedArticleTypeLabel(articleType) {
+  const selected = document.querySelector('input[name="articleType"]:checked');
+  if (selected) {
+    const label = selected.closest("label");
+    if (label) {
+      const text = label.textContent || "";
+      if (text.trim()) {
+        return text.trim();
+      }
+    }
+  }
+  if (articleType === "serial") {
+    return "Serienummer gebonden artikel";
+  }
+  if (articleType === "non_serial") {
+    return "Niet serienummer gebonden artikel";
+  }
+  return "Geen artikeltype geselecteerd";
+}
+
+function renderOrderSummaryArticles(articleType, articles) {
+  if (!els.orderSummaryArticles) {
+    return;
+  }
+  els.orderSummaryArticles.innerHTML = "";
+  if (!articleType) {
+    const message = document.createElement("p");
+    message.className = "muted small";
+    message.textContent = "Geen artikeltype geselecteerd.";
+    els.orderSummaryArticles.appendChild(message);
+    return;
+  }
+  if (!Array.isArray(articles) || articles.length === 0) {
+    const message = document.createElement("p");
+    message.className = "muted small";
+    message.textContent = "Geen artikelen toegevoegd.";
+    els.orderSummaryArticles.appendChild(message);
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "summary-table";
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  const productHeader = document.createElement("th");
+  productHeader.textContent = "Artikel";
+  headRow.appendChild(productHeader);
+  if (articleType === "serial") {
+    const serialHeader = document.createElement("th");
+    serialHeader.textContent = "Serienummer";
+    headRow.appendChild(serialHeader);
+  } else {
+    const quantityHeader = document.createElement("th");
+    quantityHeader.textContent = "Aantal";
+    headRow.appendChild(quantityHeader);
+  }
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  for (const item of articles) {
+    const row = document.createElement("tr");
+    const productCell = document.createElement("td");
+    productCell.textContent = item?.product || "-";
+    row.appendChild(productCell);
+    const secondCell = document.createElement("td");
+    if (articleType === "serial") {
+      secondCell.textContent = item?.serial_number || "-";
+    } else {
+      secondCell.textContent = Number.isFinite(item?.quantity) ? String(item.quantity) : "-";
+    }
+    row.appendChild(secondCell);
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+  els.orderSummaryArticles.appendChild(table);
+}
+
+function setSummaryField(name, value) {
+  if (!els.orderSummary) {
+    return;
+  }
+  const target = els.orderSummary.querySelector(`[data-summary-field="${name}"]`);
+  if (!target) {
+    return;
+  }
+  target.textContent = value || "-";
+}
+
+function updateOrderSummary() {
+  const requestReference = cleanText(els.oRequestReference?.value) || "-";
+  const dueDate = formatDateDisplay(els.oDue?.value);
+  const customerOrder = cleanText(els.oCustomerOrderNumber?.value) || "-";
+  const customerName = cleanText(els.oCustomerName?.value) || "-";
+  const customerNumber = cleanText(els.oCustomerNumber?.value) || "-";
+  const orderReference = cleanText(els.oOrderReference?.value) || "-";
+  const orderDescription = cleanText(els.oOrderDescription?.value) || "-";
+  const orderContact = cleanText(els.oOrderContact?.value) || "-";
+  const orderContactPhone = cleanText(els.oOrderContactPhone?.value) || "-";
+  const orderContactEmail = cleanText(els.oOrderContactEmail?.value) || "-";
+  const pickupConfirmed = els.oPickupConfirmed?.checked ? "Ja" : "Nee";
+  const pickupDate = formatDateDisplay(els.oPickupDate?.value);
+  const pickupSlot = buildTimeSlot(els.oPickupTimeFrom?.value, els.oPickupTimeTo?.value) || "-";
+  const pickupContact = cleanText(els.oPickupContact?.value) || "-";
+  const pickupPhone = cleanText(els.oPickupPhone?.value) || "-";
+  const pickupLocation = cleanText(els.oPickupLocation?.value) || "-";
+  const pickupInstructions = cleanText(els.oPickupInstructions?.value) || "-";
+  const deliveryConfirmed = els.oDeliveryConfirmed?.checked ? "Ja" : "Nee";
+  const deliveryDate = formatDateDisplay(els.oDeliveryDate?.value);
+  const deliverySlot = buildTimeSlot(els.oDeliveryTimeFrom?.value, els.oDeliveryTimeTo?.value) || "-";
+  const deliveryContact = cleanText(els.oDeliveryContact?.value) || "-";
+  const deliveryPhone = cleanText(els.oDeliveryPhone?.value) || "-";
+  const deliveryLocation = cleanText(els.oDeliveryLocation?.value) || "-";
+  const deliveryInstructions = cleanText(els.oDeliveryInstructions?.value) || "-";
+  const articleType = getArticleType();
+  let articles = [];
+  try {
+    articles = articleType ? collectArticles(articleType) : [];
+  } catch (error) {
+    articles = [];
+  }
+  setSummaryField("request_reference", requestReference);
+  setSummaryField("due_date", dueDate);
+  setSummaryField("customer_order_number", customerOrder);
+  setSummaryField("customer_name", customerName);
+  setSummaryField("customer_number", customerNumber);
+  setSummaryField("order_reference", orderReference);
+  setSummaryField("order_description", orderDescription);
+  setSummaryField("order_contact", orderContact);
+  setSummaryField("order_contact_phone", orderContactPhone);
+  setSummaryField("order_contact_email", orderContactEmail);
+  setSummaryField("pickup_confirmed", pickupConfirmed);
+  setSummaryField("pickup_date", pickupDate);
+  setSummaryField("pickup_slot", pickupSlot);
+  setSummaryField("pickup_contact", pickupContact);
+  setSummaryField("pickup_phone", pickupPhone);
+  setSummaryField("pickup_location", pickupLocation);
+  setSummaryField("pickup_instructions", pickupInstructions);
+  setSummaryField("delivery_confirmed", deliveryConfirmed);
+  setSummaryField("delivery_date", deliveryDate);
+  setSummaryField("delivery_slot", deliverySlot);
+  setSummaryField("delivery_contact", deliveryContact);
+  setSummaryField("delivery_phone", deliveryPhone);
+  setSummaryField("delivery_location", deliveryLocation);
+  setSummaryField("delivery_instructions", deliveryInstructions);
+  setSummaryField("article_type", getSelectedArticleTypeLabel(articleType));
+  renderOrderSummaryArticles(articleType, articles);
+}
+
+function resetOrderWizard() {
+  ORDER_WIZARD_STATE.currentStep = 1;
+  setWizardStep(1);
+}
+
+function setupOrderWizard() {
+  ORDER_WIZARD_STATE.currentStep = 1;
+  ORDER_WIZARD_STATE.totalSteps = getWizardPanels().length || 1;
+  setWizardStep(1);
 }
 
 const STORAGE_KEYS = {
@@ -554,6 +884,41 @@ const ORDER_FORM_SCHEMA = {
   oDeliveryLocation: {
     required: "Vul de loslocatie in.",
   },
+};
+
+const ORDER_WIZARD_STEP_FIELDS = {
+  1: [
+    "oRequestReference",
+    "oDue",
+    "oCustomerName",
+    "oOrderReference",
+    "oOrderDescription",
+    "oOrderContact",
+    "oOrderContactPhone",
+    "oOrderContactEmail",
+  ],
+  2: [
+    "oPickupDate",
+    "oPickupTimeFrom",
+    "oPickupTimeTo",
+    "oPickupContact",
+    "oPickupPhone",
+    "oPickupLocation",
+  ],
+  3: [
+    "oDeliveryDate",
+    "oDeliveryTimeFrom",
+    "oDeliveryTimeTo",
+    "oDeliveryContact",
+    "oDeliveryPhone",
+    "oDeliveryLocation",
+  ],
+  4: [],
+};
+
+const ORDER_WIZARD_STATE = {
+  currentStep: 1,
+  totalSteps: 5,
 };
 
 let ORDER_FORM_VALIDATOR = null;
@@ -1779,6 +2144,7 @@ function resetOrderForm(){
   if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
     ORDER_FORM_VALIDATOR.reset();
   }
+  resetOrderWizard();
   if (els.createStatus) {
     setStatus(els.createStatus, "");
   }
@@ -1787,8 +2153,16 @@ function resetOrderForm(){
 async function createOrder(){
   if (!els.oCustomerName || !els.oRequestReference) return;
   const user = getCurrentUser();
+  resetWizardStatus();
   if (ORDER_FORM_VALIDATOR && !ORDER_FORM_VALIDATOR.validate()) {
     setStatus(els.createStatus, "Controleer de gemarkeerde velden.", "error");
+    const errorStep = findWizardStepWithErrors();
+    if (errorStep) {
+      setWizardStep(errorStep);
+      if (els.wizardStatus) {
+        setStatus(els.wizardStatus, "Controleer de gemarkeerde velden.", "error");
+      }
+    }
     return;
   }
   const customerName = cleanText(els.oCustomerName.value);
@@ -1796,6 +2170,10 @@ async function createOrder(){
   const articleType = getArticleType();
   if (!articleType) {
     setStatus(els.createStatus, "Kies het artikeltype.", "error");
+    setWizardStep(4);
+    if (els.wizardStatus) {
+      setStatus(els.wizardStatus, "Kies het artikeltype.", "error");
+    }
     return;
   }
   let articleLines = [];
@@ -1803,6 +2181,10 @@ async function createOrder(){
     articleLines = collectArticles(articleType);
   } catch (articleError) {
     setStatus(els.createStatus, articleError.message || "Controleer de artikelen.", "error");
+    setWizardStep(4);
+    if (els.wizardStatus) {
+      setStatus(els.wizardStatus, articleError.message || "Controleer de artikelen.", "error");
+    }
     return;
   }
   setStatus(els.createStatus, "Bezig…");
@@ -2627,6 +3009,22 @@ function bind(canManagePlanning){
   };
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
+  if (Array.isArray(els.wizardNextButtons)) {
+    for (const button of els.wizardNextButtons) {
+      addBoundListener(button, "click", (event) => {
+        event.preventDefault();
+        goToNextWizardStep();
+      });
+    }
+  }
+  if (Array.isArray(els.wizardPrevButtons)) {
+    for (const button of els.wizardPrevButtons) {
+      addBoundListener(button, "click", (event) => {
+        event.preventDefault();
+        goToPreviousWizardStep();
+      });
+    }
+  }
   bindClick(els.btnAddArticle, () => addArticleRow());
   bindClick(els.btnReload, () => loadOrders());
   bindClick(els.btnAddCarrier, addCarrier);
@@ -2683,6 +3081,7 @@ async function initAppPage() {
   removeBoundListeners();
   bind(canManagePlanning);
   setupOrderFormValidation();
+  setupOrderWizard();
   await assignRequestReference();
   applyDefaultReceivedDate();
   ensureMinimumArticleRows();

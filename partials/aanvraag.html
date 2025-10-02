@@ -4,8 +4,36 @@
       <h2>Transportgegevens</h2>
       <div class="muted small">Leg nieuwe transportaanvragen vast op basis van de Bizagi-velden.</div>
     </div>
-    <form id="orderForm" class="form-sections" novalidate>
-      <section class="form-section">
+    <form id="orderForm" class="form-sections wizard-form" novalidate>
+      <nav class="wizard-stepper" aria-label="Stappen voor nieuwe aanvraag">
+        <ol class="stepper">
+          <li class="stepper-item is-current" data-stepper-step="1">
+            <span class="stepper-index">1</span>
+            <span class="stepper-label">Transport</span>
+          </li>
+          <li class="stepper-item" data-stepper-step="2">
+            <span class="stepper-index">2</span>
+            <span class="stepper-label">Laad</span>
+          </li>
+          <li class="stepper-item" data-stepper-step="3">
+            <span class="stepper-index">3</span>
+            <span class="stepper-label">Los</span>
+          </li>
+          <li class="stepper-item" data-stepper-step="4">
+            <span class="stepper-index">4</span>
+            <span class="stepper-label">Artikelen</span>
+          </li>
+          <li class="stepper-item" data-stepper-step="5">
+            <span class="stepper-index">5</span>
+            <span class="stepper-label">Overzicht</span>
+          </li>
+        </ol>
+      </nav>
+
+      <div id="wizardStatus" class="status" aria-live="polite"></div>
+
+      <section class="form-section wizard-panel" data-order-step="1">
+        <h4 class="section-title">1. Transport</h4>
         <div class="section-grid">
           <div class="form-panel">
             <div class="grid2">
@@ -61,10 +89,13 @@
             </div>
           </aside>
         </div>
+        <div class="wizard-actions">
+          <button type="button" class="btn primary" data-action="wizard-next">Volgende</button>
+        </div>
       </section>
 
-      <section class="form-section">
-        <h4 class="section-title">1. Laadlocatie en venstertijd</h4>
+      <section class="form-section wizard-panel" data-order-step="2" hidden>
+        <h4 class="section-title">2. Laadlocatie en venstertijd</h4>
         <div class="form-toggle">
           <span class="toggle-label">Locatie keuze</span>
           <div class="toggle-group">
@@ -93,7 +124,7 @@
             </div>
           </div>
           <aside class="form-panel form-panel-secondary">
-            <h5 class="panel-title">Contact & locatie</h5>
+            <h5 class="panel-title">Contact &amp; locatie</h5>
             <div class="stack">
               <label>Pickup contactpersoon
                 <input id="oPickupContact" placeholder="Naam laadcontact" />
@@ -111,10 +142,14 @@
           </aside>
         </div>
         <button type="button" class="btn ghost" disabled>Laadlocatie toevoegen</button>
+        <div class="wizard-actions">
+          <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
+          <button type="button" class="btn primary" data-action="wizard-next">Volgende</button>
+        </div>
       </section>
 
-      <section class="form-section">
-        <h4 class="section-title">2. Losadres en venstertijd</h4>
+      <section class="form-section wizard-panel" data-order-step="3" hidden>
+        <h4 class="section-title">3. Losadres en venstertijd</h4>
         <div class="form-toggle">
           <span class="toggle-label">Locatie keuze</span>
           <div class="toggle-group">
@@ -143,7 +178,7 @@
             </div>
           </div>
           <aside class="form-panel form-panel-secondary">
-            <h5 class="panel-title">Contact & locatie</h5>
+            <h5 class="panel-title">Contact &amp; locatie</h5>
             <div class="stack">
               <label>Los contactpersoon
                 <input id="oDeliveryContact" placeholder="Naam loscontact" />
@@ -161,10 +196,14 @@
           </aside>
         </div>
         <button type="button" class="btn ghost" disabled>Losadres toevoegen</button>
+        <div class="wizard-actions">
+          <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
+          <button type="button" class="btn primary" data-action="wizard-next">Volgende</button>
+        </div>
       </section>
 
-      <section class="form-section">
-        <h4 class="section-title">Artikelen</h4>
+      <section class="form-section wizard-panel" data-order-step="4" hidden>
+        <h4 class="section-title">4. Artikelen</h4>
         <div class="section-grid">
           <div class="form-panel">
             <p class="muted small">Selecteer of het om serienummer gebonden of niet serienummer gebonden artikelen gaat en voeg alle artikelen toe.</p>
@@ -189,6 +228,138 @@
             <p class="muted small">Gebruik dit overzicht om alle te vervoeren artikelen inclusief serienummers vast te leggen.</p>
           </aside>
         </div>
+        <div class="wizard-actions">
+          <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
+          <button type="button" class="btn primary" data-action="wizard-next">Naar overzicht</button>
+        </div>
+      </section>
+
+      <section class="form-section wizard-panel" data-order-step="5" hidden>
+        <h4 class="section-title">5. Overzicht &amp; bevestigen</h4>
+        <p class="muted small">Controleer alle velden voordat je de aanvraag definitief opslaat.</p>
+        <div id="orderSummary" class="summary-grid">
+          <section class="summary-card">
+            <h5>Transport</h5>
+            <dl class="summary-list">
+              <div class="summary-row">
+                <dt>Referentie</dt>
+                <dd data-summary-field="request_reference">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Gewenste leverdatum</dt>
+                <dd data-summary-field="due_date">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ordernummer klant</dt>
+                <dd data-summary-field="customer_order_number">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Klantnaam</dt>
+                <dd data-summary-field="customer_name">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Klantnummer</dt>
+                <dd data-summary-field="customer_number">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Order referentie</dt>
+                <dd data-summary-field="order_reference">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Order omschrijving</dt>
+                <dd data-summary-field="order_description">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Contactpersoon</dt>
+                <dd data-summary-field="order_contact">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Contact telefoon</dt>
+                <dd data-summary-field="order_contact_phone">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Contact e-mail</dt>
+                <dd data-summary-field="order_contact_email">-</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="summary-card">
+            <h5>Laad</h5>
+            <dl class="summary-list">
+              <div class="summary-row">
+                <dt>Bevestigd</dt>
+                <dd data-summary-field="pickup_confirmed">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Datum</dt>
+                <dd data-summary-field="pickup_date">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Tijdslot</dt>
+                <dd data-summary-field="pickup_slot">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Contactpersoon</dt>
+                <dd data-summary-field="pickup_contact">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Telefoon</dt>
+                <dd data-summary-field="pickup_phone">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Locatie</dt>
+                <dd data-summary-field="pickup_location">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Instructies</dt>
+                <dd data-summary-field="pickup_instructions">-</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="summary-card">
+            <h5>Los</h5>
+            <dl class="summary-list">
+              <div class="summary-row">
+                <dt>Bevestigd</dt>
+                <dd data-summary-field="delivery_confirmed">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Datum</dt>
+                <dd data-summary-field="delivery_date">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Tijdslot</dt>
+                <dd data-summary-field="delivery_slot">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Contactpersoon</dt>
+                <dd data-summary-field="delivery_contact">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Telefoon</dt>
+                <dd data-summary-field="delivery_phone">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Locatie</dt>
+                <dd data-summary-field="delivery_location">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Instructies</dt>
+                <dd data-summary-field="delivery_instructions">-</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="summary-card summary-card-full">
+            <h5>Artikelen</h5>
+            <p class="summary-meta" data-summary-field="article_type">-</p>
+            <div id="orderSummaryArticles" class="summary-table-wrapper"></div>
+          </section>
+        </div>
+        <div class="form-actions wizard-actions-final">
+          <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
+          <button id="btnCreate" type="button" class="btn primary">Transport opslaan</button>
+          <div id="createStatus" class="status"></div>
+        </div>
       </section>
 
       <template id="articleRowTemplate">
@@ -209,11 +380,6 @@
           </div>
         </div>
       </template>
-
-      <div class="form-actions">
-        <button id="btnCreate" type="button" class="btn primary">Transport opslaan</button>
-        <div id="createStatus" class="status"></div>
-      </div>
     </form>
   </section>
 </div>
