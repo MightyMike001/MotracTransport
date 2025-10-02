@@ -16,6 +16,8 @@
     };
   }
 
+  const DEFAULT_ROLE = "werknemer"; // Houd in sync met de standaardwaarde in partials/users.html
+
   const ROLE_OPTIONS = [
     { value: "in aanvraag", label: "In aanvraag" },
     { value: "planner", label: "Planner" },
@@ -124,7 +126,7 @@
     if (!els.form || !window.Users || !window.Auth) return;
     const name = (els.name?.value || "").trim();
     const email = (els.email?.value || "").trim().toLowerCase();
-    const role = els.role?.value || "werknemer";
+    const role = els.role?.value || DEFAULT_ROLE;
     const password = els.password?.value || "";
     const active = !!els.active?.checked;
 
