@@ -1,0 +1,8 @@
+{
+  "name": "motrac-transport",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:env": "node scripts/build-env.js"
+  }
+}
