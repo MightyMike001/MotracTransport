@@ -3,6 +3,7 @@
   const listeners = new Set();
   let cachedUser = null;
   let domReady = false;
+  let cachedAuthToken = null;
 
   const storageAvailable = (() => {
     try {
@@ -20,9 +21,18 @@
     if (!storageAvailable) return null;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) {
+        cachedAuthToken = null;
+        return null;
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        cachedAuthToken = parsed.token || parsed.authToken || null;
+      }
+      return parsed;
     } catch (err) {
       console.warn("Kan gebruikerssessie niet lezen", err);
+      cachedAuthToken = null;
       return null;
     }
   }
@@ -48,8 +58,16 @@
 
   function setUser(user) {
     cachedUser = user || null;
+    cachedAuthToken = cachedUser?.token || cachedUser?.authToken || null;
     writeStoredUser(cachedUser);
     notify();
+  }
+
+  function getAuthToken() {
+    if (cachedAuthToken) return cachedAuthToken;
+    const user = getUser();
+    cachedAuthToken = user?.token || user?.authToken || null;
+    return cachedAuthToken;
   }
 
   async function hashPassword(password) {
@@ -89,7 +107,9 @@
     if (!window.Users || typeof window.Users.authenticate !== "function") {
       throw new Error("Users API is niet beschikbaar");
     }
-    const user = await window.Users.authenticate(cleanedEmail, passwordHash);
+    const authResult = await window.Users.authenticate(cleanedEmail, passwordHash);
+    const user = authResult?.user || authResult;
+    const token = authResult?.token || authResult?.authToken || null;
     if (!user) {
       throw new Error("Onjuiste inloggegevens");
     }
@@ -101,7 +121,11 @@
       name: user.full_name,
       email: user.email,
       role: user.role,
+      token: token || null,
     };
+    if (token) {
+      session.authToken = token;
+    }
     setUser(session);
     return session;
   }
@@ -182,6 +206,7 @@
 
   window.Auth = {
     getUser,
+    getAuthToken,
     login,
     logout,
     hashPassword,

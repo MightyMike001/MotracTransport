@@ -38,11 +38,25 @@ if (!SUPABASE_REST_URL) {
   throw new Error("Ongeldige Supabase REST URL");
 }
 
-const SB_HEADERS = {
-  "Content-Type": "application/json",
-  "apikey": SUPABASE_ANON_KEY,
-  "Authorization": "Bearer " + SUPABASE_ANON_KEY
-};
+function buildSupabaseHeaders(additionalHeaders = {}) {
+  const baseHeaders = {
+    "Content-Type": "application/json",
+    apikey: SUPABASE_ANON_KEY,
+  };
+
+  let authToken = null;
+  try {
+    if (window.Auth && typeof window.Auth.getAuthToken === "function") {
+      authToken = window.Auth.getAuthToken();
+    }
+  } catch (error) {
+    console.warn("Kan auth-token niet bepalen", error);
+  }
+
+  baseHeaders.Authorization = `Bearer ${authToken || SUPABASE_ANON_KEY}`;
+
+  return Object.assign({}, baseHeaders, additionalHeaders);
+}
 
 const DEFAULT_RETRY_ATTEMPTS = 2;
 const DEFAULT_RETRY_DELAY = 400;
@@ -211,7 +225,8 @@ function buildSelectQuery(query = "") {
 async function sbSelect(table, query = "") {
   return tryWrap(async () => {
     const normalizedQuery = buildSelectQuery(query);
-    const r = await fetch(`${SUPABASE_REST_URL}/${table}${normalizedQuery}`, { headers: SB_HEADERS });
+    const headers = buildSupabaseHeaders();
+    const r = await fetch(`${SUPABASE_REST_URL}/${table}${normalizedQuery}`, { headers });
     const data = await r.json();
     if (!r.ok) throw new Error(JSON.stringify(data));
     return data;
@@ -220,9 +235,10 @@ async function sbSelect(table, query = "") {
 
 async function sbInsert(table, rows) {
   return tryWrap(async () => {
+    const headers = buildSupabaseHeaders({ Prefer: "return=representation" });
     const r = await fetch(`${SUPABASE_REST_URL}/${table}`, {
       method: "POST",
-      headers: { ...SB_HEADERS, "Prefer": "return=representation" },
+      headers,
       body: JSON.stringify(rows)
     });
     const data = await r.json();
@@ -233,9 +249,10 @@ async function sbInsert(table, rows) {
 
 async function sbUpdate(table, match, patch) {
   return tryWrap(async () => {
+    const headers = buildSupabaseHeaders({ Prefer: "return=representation" });
     const r = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
       method: "PATCH",
-      headers: { ...SB_HEADERS, "Prefer": "return=representation" },
+      headers,
       body: JSON.stringify(patch)
     });
     const data = await r.json();
@@ -246,9 +263,10 @@ async function sbUpdate(table, match, patch) {
 
 async function sbDelete(table, match) {
   return tryWrap(async () => {
+    const headers = buildSupabaseHeaders();
     const r = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
       method: "DELETE",
-      headers: SB_HEADERS
+      headers
     });
     if (!r.ok) throw new Error(await r.text());
     return true;
@@ -309,6 +327,64 @@ function formatSupabaseError(error, fallback = "Onbekende fout") {
   if (objectMessage) return objectMessage;
 
   return fallback;
+}
+
+function extractUserAuthToken(record) {
+  if (!record || typeof record !== "object") {
+    return { user: record, token: null };
+  }
+
+  const sanitizedUser = { ...record };
+  const tokenKeys = [
+    "token",
+    "auth_token",
+    "jwt",
+    "access_token",
+    "app_role_token",
+    "appRoleToken",
+  ];
+
+  for (const key of tokenKeys) {
+    const value = sanitizedUser[key];
+    if (typeof value === "string" && value.trim()) {
+      delete sanitizedUser[key];
+      return { user: sanitizedUser, token: value.trim() };
+    }
+  }
+
+  return { user: sanitizedUser, token: null };
+}
+
+async function fetchUserAuthToken(userId) {
+  if (!userId && userId !== 0) {
+    return null;
+  }
+
+  try {
+    const rows = await sbSelect(
+      "app_user_tokens",
+      `?select=token,auth_token,jwt,access_token&user_id=eq.${encodeURIComponent(userId)}&limit=1`
+    );
+
+    if (Array.isArray(rows) && rows.length) {
+      const tokenRow = rows[0] || {};
+      const candidates = [
+        tokenRow.token,
+        tokenRow.auth_token,
+        tokenRow.jwt,
+        tokenRow.access_token,
+      ];
+      for (const candidate of candidates) {
+        if (typeof candidate === "string" && candidate.trim()) {
+          return candidate.trim();
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Kan auth-token voor gebruiker niet ophalen", error);
+  }
+
+  return null;
 }
 
 // Domein-functies
@@ -381,7 +457,7 @@ const Orders = {
     const rawQuery = params.length ? `?${params.join("&")}` : "";
     const qs = buildSelectQuery(rawQuery);
 
-    const headers = { ...SB_HEADERS };
+    const headers = buildSupabaseHeaders();
     if (hasPagination) {
       const from = offsetValue;
       const to = Math.max(from, from + limitValue - 1);
@@ -445,7 +521,8 @@ const Orders = {
   latestReference: async () => {
     const query = "?select=request_reference,reference,created_at&request_reference=not.is.null&order=created_at.desc&limit=1";
     const { response, data } = await tryWrap(async () => {
-      const response = await fetch(`${SUPABASE_REST_URL}/transport_orders${query}`, { headers: SB_HEADERS });
+      const headers = buildSupabaseHeaders();
+      const response = await fetch(`${SUPABASE_REST_URL}/transport_orders${query}`, { headers });
       const data = await response.json();
       if (!response.ok) throw new Error(JSON.stringify(data));
       return { response, data };
@@ -481,7 +558,19 @@ const Users = {
   authenticate: async (email, passwordHash) => {
     const query = `?select=id,full_name,email,role,is_active&email=eq.${encodeURIComponent(email)}&password_hash=eq.${encodeURIComponent(passwordHash)}`;
     const result = await sbSelect("app_users", query);
-    return result[0] || null;
+    const record = Array.isArray(result) ? result[0] : null;
+    if (!record) {
+      return null;
+    }
+
+    const { user, token: inlineToken } = extractUserAuthToken(record);
+    let token = inlineToken;
+
+    if (!token) {
+      token = await fetchUserAuthToken(user.id);
+    }
+
+    return { user, token: token || null };
   }
 };
 

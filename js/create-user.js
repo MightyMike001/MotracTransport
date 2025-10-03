@@ -97,7 +97,8 @@
       }
 
       const adminHash = await window.Auth.hashPassword(adminPasswordValue);
-      const adminUser = await window.Users.authenticate(normalizedAdminEmail, adminHash);
+      const adminAuth = await window.Users.authenticate(normalizedAdminEmail, adminHash);
+      const adminUser = adminAuth?.user || adminAuth;
       if (!adminUser || adminUser.role !== "admin") {
         throw new Error("Alleen admins kunnen nieuwe gebruikers aanmaken");
       }
