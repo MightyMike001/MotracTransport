@@ -543,6 +543,7 @@ const Carriers = {
   list: () => sbSelect("carriers", "?order=name.asc"),
   create: (c) => sbInsert("carriers", [c]).then(r => r[0]),
   update: (id, patch) => sbUpdate("carriers", `id=eq.${id}`, patch),
+  remove: (id) => sbDelete("carriers", `id=eq.${id}`),
 };
 
 const Users = {

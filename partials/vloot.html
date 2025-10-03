@@ -7,16 +7,35 @@
         <input id="quickCarrier" placeholder="Bijv. Beekman Transport" />
       </label>
       <label>Capaciteit/dag
-        <input id="quickCapacity" type="number" min="1" value="8" />
+        <input id="quickCapacity" type="number" min="1" value="8" data-default-value="8" />
       </label>
       <label>Basisregio
-        <select id="quickRegion">
+        <select id="quickRegion" data-default-value="Noord">
           <option>Noord</option><option>Midden</option><option>Zuid</option><option>België</option>
         </select>
       </label>
     </div>
-    <button id="btnAddCarrier" class="btn">Carrier toevoegen</button>
+    <div class="carrier-form-actions">
+      <button
+        id="btnAddCarrier"
+        class="btn"
+        type="button"
+        data-default-label="Carrier toevoegen"
+        data-edit-label="Wijzigingen opslaan"
+      >
+        Carrier toevoegen
+      </button>
+      <button
+        id="btnCancelCarrierEdit"
+        class="btn ghost"
+        type="button"
+        hidden
+      >
+        Bewerken annuleren
+      </button>
+    </div>
     <div id="carrierStatus" class="status"></div>
+    <ul id="carrierManageList" class="carrier-list"></ul>
   </section>
 
   <section class="card">
