@@ -240,8 +240,8 @@ create or replace trigger transport_orders_set_updated_at
 
 alter table public.transport_orders enable row level security;
 
-alter table public.transport_orders drop policy if exists "allow anon read transport_orders";
-alter table public.transport_orders drop policy if exists "allow anon modify transport_orders";
+drop policy if exists "allow anon read transport_orders" on public.transport_orders;
+drop policy if exists "allow anon modify transport_orders" on public.transport_orders;
 
 do $$
 begin
