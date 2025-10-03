@@ -1,8 +1,8 @@
 <div class="page orders-page" data-route="orders" data-require-auth="true" data-title="Transportplanner — Orders">
-  <div class="wrap">
-    <aside class="sidebar">
-      <section class="card">
-        <h3>Filters</h3>
+  <div class="wrap orders-layout">
+    <section class="card filters-card">
+      <h3>Filters</h3>
+      <div class="filters-grid">
         <label>Regio
           <select id="filterRegion">
             <option value="">Alle</option>
@@ -35,42 +35,43 @@
         <label>Leverdatum
           <input id="filterDate" type="date" />
         </label>
+      </div>
+      <div class="filters-actions">
         <button id="btnApplyFilters" class="btn ghost">Toepassen</button>
         <button id="btnReload" class="btn">Vernieuwen</button>
-      </section>
-    </aside>
+      </div>
+    </section>
 
-    <section class="content">
-      <section class="card">
-        <div class="bar">
-          <h2>Orders</h2>
-          <div class="bar-actions">
-            <div class="muted small">Klik op een regel om details te bewerken.</div>
-            <div class="export-menu" data-export-menu>
-              <button
-                type="button"
-                id="btnExportOrders"
-                class="btn ghost export-menu__toggle"
-                aria-haspopup="menu"
-                aria-expanded="false"
-                aria-controls="ordersExportMenu"
-              >
-                Exporteer
-              </button>
-              <div
-                id="ordersExportMenu"
-                class="export-menu__panel"
-                data-export-menu-panel
-                role="menu"
-                hidden
-              >
-                <button type="button" class="export-menu__item" data-export-format="csv" role="menuitem">Download CSV</button>
-                <button type="button" class="export-menu__item" data-export-format="excel" role="menuitem">Download Excel</button>
-              </div>
+    <section class="card order-card orders-card">
+      <div class="bar">
+        <h2>Orders</h2>
+        <div class="bar-actions">
+          <div class="muted small">Klik op een regel om details te bewerken.</div>
+          <div class="export-menu" data-export-menu>
+            <button
+              type="button"
+              id="btnExportOrders"
+              class="btn ghost export-menu__toggle"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="ordersExportMenu"
+            >
+              Exporteer
+            </button>
+            <div
+              id="ordersExportMenu"
+              class="export-menu__panel"
+              data-export-menu-panel
+              role="menu"
+              hidden
+            >
+              <button type="button" class="export-menu__item" data-export-format="csv" role="menuitem">Download CSV</button>
+              <button type="button" class="export-menu__item" data-export-format="excel" role="menuitem">Download Excel</button>
             </div>
           </div>
         </div>
-        <div class="table-wrap">
+      </div>
+      <div class="table-wrap">
           <table id="ordersTable">
             <thead>
               <tr>
@@ -90,19 +91,18 @@
             </tbody>
           </table>
         </div>
-        <nav class="pager is-hidden" id="ordersPager" aria-label="Paginering">
-          <button type="button" class="btn ghost" id="pagerPrev" aria-label="Vorige pagina">&laquo; Vorige</button>
-          <span id="pagerInfo" class="pager-info">Geen resultaten</span>
-          <button type="button" class="btn ghost" id="pagerNext" aria-label="Volgende pagina">Volgende &raquo;</button>
-          <label class="pager-size" for="pagerPageSize">Per pagina
-            <select id="pagerPageSize">
-              <option value="10">10</option>
-              <option value="20" selected>20</option>
-              <option value="50">50</option>
-            </select>
-          </label>
-        </nav>
-      </section>
+      <nav class="pager is-hidden" id="ordersPager" aria-label="Paginering">
+        <button type="button" class="btn ghost" id="pagerPrev" aria-label="Vorige pagina">&laquo; Vorige</button>
+        <span id="pagerInfo" class="pager-info">Geen resultaten</span>
+        <button type="button" class="btn ghost" id="pagerNext" aria-label="Volgende pagina">Volgende &raquo;</button>
+        <label class="pager-size" for="pagerPageSize">Per pagina
+          <select id="pagerPageSize">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+      </nav>
     </section>
   </div>
 
