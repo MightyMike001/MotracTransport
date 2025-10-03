@@ -157,12 +157,17 @@
         </div>
         <button
           type="button"
-          class="btn primary btn-with-icon"
+          class="btn primary btn--icon-leading"
           role="button"
           tabindex="0"
         >
-          <span class="btn-with-icon__symbol" aria-hidden="true">+</span>
-          Laadlocatie toevoegen
+          <span class="btn__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </span>
+          <span class="btn__label">Laadlocatie toevoegen</span>
         </button>
         <div class="wizard-actions">
           <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
@@ -219,12 +224,17 @@
         </div>
         <button
           type="button"
-          class="btn primary btn-with-icon"
+          class="btn primary btn--icon-leading"
           role="button"
           tabindex="0"
         >
-          <span class="btn-with-icon__symbol" aria-hidden="true">+</span>
-          Losadres toevoegen
+          <span class="btn__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </span>
+          <span class="btn__label">Losadres toevoegen</span>
         </button>
         <div class="wizard-actions">
           <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
@@ -251,7 +261,15 @@
               </div>
             </div>
             <div id="articleList" class="article-list"></div>
-            <button type="button" class="btn ghost" id="btnAddArticle">Artikel toevoegen</button>
+            <button type="button" class="btn ghost btn--icon-leading" id="btnAddArticle">
+              <span class="btn__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </span>
+              <span class="btn__label">Artikel toevoegen</span>
+            </button>
             <section class="article-import" aria-label="Artikelen importeren">
               <div class="article-import__intro">
                 <h5 class="article-import__title">CSV-import</h5>
@@ -284,7 +302,15 @@
                 </div>
               </div>
               <div class="article-import__actions">
-                <button type="button" class="btn primary" id="btnApplyArticleImport" disabled>Toevoegen</button>
+                <button type="button" class="btn primary btn--icon-leading" id="btnApplyArticleImport" disabled>
+                  <span class="btn__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 5v14" />
+                      <path d="M5 12h14" />
+                    </svg>
+                  </span>
+                  <span class="btn__label">Toevoegen</span>
+                </button>
               </div>
             </section>
           </div>
