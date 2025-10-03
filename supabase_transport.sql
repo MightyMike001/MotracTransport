@@ -150,41 +150,41 @@ do $$
 begin
   if to_regclass('public.transport_trucks') is not null then
     execute 'alter table public.transport_trucks enable row level security';
-    execute 'alter table public.transport_trucks drop policy if exists "allow anon read transport_trucks"';
-    execute 'alter table public.transport_trucks drop policy if exists "allow anon modify transport_trucks"';
+    execute 'drop policy if exists "allow anon read transport_trucks" on public.transport_trucks';
+    execute 'drop policy if exists "allow anon modify transport_trucks" on public.transport_trucks';
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_select_by_role''
+      where schemaname = 'public'
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_select_by_role'
     ) then
       execute ''create policy transport_trucks_select_by_role on public.transport_trucks for select using (public.current_app_role() in (''''admin'''',''''planner'''',''''werknemer''''))'';
     end if;
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_insert_by_planner''
+      where schemaname = 'public'
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_insert_by_planner'
     ) then
       execute ''create policy transport_trucks_insert_by_planner on public.transport_trucks for insert with check (public.current_app_role() in (''''admin'''',''''planner''''))'';
     end if;
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_update_by_planner''
+      where schemaname = 'public'
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_update_by_planner'
     ) then
       execute ''create policy transport_trucks_update_by_planner on public.transport_trucks for update using (public.current_app_role() in (''''admin'''',''''planner'''')) with check (public.current_app_role() in (''''admin'''',''''planner''''))'';
     end if;
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_delete_by_admin''
+      where schemaname = 'public'
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_delete_by_admin'
     ) then
       execute ''create policy transport_trucks_delete_by_admin on public.transport_trucks for delete using (public.current_app_role() = ''''admin'''')'';
     end if;
@@ -240,8 +240,8 @@ create or replace trigger transport_orders_set_updated_at
 
 alter table public.transport_orders enable row level security;
 
-alter table public.transport_orders drop policy if exists "allow anon read transport_orders";
-alter table public.transport_orders drop policy if exists "allow anon modify transport_orders";
+drop policy if exists "allow anon read transport_orders" on public.transport_orders;
+drop policy if exists "allow anon modify transport_orders" on public.transport_orders;
 
 do $$
 begin
@@ -329,8 +329,8 @@ create index if not exists transport_lines_order_id_idx
 
 alter table public.transport_lines enable row level security;
 
-alter table public.transport_lines drop policy if exists "allow anon read transport_lines";
-alter table public.transport_lines drop policy if exists "allow anon modify transport_lines";
+drop policy if exists "allow anon read transport_lines" on public.transport_lines;
+drop policy if exists "allow anon modify transport_lines" on public.transport_lines;
 
 do $$
 begin
@@ -408,8 +408,8 @@ create index if not exists carriers_active_idx
 
 alter table public.carriers enable row level security;
 
-alter table public.carriers drop policy if exists "allow anon read carriers";
-alter table public.carriers drop policy if exists "allow anon modify carriers";
+drop policy if exists "allow anon read carriers" on public.carriers;
+drop policy if exists "allow anon modify carriers" on public.carriers;
 
 do $$
 begin
