@@ -46,7 +46,28 @@
           <h2>Orders</h2>
           <div class="bar-actions">
             <div class="muted small">Klik op een regel om details te bewerken.</div>
-            <button type="button" id="btnExportOrders" class="btn ghost">Exporteren (CSV)</button>
+            <div class="export-menu" data-export-menu>
+              <button
+                type="button"
+                id="btnExportOrders"
+                class="btn ghost export-menu__toggle"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="ordersExportMenu"
+              >
+                Exporteer
+              </button>
+              <div
+                id="ordersExportMenu"
+                class="export-menu__panel"
+                data-export-menu-panel
+                role="menu"
+                hidden
+              >
+                <button type="button" class="export-menu__item" data-export-format="csv" role="menuitem">Download CSV</button>
+                <button type="button" class="export-menu__item" data-export-format="excel" role="menuitem">Download Excel</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="table-wrap">
