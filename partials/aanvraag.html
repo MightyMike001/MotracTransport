@@ -6,6 +6,20 @@
     </div>
     <form id="orderForm" class="form-sections wizard-form" novalidate>
       <nav class="wizard-stepper" aria-label="Stappen voor nieuwe aanvraag">
+        <div class="wizard-progress" aria-live="polite">
+          <div class="wizard-progress__label" id="wizardProgressLabel">Stap 1 van 5</div>
+          <div
+            class="wizard-progress__track"
+            id="wizardProgressTrack"
+            role="progressbar"
+            aria-valuemin="1"
+            aria-valuemax="5"
+            aria-valuenow="1"
+            aria-labelledby="wizardProgressLabel"
+          >
+            <div class="wizard-progress__indicator" id="wizardProgressIndicator"></div>
+          </div>
+        </div>
         <ol class="stepper">
           <li class="stepper-item is-current" data-stepper-step="1">
             <span class="stepper-index">1</span>
