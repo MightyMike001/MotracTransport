@@ -18,6 +18,9 @@
 
   let els = {};
   const listeners = [];
+  let formValidator = null;
+
+  const MOTRAC_EMAIL_PATTERN = /^[^@\s]+@motrac\.nl$/i;
 
   function addListener(element, type, handler) {
     if (!element || typeof element.addEventListener !== "function") return;
@@ -51,6 +54,63 @@
     }
   }
 
+  function buildValidationSchema() {
+    return {
+      adminEmail: {
+        required: "Vul je admin e-mailadres in.",
+        validate: (value) => {
+          try {
+            const normalized = normalizeMotracEmail(value);
+            return MOTRAC_EMAIL_PATTERN.test(normalized)
+              ? true
+              : "Gebruik je Motrac e-mailadres.";
+          } catch (err) {
+            return err?.message || "Gebruik je Motrac e-mailadres.";
+          }
+        },
+      },
+      adminPassword: {
+        required: "Vul je admin wachtwoord in.",
+      },
+      newUserName: {
+        required: "Vul de naam van de nieuwe gebruiker in.",
+        minLength: {
+          value: 2,
+          message: "De naam moet minimaal 2 tekens bevatten.",
+        },
+      },
+      newUserEmail: {
+        required: "Vul het e-mailadres van de nieuwe gebruiker in.",
+        validate: (value) => {
+          try {
+            const normalized = normalizeMotracEmail(value);
+            return MOTRAC_EMAIL_PATTERN.test(normalized)
+              ? true
+              : "Het e-mailadres moet eindigen op @motrac.nl.";
+          } catch (err) {
+            return err?.message || "Het e-mailadres moet eindigen op @motrac.nl.";
+          }
+        },
+      },
+      newUserRole: {
+        required: "Kies een rol voor de nieuwe gebruiker.",
+        validate: (value) => {
+          if (["planner", "werknemer"].includes(value)) {
+            return true;
+          }
+          return "Kies een geldige rol.";
+        },
+      },
+      newUserPassword: {
+        required: "Vul een tijdelijk wachtwoord in.",
+        minLength: {
+          value: 6,
+          message: "Het wachtwoord moet minimaal 6 tekens bevatten.",
+        },
+      },
+    };
+  }
+
   function normalizeMotracEmail(email) {
     const cleaned = (email || "").trim().toLowerCase();
     if (!cleaned) return "";
@@ -63,29 +123,54 @@
     return cleaned;
   }
 
+  function setupValidation() {
+    formValidator = null;
+    if (!els.form || !window.FormValidation?.createValidator) {
+      return;
+    }
+    formValidator = window.FormValidation.createValidator(
+      els.form,
+      buildValidationSchema(),
+      addListener
+    );
+    if (formValidator && typeof formValidator.reset === "function") {
+      formValidator.reset();
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     if (!els.form || !window.Auth || !window.Users) return;
 
-    const adminMailValue = els.adminEmail?.value || "";
+    if (formValidator && typeof formValidator.validate === "function") {
+      const valid = formValidator.validate();
+      if (!valid) {
+        setCreateStatus("Controleer de gemarkeerde velden.", "error");
+        return;
+      }
+    }
+
+    const adminMailValue = (els.adminEmail?.value || "").trim();
     const adminPasswordValue = els.adminPassword?.value || "";
-    const newNameValue = els.newUserName?.value || "";
-    const newEmailValue = els.newUserEmail?.value || "";
+    const newNameValue = (els.newUserName?.value || "").trim();
+    const newEmailValue = (els.newUserEmail?.value || "").trim();
     const newRoleValue = els.newUserRole?.value || "";
     const newPasswordValue = els.newUserPassword?.value || "";
 
     try {
-      if (!adminMailValue || !adminPasswordValue) {
-        throw new Error("Vul je admin e-mailadres en wachtwoord in");
-      }
-      if (!newNameValue || !newEmailValue || !newRoleValue || !newPasswordValue) {
-        throw new Error("Vul alle velden voor de nieuwe gebruiker in");
-      }
-      if (!["planner", "werknemer"].includes(newRoleValue)) {
-        throw new Error("Kies een geldige rol voor de gebruiker");
-      }
-      if (newPasswordValue.length < 6) {
-        throw new Error("Het tijdelijke wachtwoord moet minimaal 6 tekens bevatten");
+      if (!formValidator) {
+        if (!adminMailValue || !adminPasswordValue) {
+          throw new Error("Vul je admin e-mailadres en wachtwoord in");
+        }
+        if (!newNameValue || !newEmailValue || !newRoleValue || !newPasswordValue) {
+          throw new Error("Vul alle velden voor de nieuwe gebruiker in");
+        }
+        if (!["planner", "werknemer"].includes(newRoleValue)) {
+          throw new Error("Kies een geldige rol voor de gebruiker");
+        }
+        if (newPasswordValue.length < 6) {
+          throw new Error("Het tijdelijke wachtwoord moet minimaal 6 tekens bevatten");
+        }
       }
 
       const normalizedAdminEmail = normalizeMotracEmail(adminMailValue);
@@ -124,6 +209,9 @@
       if (els.newUserRole) {
         els.newUserRole.value = "";
       }
+      if (formValidator && typeof formValidator.reset === "function") {
+        formValidator.reset();
+      }
     } catch (err) {
       console.error(err);
       const message = window.ApiHelpers?.formatSupabaseError
@@ -141,6 +229,7 @@
   function init(context = {}) {
     els = refreshElements(context.root || document);
     removeListeners();
+    setupValidation();
     if (els.form) {
       addListener(els.form, "submit", handleSubmit);
     }
@@ -148,6 +237,10 @@
 
   function destroy() {
     removeListeners();
+    if (formValidator && typeof formValidator.reset === "function") {
+      formValidator.reset();
+    }
+    formValidator = null;
     els = {};
   }
 
