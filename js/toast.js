@@ -7,6 +7,12 @@
     info: "ℹ",
   };
 
+  function buildToastKey(type, message) {
+    const normalizedType = typeof type === "string" ? type.toLowerCase() : "info";
+    const normalizedMessage = typeof message === "string" ? message.trim() : "";
+    return `${normalizedType}::${normalizedMessage}`;
+  }
+
   function ensureContainer() {
     let container = document.getElementById(TOAST_CONTAINER_ID);
     if (!container) {
@@ -40,10 +46,22 @@
   function showToast(type = "info", message = "") {
     if (!message || typeof message !== "string") return;
     const normalizedType = ["success", "error", "info"].includes(type) ? type : "info";
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return;
+
     const container = ensureContainer();
+    const toastKey = buildToastKey(normalizedType, trimmedMessage);
+
+    for (const existing of Array.from(container.querySelectorAll(".toast"))) {
+      if (existing && existing.dataset.toastKey === toastKey) {
+        existing.remove();
+      }
+    }
+
     const toast = document.createElement("div");
     toast.className = `toast toast-${normalizedType}`;
     toast.setAttribute("role", normalizedType === "error" ? "alert" : "status");
+    toast.dataset.toastKey = toastKey;
 
     const icon = document.createElement("span");
     icon.className = "toast-icon";
@@ -53,7 +71,7 @@
 
     const text = document.createElement("div");
     text.className = "toast-message";
-    text.textContent = message;
+    text.textContent = trimmedMessage;
     toast.appendChild(text);
 
     const closeButton = document.createElement("button");
