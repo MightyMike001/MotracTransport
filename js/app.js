@@ -412,6 +412,9 @@ function refreshElements() {
     filterDate: doc.getElementById("filterDate"),
     btnApplyFilters: doc.getElementById("btnApplyFilters"),
     btnExportOrders: doc.getElementById("btnExportOrders"),
+    exportMenu: doc.querySelector("[data-export-menu]"),
+    exportMenuPanel: doc.querySelector("[data-export-menu-panel]") || null,
+    exportMenuOptions: Array.from(doc.querySelectorAll("[data-export-format]")),
     planStart: doc.getElementById("planStart"),
     planEnd: doc.getElementById("planEnd"),
     btnSuggestPlan: doc.getElementById("btnSuggestPlan"),
@@ -3112,7 +3115,103 @@ function renderOrders(rows) {
   updatePaginationControls();
 }
 
-function exportOrdersToCsv() {
+function isExportMenuOpen() {
+  return Boolean(els.exportMenu && els.exportMenu.classList.contains("is-open"));
+}
+
+function setExportMenuState(open, { focusToggle = false, focusFirstOption = false } = {}) {
+  const menu = els.exportMenu;
+  const panel = els.exportMenuPanel;
+  const toggle = els.btnExportOrders;
+  if (!menu || !panel || !toggle) {
+    return;
+  }
+  const shouldOpen = Boolean(open);
+  menu.classList.toggle("is-open", shouldOpen);
+  toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  if (shouldOpen) {
+    panel.removeAttribute("hidden");
+    if (focusFirstOption) {
+      const firstOption = Array.isArray(els.exportMenuOptions) ? els.exportMenuOptions[0] : null;
+      if (firstOption && typeof firstOption.focus === "function") {
+        firstOption.focus();
+      }
+    }
+  } else {
+    panel.setAttribute("hidden", "");
+    if (focusToggle && typeof toggle.focus === "function") {
+      toggle.focus();
+    }
+  }
+}
+
+function openExportMenu(options = {}) {
+  setExportMenuState(true, { focusFirstOption: true, ...options });
+}
+
+function closeExportMenu(options = {}) {
+  if (!isExportMenuOpen()) {
+    return;
+  }
+  setExportMenuState(false, options);
+}
+
+function toggleExportMenu() {
+  if (isExportMenuOpen()) {
+    closeExportMenu({ focusToggle: true });
+  } else {
+    openExportMenu({ focusFirstOption: true });
+  }
+}
+
+function handleDocumentClickForExportMenu(event) {
+  if (!isExportMenuOpen()) {
+    return;
+  }
+  const menu = els.exportMenu;
+  if (!menu) {
+    return;
+  }
+  if (menu.contains(event.target)) {
+    return;
+  }
+  closeExportMenu();
+}
+
+function handleExportMenuKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeExportMenu({ focusToggle: true });
+  }
+}
+
+function handleExportMenuToggle(event) {
+  event.preventDefault();
+  toggleExportMenu();
+}
+
+function handleExportOptionClick(event) {
+  event.preventDefault();
+  const format = event?.currentTarget?.dataset?.exportFormat || "csv";
+  closeExportMenu({ focusToggle: true });
+  exportOrders(format);
+}
+
+function downloadBlob(blob, filename) {
+  if (!blob) return;
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = filename || "download";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+function exportOrders(format = "csv") {
   const rows = Array.isArray(ORDERS_CACHE) ? ORDERS_CACHE : [];
   if (!rows.length) {
     showToastMessage("info", "Geen orders om te exporteren.");
@@ -3130,19 +3229,6 @@ function exportOrdersToCsv() {
     "Vrachtwagen",
     "Gepland",
   ];
-  const escapeValue = (value) => {
-    if (value === null || value === undefined) {
-      return "";
-    }
-    const stringValue = String(value).replace(/\r?\n|\r/g, " ").trim();
-    if (!stringValue.length) {
-      return "";
-    }
-    if (/[";\n]/.test(stringValue)) {
-      return `"${stringValue.replace(/"/g, '""')}"`;
-    }
-    return stringValue;
-  };
   const dataRows = rows.map((row) => {
     const details = parseOrderDetails(row);
     const dueSource = row.due_date || details.delivery?.date;
@@ -3159,21 +3245,59 @@ function exportOrdersToCsv() {
       formatPlanned(row),
     ];
   });
-  const csvSeparator = ";";
-  const csvLines = [header, ...dataRows].map((line) => line.map(escapeValue).join(csvSeparator));
-  const csvContent = csvLines.join("\r\n");
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+  const normalizedFormat = String(format || "csv").toLowerCase();
+  if (normalizedFormat === "excel" || normalizedFormat === "xls" || normalizedFormat === "xlsx") {
+    const escapeHtml = (value) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    };
+    const headerHtml = header.map((label) => `<th scope="col">${escapeHtml(label)}</th>`).join("");
+    const bodyHtml = dataRows
+      .map((cells) => {
+        const cellHtml = cells
+          .map((cell) => {
+            const content = escapeHtml(cell);
+            return `<td>${content.length ? content : "&nbsp;"}</td>`;
+          })
+          .join("");
+        return `<tr>${cellHtml}</tr>`;
+      })
+      .join("");
+    const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8" /></head><body><table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></body></html>`;
+    const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel" });
+    const filename = `orders-${timestamp}.xls`;
+    downloadBlob(blob, filename);
+    showToastMessage("success", "Excel-export gestart.");
+    return;
+  }
+
+  const escapeCsv = (value) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    const stringValue = String(value).replace(/\r?\n|\r/g, " ").trim();
+    if (!stringValue.length) {
+      return "";
+    }
+    if (/[";\n]/.test(stringValue)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  };
+  const csvSeparator = ";";
+  const csvLines = [header, ...dataRows].map((line) => line.map(escapeCsv).join(csvSeparator));
+  const csvContent = csvLines.join("\r\n");
+  const blob = new Blob(["\ufeff", csvContent], { type: "text/csv;charset=utf-8;" });
   const filename = `orders-${timestamp}.csv`;
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => {
-    URL.revokeObjectURL(link.href);
-  }, 0);
+  downloadBlob(blob, filename);
   showToastMessage("success", "CSV-export gestart.");
 }
 
@@ -5239,6 +5363,7 @@ function bind(canManagePlanning){
     PAGINATION.currentPage = 1;
     loadOrders({ page: 1 });
   };
+  setExportMenuState(false);
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
   if (Array.isArray(els.wizardNextButtons)) {
@@ -5261,7 +5386,7 @@ function bind(canManagePlanning){
   bindClick(els.btnApplyArticleImport, applyArticleImport);
   bindClick(els.btnClearArticleImport, () => resetArticleImport());
   bindClick(els.btnReload, () => loadOrders());
-  bindClick(els.btnExportOrders, () => exportOrdersToCsv());
+  bindClick(els.btnExportOrders, handleExportMenuToggle);
   bindClick(els.btnAddCarrier, addCarrier);
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
@@ -5327,6 +5452,15 @@ function bind(canManagePlanning){
   if (els.filterDate) {
     addBoundListener(els.filterDate, "change", handleTextFilterInput);
   }
+  if (Array.isArray(els.exportMenuOptions)) {
+    for (const option of els.exportMenuOptions) {
+      addBoundListener(option, "click", handleExportOptionClick);
+    }
+  }
+  if (els.exportMenuPanel) {
+    addBoundListener(els.exportMenuPanel, "keydown", handleExportMenuKeydown);
+  }
+  addBoundListener(document, "click", handleDocumentClickForExportMenu);
   if (els.pagerPageSize) {
     const defaultSize = Number(els.pagerPageSize.value);
     if (Number.isFinite(defaultSize) && defaultSize > 0) {
