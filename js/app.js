@@ -464,6 +464,7 @@ function refreshElements() {
     eSlot: doc.getElementById("eSlot"),
     editStatus: doc.getElementById("editStatus"),
     btnDeleteOrder: doc.getElementById("btnDeleteOrder"),
+    btnPrintOrder: doc.getElementById("btnPrintOrder"),
     btnSaveEdit: doc.getElementById("btnSaveEdit"),
     orderAuditLog: doc.getElementById("orderAuditLog"),
     carrierList: doc.getElementById("carrierList"),
@@ -1103,6 +1104,10 @@ let ORDERS_REALTIME_HANDLER_BOUND = false;
 let ORDERS_REALTIME_REFRESH_TIMEOUT = null;
 let ORDERS_SKELETON_TIMEOUT = null;
 let ORDER_AUDIT_LOG_STATE = { token: 0, orderId: null };
+let CURRENT_EDIT_ORDER = null;
+let CURRENT_EDIT_ORDER_DETAILS = null;
+let CURRENT_EDIT_ORDER_LINES = null;
+let CURRENT_EDIT_LINES_LOADING = null;
 const ORDERS_REALTIME_REFRESH_DELAY = 400;
 const PAGINATION = {
   currentPage: 1,
@@ -1499,6 +1504,22 @@ function cleanText(value) {
   return text.length ? text : null;
 }
 
+function escapeHtml(value) {
+  if (value === undefined || value === null) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatMultiline(value) {
+  const text = cleanText(value);
+  if (!text) return "";
+  return escapeHtml(text).replace(/\n/g, "<br />");
+}
+
 function joinNonEmpty(values, separator = " • ") {
   if (!Array.isArray(values)) return "";
   const normalized = [];
@@ -1658,6 +1679,326 @@ function mergeCargo(target, source) {
   };
 }
 
+const QR_CONSTANTS = {
+  version: 1,
+  size: 21,
+  dataCodewords: 19,
+  ecCodewords: 7,
+  capacityBits: 152,
+  maskPattern: 0,
+  errorLevel: "L",
+};
+
+const QR_GALOIS_EXP = new Array(512).fill(0);
+const QR_GALOIS_LOG = new Array(256).fill(0);
+let QR_FIELDS_INITIALIZED = false;
+const QR_GENERATOR_CACHE = new Map();
+
+function ensureQrFieldsInitialized() {
+  if (QR_FIELDS_INITIALIZED) return;
+  let value = 1;
+  for (let i = 0; i < 255; i += 1) {
+    QR_GALOIS_EXP[i] = value;
+    QR_GALOIS_LOG[value] = i;
+    value <<= 1;
+    if (value & 0x100) {
+      value ^= 0x11d;
+    }
+  }
+  for (let i = 255; i < QR_GALOIS_EXP.length; i += 1) {
+    QR_GALOIS_EXP[i] = QR_GALOIS_EXP[i - 255];
+  }
+  QR_FIELDS_INITIALIZED = true;
+}
+
+function qrGfMul(a, b) {
+  if (!a || !b) return 0;
+  ensureQrFieldsInitialized();
+  const logSum = QR_GALOIS_LOG[a] + QR_GALOIS_LOG[b];
+  return QR_GALOIS_EXP[logSum % 255];
+}
+
+function multiplyQrPolynomials(a, b) {
+  const result = new Array(a.length + b.length - 1).fill(0);
+  for (let i = 0; i < a.length; i += 1) {
+    for (let j = 0; j < b.length; j += 1) {
+      result[i + j] ^= qrGfMul(a[i], b[j]);
+    }
+  }
+  return result;
+}
+
+function getQrGeneratorPolynomial(degree) {
+  if (QR_GENERATOR_CACHE.has(degree)) {
+    return QR_GENERATOR_CACHE.get(degree);
+  }
+  ensureQrFieldsInitialized();
+  let poly = [1];
+  for (let i = 0; i < degree; i += 1) {
+    poly = multiplyQrPolynomials(poly, [1, QR_GALOIS_EXP[i]]);
+  }
+  QR_GENERATOR_CACHE.set(degree, poly);
+  return poly;
+}
+
+function computeQrErrorCorrection(dataCodewords, degree) {
+  const generator = getQrGeneratorPolynomial(degree);
+  const buffer = dataCodewords.slice();
+  buffer.push(...new Array(degree).fill(0));
+  for (let i = 0; i < dataCodewords.length; i += 1) {
+    const factor = buffer[i];
+    if (factor === 0) continue;
+    for (let j = 0; j < generator.length; j += 1) {
+      buffer[i + j] ^= qrGfMul(generator[j], factor);
+    }
+  }
+  return buffer.slice(dataCodewords.length);
+}
+
+function qrPushBits(target, value, length) {
+  for (let i = length - 1; i >= 0; i -= 1) {
+    target.push((value >> i) & 1);
+  }
+}
+
+function buildQrDataCodewords(bytes) {
+  const bits = [];
+  const length = Math.min(bytes.length, 17);
+  qrPushBits(bits, 0b0100, 4);
+  qrPushBits(bits, length, 8);
+  for (let i = 0; i < length; i += 1) {
+    qrPushBits(bits, bytes[i], 8);
+  }
+  const remaining = QR_CONSTANTS.capacityBits - bits.length;
+  if (remaining > 0) {
+    qrPushBits(bits, 0, Math.min(4, remaining));
+  }
+  while (bits.length % 8 !== 0) {
+    bits.push(0);
+  }
+  const codewords = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let byte = 0;
+    for (let j = 0; j < 8; j += 1) {
+      byte = (byte << 1) | bits[i + j];
+    }
+    codewords.push(byte);
+  }
+  const PAD_BYTES = [0xec, 0x11];
+  let padIndex = 0;
+  while (codewords.length < QR_CONSTANTS.dataCodewords) {
+    codewords.push(PAD_BYTES[padIndex % PAD_BYTES.length]);
+    padIndex += 1;
+  }
+  return codewords;
+}
+
+function createEmptyQrMatrix(size) {
+  const matrix = new Array(size);
+  for (let row = 0; row < size; row += 1) {
+    matrix[row] = new Array(size).fill(null);
+  }
+  return matrix;
+}
+
+function placeFinderPattern(matrix, row, col) {
+  for (let r = 0; r < 7; r += 1) {
+    for (let c = 0; c < 7; c += 1) {
+      const isBorder = r === 0 || r === 6 || c === 0 || c === 6;
+      const isInner = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+      matrix[row + r][col + c] = isBorder || isInner;
+    }
+  }
+}
+
+function placeFinderSeparators(matrix, row, col) {
+  for (let offset = -1; offset <= 7; offset += 1) {
+    const rTop = row - 1;
+    const rBottom = row + 7;
+    const cLeft = col - 1;
+    const cRight = col + 7;
+    if (matrix[rTop] && matrix[rTop][col + offset] === null) {
+      matrix[rTop][col + offset] = false;
+    }
+    if (matrix[rBottom] && matrix[rBottom][col + offset] === null) {
+      matrix[rBottom][col + offset] = false;
+    }
+    if (matrix[row + offset] && matrix[row + offset][cLeft] === null) {
+      matrix[row + offset][cLeft] = false;
+    }
+    if (matrix[row + offset] && matrix[row + offset][cRight] === null) {
+      matrix[row + offset][cRight] = false;
+    }
+  }
+}
+
+function placeTimingPatterns(matrix) {
+  const size = matrix.length;
+  for (let i = 0; i < size; i += 1) {
+    if (matrix[6][i] === null) {
+      matrix[6][i] = i % 2 === 0;
+    }
+    if (matrix[i][6] === null) {
+      matrix[i][6] = i % 2 === 0;
+    }
+  }
+}
+
+function setQrModule(matrix, row, col, value) {
+  if (row < 0 || col < 0 || row >= matrix.length || col >= matrix.length) return;
+  matrix[row][col] = value;
+}
+
+function getQrFormatBits(level, maskPattern) {
+  const levelBitsMap = { L: 0b01, M: 0b00, Q: 0b11, H: 0b10 };
+  const levelBits = levelBitsMap[level] ?? levelBitsMap.L;
+  const data = ((levelBits << 3) | (maskPattern & 0x07)) & 0x1f;
+  let bits = data << 10;
+  const generator = 0b10100110111;
+  for (let i = 14; i >= 10; i -= 1) {
+    if (((bits >> i) & 1) === 0) continue;
+    bits ^= generator << (i - 10);
+  }
+  const formatInfo = ((data << 10) | bits) ^ 0b101010000010010;
+  return formatInfo & 0x7fff;
+}
+
+function placeFormatInformation(matrix, level, maskPattern) {
+  const size = matrix.length;
+  const bits = getQrFormatBits(level, maskPattern);
+  const positionsA = [
+    [8, 0],
+    [8, 1],
+    [8, 2],
+    [8, 3],
+    [8, 4],
+    [8, 5],
+    [8, 7],
+    [8, 8],
+    [7, 8],
+    [5, 8],
+    [4, 8],
+    [3, 8],
+    [2, 8],
+    [1, 8],
+    [0, 8],
+  ];
+  const positionsB = [
+    [size - 1, 8],
+    [size - 2, 8],
+    [size - 3, 8],
+    [size - 4, 8],
+    [size - 5, 8],
+    [size - 6, 8],
+    [size - 7, 8],
+    [8, size - 8],
+    [8, size - 7],
+    [8, size - 6],
+    [8, size - 5],
+    [8, size - 4],
+    [8, size - 3],
+    [8, size - 2],
+    [8, size - 1],
+  ];
+  for (let i = 0; i < 15; i += 1) {
+    const bit = ((bits >> (14 - i)) & 1) === 1;
+    const [r1, c1] = positionsA[i];
+    const [r2, c2] = positionsB[i];
+    setQrModule(matrix, r1, c1, bit);
+    setQrModule(matrix, r2, c2, bit);
+  }
+}
+
+function maskBit(maskPattern, row, col) {
+  if (maskPattern === 0) {
+    return (row + col) % 2 === 0;
+  }
+  return false;
+}
+
+function placeQrData(matrix, dataBits, maskPattern) {
+  const size = matrix.length;
+  let bitIndex = 0;
+  let upward = true;
+  for (let col = size - 1; col >= 0; col -= 2) {
+    if (col === 6) col -= 1;
+    for (let rowOffset = 0; rowOffset < size; rowOffset += 1) {
+      const row = upward ? size - 1 - rowOffset : rowOffset;
+      for (let c = col; c >= col - 1; c -= 1) {
+        if (c < 0) continue;
+        if (matrix[row][c] !== null) continue;
+        const bit = bitIndex < dataBits.length ? dataBits[bitIndex] : 0;
+        bitIndex += 1;
+        const masked = maskBit(maskPattern, row, c) ? bit ^ 1 : bit;
+        matrix[row][c] = masked === 1;
+      }
+    }
+    upward = !upward;
+  }
+}
+
+function buildQrMatrix(bytes) {
+  const codewords = buildQrDataCodewords(bytes);
+  const ecCodewords = computeQrErrorCorrection(codewords, QR_CONSTANTS.ecCodewords);
+  const fullCodewords = codewords.concat(ecCodewords);
+  const dataBits = [];
+  for (const byte of fullCodewords) {
+    for (let bit = 7; bit >= 0; bit -= 1) {
+      dataBits.push((byte >> bit) & 1);
+    }
+  }
+  const matrix = createEmptyQrMatrix(QR_CONSTANTS.size);
+  placeFinderPattern(matrix, 0, 0);
+  placeFinderPattern(matrix, 0, QR_CONSTANTS.size - 7);
+  placeFinderPattern(matrix, QR_CONSTANTS.size - 7, 0);
+  placeFinderSeparators(matrix, 0, 0);
+  placeFinderSeparators(matrix, 0, QR_CONSTANTS.size - 7);
+  placeFinderSeparators(matrix, QR_CONSTANTS.size - 7, 0);
+  placeTimingPatterns(matrix);
+  setQrModule(matrix, 4 * QR_CONSTANTS.version + 9, 8, true);
+  placeFormatInformation(matrix, QR_CONSTANTS.errorLevel, QR_CONSTANTS.maskPattern);
+  placeQrData(matrix, dataBits, QR_CONSTANTS.maskPattern);
+  return matrix;
+}
+
+function renderQrMatrixAsSvg(matrix, options = {}) {
+  if (!matrix || !matrix.length) return "";
+  const moduleSize = Number.isFinite(options.moduleSize) && options.moduleSize > 0 ? options.moduleSize : 4;
+  const margin = Number.isFinite(options.margin) && options.margin >= 0 ? options.margin : 4;
+  const size = matrix.length;
+  const total = (size + margin * 2) * moduleSize;
+  let content = "";
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      if (!matrix[row][col]) continue;
+      const x = (col + margin) * moduleSize;
+      const y = (row + margin) * moduleSize;
+      content += `<rect x="${x}" y="${y}" width="${moduleSize}" height="${moduleSize}" />`;
+    }
+  }
+  const viewBox = `0 0 ${total} ${total}`;
+  const safeContent = content ? `<g fill="#111">${content}</g>` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" role="img" aria-label="QR-code"><rect width="100%" height="100%" fill="#fff"/>${safeContent}</svg>`;
+}
+
+function generateQrSvg(value, options = {}) {
+  const textValue = value === undefined || value === null ? "" : String(value);
+  if (!textValue) {
+    return "";
+  }
+  const bytes = [];
+  for (let i = 0; i < textValue.length && bytes.length < 17; i += 1) {
+    bytes.push(textValue.charCodeAt(i) & 0xff);
+  }
+  try {
+    const matrix = buildQrMatrix(bytes);
+    return renderQrMatrixAsSvg(matrix, options);
+  } catch (error) {
+    console.warn("Kan QR-code niet genereren", error);
+    return "";
+  }
+}
+
 function parseOrderDetails(order) {
   const details = {
     reference: null,
@@ -1804,6 +2145,397 @@ function formatPlanned(row) {
     parts.push(`(${row.planned_slot})`);
   }
   return parts.join(" ").trim() || "-";
+}
+
+function normalizeOrderLine(line) {
+  if (!line || typeof line !== "object") {
+    return null;
+  }
+  const id = Number.isFinite(Number(line.id)) ? Number(line.id) : null;
+  const product = cleanText(line.product ?? line.description ?? line.name);
+  const serialNumber = cleanText(line.serial_number ?? line.serialNumber);
+  const rawQuantity = Number(line.quantity);
+  const quantity = Number.isFinite(rawQuantity) ? rawQuantity : null;
+  const articleType = cleanText(line.article_type ?? line.articleType);
+  if (!product && !serialNumber && quantity === null) {
+    return null;
+  }
+  return {
+    id,
+    product: product || null,
+    quantity,
+    serialNumber: serialNumber || null,
+    articleType: articleType || null,
+  };
+}
+
+async function loadOrderLines(orderId) {
+  const numericId = Number(orderId);
+  if (!Number.isFinite(numericId)) {
+    return [];
+  }
+  if (!window.Lines || typeof window.Lines.listByOrder !== "function") {
+    return [];
+  }
+  try {
+    const rows = await window.Lines.listByOrder(numericId);
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+    const normalized = rows.map(normalizeOrderLine).filter(Boolean);
+    normalized.sort((a, b) => {
+      if (a.id !== null && b.id !== null && a.id !== b.id) {
+        return a.id - b.id;
+      }
+      return 0;
+    });
+    return normalized;
+  } catch (error) {
+    console.warn("Kan orderregels niet laden", error);
+    return [];
+  }
+}
+
+function formatPrintDate(value) {
+  if (!value) return null;
+  const formatted = formatDateDisplay(value);
+  if (formatted && formatted !== "-") {
+    return formatted;
+  }
+  const text = cleanText(value);
+  return text || null;
+}
+
+function buildOrderPrintDocument(order, details, lines = []) {
+  const safeOrder = order || {};
+  const safeDetails = details || parseOrderDetails(order);
+  const safeLines = Array.isArray(lines) ? lines : [];
+  const placeholder = '<span class="print-bon__muted">-</span>';
+  const orderIdText = safeOrder.id === 0 || Number.isFinite(Number(safeOrder.id))
+    ? String(safeOrder.id)
+    : cleanText(safeOrder.id) || "-";
+  const referenceLabel =
+    cleanText(safeDetails.reference) ||
+    cleanText(safeOrder.request_reference) ||
+    `Order #${orderIdText}`;
+  const customerLabel = cleanText(safeOrder.customer_name);
+  const statusLabel = cleanText(safeOrder.status);
+  const carrierLabel = cleanText(safeOrder.assigned_carrier);
+  const plannedLabel = joinNonEmpty([
+    formatPrintDate(safeOrder.planned_date),
+    cleanText(safeOrder.planned_slot),
+  ], " • ");
+  const deliveryLabel = joinNonEmpty([
+    formatPrintDate(safeOrder.due_date || safeDetails.delivery?.date),
+    cleanText(safeDetails.delivery?.slot),
+  ], " • ");
+  const orderContactParts = [];
+  if (safeDetails.contactName) orderContactParts.push(safeDetails.contactName);
+  if (safeDetails.contactPhone) orderContactParts.push(safeDetails.contactPhone);
+  if (safeDetails.contactEmail) orderContactParts.push(safeDetails.contactEmail);
+  const orderContact = orderContactParts.join("\n");
+
+  const pickupContactParts = [];
+  if (safeDetails.pickup?.contact) pickupContactParts.push(safeDetails.pickup.contact);
+  if (safeDetails.pickup?.phone) pickupContactParts.push(safeDetails.pickup.phone);
+  const deliveryContactParts = [];
+  if (safeDetails.delivery?.contact) deliveryContactParts.push(safeDetails.delivery.contact);
+  if (safeDetails.delivery?.phone) deliveryContactParts.push(safeDetails.delivery.phone);
+
+  const formatValue = (value) => {
+    const text = cleanText(value);
+    return text ? escapeHtml(text) : placeholder;
+  };
+  const formatMultilineValue = (value) => {
+    const rendered = formatMultiline(value);
+    return rendered ? rendered : placeholder;
+  };
+  const formatTiming = (dateValue, slotValue) => {
+    const timing = joinNonEmpty([formatPrintDate(dateValue), cleanText(slotValue)], " • ");
+    return timing ? escapeHtml(timing) : placeholder;
+  };
+
+  const pickupSection = {
+    location: formatValue(safeDetails.pickup?.location),
+    timing: formatTiming(
+      safeDetails.pickup?.date,
+      safeDetails.pickup?.slot || buildTimeSlot(safeDetails.pickup?.time_from, safeDetails.pickup?.time_to)
+    ),
+    contact: formatValue(pickupContactParts.join(" • ")),
+    instructions: formatMultilineValue(safeDetails.pickup?.instructions),
+  };
+  const deliverySection = {
+    location: formatValue(safeDetails.delivery?.location),
+    timing: formatTiming(
+      safeDetails.delivery?.date,
+      safeDetails.delivery?.slot || buildTimeSlot(safeDetails.delivery?.time_from, safeDetails.delivery?.time_to)
+    ),
+    contact: formatValue(deliveryContactParts.join(" • ")),
+    instructions: formatMultilineValue(safeDetails.delivery?.instructions),
+  };
+
+  const articlesRows = safeLines.length
+    ? safeLines
+        .map((line, index) => {
+          const product = formatValue(line.product);
+          const quantity = line.quantity !== null && line.quantity !== undefined
+            ? escapeHtml(String(line.quantity))
+            : placeholder;
+          const serial = line.serialNumber ? escapeHtml(line.serialNumber) : placeholder;
+          return `<tr><td>${escapeHtml(String(index + 1))}</td><td>${product}</td><td class="print-bon__table--number">${quantity}</td><td>${serial}</td></tr>`;
+        })
+        .join("")
+    : `<tr class="print-bon__table-empty"><td colspan="4">Geen artikelen geregistreerd.</td></tr>`;
+
+  const qrMarkup = generateQrSvg(orderIdText, { moduleSize: 4, margin: 4 }) || `<div class="print-bon__qr-placeholder">QR niet beschikbaar</div>`;
+  const generatedAt = formatDateTimeDisplay ? formatDateTimeDisplay(new Date().toISOString()) : new Date().toLocaleString();
+
+  return `<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Transportbon ${escapeHtml(referenceLabel)}</title>
+  <style>
+    :root { color-scheme: only light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+    }
+    .print-bon__page {
+      width: 210mm;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 18mm 16mm 14mm;
+      background: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 12mm;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: 0.02em;
+    }
+    h2 {
+      margin: 0 0 6mm;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #555;
+    }
+    p {
+      margin: 0;
+      line-height: 1.5;
+    }
+    dl { margin: 0; }
+    .print-bon__muted { color: #7a7a7a; }
+    .print-bon__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16mm;
+      border-bottom: 3px solid #e2001a;
+      padding-bottom: 10mm;
+    }
+    .print-bon__meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(40mm, 1fr));
+      gap: 3mm 10mm;
+      margin-top: 6mm;
+      font-size: 12px;
+    }
+    .print-bon__meta-item dt {
+      font-weight: 600;
+      margin-bottom: 2px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 11px;
+    }
+    .print-bon__meta-item dd {
+      margin: 0;
+      font-size: 12px;
+      white-space: pre-line;
+    }
+    .print-bon__qr svg {
+      display: block;
+      width: 42mm;
+      height: 42mm;
+    }
+    .print-bon__qr-placeholder {
+      width: 42mm;
+      height: 42mm;
+      border: 1px dashed #bbb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #888;
+      text-align: center;
+      padding: 4mm;
+    }
+    .print-bon__columns {
+      display: grid;
+      gap: 12mm;
+      grid-template-columns: repeat(auto-fit, minmax(80mm, 1fr));
+    }
+    .print-bon__section {
+      flex: 1;
+    }
+    .print-bon__details {
+      display: grid;
+      gap: 4mm;
+      font-size: 12px;
+    }
+    .print-bon__details dt {
+      font-weight: 600;
+      margin-bottom: 1mm;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    .print-bon__details dd {
+      margin: 0;
+      min-height: 14px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #d0d0d0;
+      padding: 3mm;
+      text-align: left;
+    }
+    th {
+      background: #f2f2f2;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 11px;
+      color: #555;
+    }
+    .print-bon__table--number {
+      text-align: right;
+      width: 22mm;
+    }
+    .print-bon__table-empty td {
+      text-align: center;
+      font-style: italic;
+      color: #777;
+    }
+    .print-bon__footer {
+      margin-top: auto;
+      font-size: 11px;
+      color: #666;
+      border-top: 1px solid #ddd;
+      padding-top: 4mm;
+    }
+    .print-bon__actions {
+      display: flex;
+      gap: 6mm;
+      justify-content: flex-end;
+    }
+    .print-bon__actions button {
+      padding: 6px 14px;
+      font-size: 13px;
+      border-radius: 4px;
+      border: 1px solid #bbb;
+      background: #f8f8f8;
+      cursor: pointer;
+    }
+    .print-bon__actions button.primary {
+      border-color: #e2001a;
+      background: #e2001a;
+      color: #fff;
+    }
+    @media print {
+      body { background: #fff; }
+      .print-bon__page {
+        width: auto;
+        padding: 0;
+        gap: 10mm;
+      }
+      .print-bon__header { padding-bottom: 8mm; }
+      .no-print { display: none !important; }
+    }
+    @page {
+      size: A4;
+      margin: 12mm;
+    }
+  </style>
+</head>
+<body class="print-bon">
+  <div class="print-bon__page">
+    <header class="print-bon__header">
+      <div>
+        <h1>Transportbon</h1>
+        <p>${formatValue(referenceLabel)}</p>
+        <dl class="print-bon__meta">
+          <div class="print-bon__meta-item"><dt>Order-ID</dt><dd>${formatValue(orderIdText)}</dd></div>
+          <div class="print-bon__meta-item"><dt>Klant</dt><dd>${formatValue(customerLabel)}</dd></div>
+          <div class="print-bon__meta-item"><dt>Status</dt><dd>${formatValue(statusLabel)}</dd></div>
+          <div class="print-bon__meta-item"><dt>Gepland</dt><dd>${plannedLabel ? escapeHtml(plannedLabel) : placeholder}</dd></div>
+          <div class="print-bon__meta-item"><dt>Leverdatum</dt><dd>${deliveryLabel ? escapeHtml(deliveryLabel) : placeholder}</dd></div>
+          <div class="print-bon__meta-item"><dt>Carrier</dt><dd>${formatValue(carrierLabel)}</dd></div>
+          <div class="print-bon__meta-item"><dt>Contact</dt><dd>${formatMultilineValue(orderContact)}</dd></div>
+        </dl>
+      </div>
+      <div class="print-bon__qr">${qrMarkup}</div>
+    </header>
+    <section class="print-bon__columns">
+      <section class="print-bon__section">
+        <h2>Laadadres</h2>
+        <dl class="print-bon__details">
+          <div><dt>Adres</dt><dd>${pickupSection.location}</dd></div>
+          <div><dt>Datum &amp; tijd</dt><dd>${pickupSection.timing}</dd></div>
+          <div><dt>Contact</dt><dd>${pickupSection.contact}</dd></div>
+          <div><dt>Instructies</dt><dd>${pickupSection.instructions}</dd></div>
+        </dl>
+      </section>
+      <section class="print-bon__section">
+        <h2>Losadres</h2>
+        <dl class="print-bon__details">
+          <div><dt>Adres</dt><dd>${deliverySection.location}</dd></div>
+          <div><dt>Datum &amp; tijd</dt><dd>${deliverySection.timing}</dd></div>
+          <div><dt>Contact</dt><dd>${deliverySection.contact}</dd></div>
+          <div><dt>Instructies</dt><dd>${deliverySection.instructions}</dd></div>
+        </dl>
+      </section>
+    </section>
+    <section class="print-bon__section">
+      <h2>Artikelen</h2>
+      <table class="print-bon__table">
+        <thead>
+          <tr><th>#</th><th>Omschrijving</th><th class="print-bon__table--number">Aantal</th><th>Serienummer</th></tr>
+        </thead>
+        <tbody>${articlesRows}</tbody>
+      </table>
+    </section>
+    <section class="print-bon__section">
+      <h2>Opmerkingen</h2>
+      <p>${formatMultilineValue(safeDetails.instructions)}</p>
+    </section>
+    <footer class="print-bon__footer">
+      <p>Gegenereerd op ${formatValue(generatedAt)} • Order-ID ${formatValue(orderIdText)}</p>
+    </footer>
+    <div class="print-bon__actions no-print">
+      <button type="button" class="primary" onclick="window.print()">Printen</button>
+      <button type="button" onclick="window.close()">Sluiten</button>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('load', function () {
+      window.focus();
+      setTimeout(function () { window.print(); }, 300);
+    });
+  </script>
+</body>
+</html>`;
 }
 
 async function refreshCarriersDatalist() {
@@ -2025,6 +2757,7 @@ async function loadOrders(options = {}) {
     }
     ORDERS_CACHE = Array.isArray(allRows) ? allRows : safeRows;
     rememberOrderOwners(ORDERS_CACHE);
+    updateCurrentEditOrderFromCache();
     syncPlanBoardFromOrders();
     renderPlanBoard();
   } catch (e) {
@@ -2554,6 +3287,97 @@ async function loadOrderAuditLog(orderId) {
   }
 }
 
+function clearCurrentEditContext() {
+  CURRENT_EDIT_ORDER = null;
+  CURRENT_EDIT_ORDER_DETAILS = null;
+  CURRENT_EDIT_ORDER_LINES = null;
+  CURRENT_EDIT_LINES_LOADING = null;
+  if (els && els.btnPrintOrder) {
+    els.btnPrintOrder.setAttribute("disabled", "disabled");
+    els.btnPrintOrder.setAttribute("aria-disabled", "true");
+  }
+}
+
+function setCurrentEditContext(order) {
+  if (!order) {
+    clearCurrentEditContext();
+    return;
+  }
+  CURRENT_EDIT_ORDER = { ...order };
+  CURRENT_EDIT_ORDER_DETAILS = parseOrderDetails(order);
+  CURRENT_EDIT_ORDER_LINES = null;
+  const numericId = Number(order.id);
+  if (els && els.btnPrintOrder) {
+    els.btnPrintOrder.removeAttribute("disabled");
+    els.btnPrintOrder.removeAttribute("aria-disabled");
+  }
+  if (Number.isFinite(numericId)) {
+    CURRENT_EDIT_LINES_LOADING = loadOrderLines(numericId)
+      .then((lines) => {
+        if (CURRENT_EDIT_ORDER && Number(CURRENT_EDIT_ORDER.id) === numericId) {
+          CURRENT_EDIT_ORDER_LINES = lines;
+        }
+        return lines;
+      })
+      .catch((error) => {
+        console.warn("Kan orderregels niet voorbereiden", error);
+        return [];
+      });
+  } else {
+    CURRENT_EDIT_LINES_LOADING = Promise.resolve([]);
+  }
+}
+
+function updateCurrentEditOrderFromCache() {
+  if (!CURRENT_EDIT_ORDER || !Array.isArray(ORDERS_CACHE)) {
+    return;
+  }
+  const updated = ORDERS_CACHE.find((item) => String(item.id) === String(CURRENT_EDIT_ORDER.id));
+  if (updated) {
+    CURRENT_EDIT_ORDER = { ...updated };
+    CURRENT_EDIT_ORDER_DETAILS = parseOrderDetails(updated);
+  }
+}
+
+async function printCurrentOrder() {
+  if (!CURRENT_EDIT_ORDER) {
+    window.alert("Open eerst een order om een bon te printen.");
+    return;
+  }
+  const order = CURRENT_EDIT_ORDER;
+  const details = CURRENT_EDIT_ORDER_DETAILS || parseOrderDetails(order);
+  let lines = CURRENT_EDIT_ORDER_LINES;
+  if (!Array.isArray(lines)) {
+    try {
+      if (CURRENT_EDIT_LINES_LOADING) {
+        lines = await CURRENT_EDIT_LINES_LOADING;
+      } else {
+        lines = await loadOrderLines(order.id);
+      }
+      if (CURRENT_EDIT_ORDER && String(CURRENT_EDIT_ORDER.id) === String(order.id)) {
+        CURRENT_EDIT_ORDER_LINES = lines;
+      }
+    } catch (error) {
+      console.warn("Kan orderregels niet laden voor print", error);
+      lines = [];
+    }
+  }
+  const printWindow = window.open("", "_blank", "noopener=yes");
+  if (!printWindow) {
+    window.alert("Kan geen printvenster openen. Sta pop-ups toe voor deze site.");
+    return;
+  }
+  const documentHtml = buildOrderPrintDocument(order, details, Array.isArray(lines) ? lines : []);
+  printWindow.document.open();
+  printWindow.document.write(documentHtml);
+  printWindow.document.close();
+  try {
+    printWindow.focus();
+  } catch (error) {
+    console.warn("Kan printvenster niet focussen", error);
+  }
+}
+
 function openEdit(row){
   if (!els.dlg) return;
   const user = getCurrentUser();
@@ -2569,6 +3393,7 @@ function openEdit(row){
   els.ePlanned.value = row.planned_date || "";
   els.eSlot.value = row.planned_slot || "";
   setStatus(els.editStatus, "");
+  setCurrentEditContext(row);
   if (els.orderAuditLog) {
     renderOrderAuditLogPlaceholder("Logboek laden…");
     loadOrderAuditLog(row.id);
@@ -4231,8 +5056,12 @@ function bind(canManagePlanning){
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
   bindClick(els.btnDeleteOrder, deleteOrder);
+  bindClick(els.btnPrintOrder, () => printCurrentOrder());
   if (els.btnSaveEdit) {
     addBoundListener(els.btnSaveEdit, "click", (e)=>{ e.preventDefault(); saveEdit(); });
+  }
+  if (els.dlg) {
+    addBoundListener(els.dlg, "close", () => { clearCurrentEditContext(); });
   }
   bindClick(els.btnAddTruck, addTruck);
   bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
@@ -4295,6 +5124,7 @@ function bind(canManagePlanning){
 
 async function initAppPage() {
   refreshElements();
+  clearCurrentEditContext();
   restoreOrderFilters();
   updateSortIndicators();
   enforceDateInputs(document);
@@ -4344,6 +5174,7 @@ function destroyAppPage() {
       console.warn("Kan dialoog niet sluiten", err);
     }
   }
+  clearCurrentEditContext();
   els = {};
   PLAN_SUGGESTIONS = [];
   DRAG_CONTEXT = null;
