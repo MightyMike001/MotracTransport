@@ -1417,6 +1417,14 @@ dialog::backdrop {
   gap: 12px;
 }
 
+.truck-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+
 .truck-list li {
   padding: 14px;
   border: 1px solid var(--color-border);
@@ -1428,11 +1436,26 @@ dialog::backdrop {
   box-shadow: var(--shadow-sm);
 }
 
+.truck-list li.is-editing {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(226, 0, 26, 0.15);
+}
+
+.truck-list li.is-editing strong {
+  color: var(--color-primary);
+}
+
 .truck-list li header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.truck-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .truck-meta {

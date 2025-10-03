@@ -35,10 +35,28 @@
         <input id="truckDriver" placeholder="Naam chauffeur" />
       </label>
       <label>Stops per dag
-        <input id="truckCapacity" type="number" min="1" value="6" />
+        <input id="truckCapacity" type="number" min="1" value="6" data-default-value="6" />
       </label>
     </div>
-    <button id="btnAddTruck" class="btn">Vrachtwagen opslaan</button>
+    <div class="truck-form-actions">
+      <button
+        id="btnAddTruck"
+        class="btn"
+        type="button"
+        data-default-label="Vrachtwagen opslaan"
+        data-edit-label="Wijzigingen opslaan"
+      >
+        Vrachtwagen opslaan
+      </button>
+      <button
+        id="btnCancelTruckEdit"
+        class="btn ghost"
+        type="button"
+        hidden
+      >
+        Bewerken annuleren
+      </button>
+    </div>
     <div id="truckStatus" class="status"></div>
     <ul id="truckList" class="truck-list"></ul>
   </section>
