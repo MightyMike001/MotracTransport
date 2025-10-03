@@ -155,7 +155,7 @@ begin
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
+      where schemaname = 'public'
         and tablename = ''transport_trucks''
         and policyname = ''transport_trucks_select_by_role''
     ) then
@@ -164,7 +164,7 @@ begin
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
+      where schemaname = 'public'
         and tablename = ''transport_trucks''
         and policyname = ''transport_trucks_insert_by_planner''
     ) then
@@ -173,7 +173,7 @@ begin
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
+      where schemaname = 'public'
         and tablename = ''transport_trucks''
         and policyname = ''transport_trucks_update_by_planner''
     ) then
@@ -182,7 +182,7 @@ begin
 
     if not exists (
       select 1 from pg_policies
-      where schemaname = ''public''
+      where schemaname = 'public'
         and tablename = ''transport_trucks''
         and policyname = ''transport_trucks_delete_by_admin''
     ) then
@@ -240,8 +240,8 @@ create or replace trigger transport_orders_set_updated_at
 
 alter table public.transport_orders enable row level security;
 
-alter table public.transport_orders drop policy if exists "allow anon read transport_orders";
-alter table public.transport_orders drop policy if exists "allow anon modify transport_orders";
+drop policy if exists "allow anon read transport_orders" on public.transport_orders;
+drop policy if exists "allow anon modify transport_orders" on public.transport_orders;
 
 do $$
 begin
