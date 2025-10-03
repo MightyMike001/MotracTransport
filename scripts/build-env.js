@@ -36,11 +36,26 @@ function loadEnvValues() {
   if (process.env.SUPABASE_ANON_KEY) {
     values.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
   }
+  if (process.env.EMAIL_NOTIFICATIONS_URL) {
+    values.EMAIL_NOTIFICATIONS_URL = process.env.EMAIL_NOTIFICATIONS_URL;
+  }
+  if (process.env.EMAIL_NOTIFICATIONS_FROM) {
+    values.EMAIL_NOTIFICATIONS_FROM = process.env.EMAIL_NOTIFICATIONS_FROM;
+  }
+  if (process.env.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS) {
+    values.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS =
+      process.env.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS;
+  }
 
   if ((!values.SUPABASE_URL || !values.SUPABASE_ANON_KEY) && fs.existsSync(ENV_FILE_PATH)) {
     const fileEnv = parseEnv(fs.readFileSync(ENV_FILE_PATH, "utf8"));
     values.SUPABASE_URL = values.SUPABASE_URL || fileEnv.SUPABASE_URL;
     values.SUPABASE_ANON_KEY = values.SUPABASE_ANON_KEY || fileEnv.SUPABASE_ANON_KEY;
+    values.EMAIL_NOTIFICATIONS_URL = values.EMAIL_NOTIFICATIONS_URL || fileEnv.EMAIL_NOTIFICATIONS_URL;
+    values.EMAIL_NOTIFICATIONS_FROM = values.EMAIL_NOTIFICATIONS_FROM || fileEnv.EMAIL_NOTIFICATIONS_FROM;
+    values.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS =
+      values.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS ||
+      fileEnv.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS;
   }
 
   return values;
@@ -66,9 +81,20 @@ function build() {
   const envValues = loadEnvValues();
   validate(envValues);
 
-  const output = `window.__APP_ENV__ = Object.freeze({\n  SUPABASE_URL: ${JSON.stringify(
-    envValues.SUPABASE_URL
-  )},\n  SUPABASE_ANON_KEY: ${JSON.stringify(envValues.SUPABASE_ANON_KEY)}\n});\n`;
+  const configEntries = {
+    SUPABASE_URL: envValues.SUPABASE_URL,
+    SUPABASE_ANON_KEY: envValues.SUPABASE_ANON_KEY,
+    EMAIL_NOTIFICATIONS_URL: envValues.EMAIL_NOTIFICATIONS_URL || "",
+    EMAIL_NOTIFICATIONS_FROM: envValues.EMAIL_NOTIFICATIONS_FROM || "",
+    EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS:
+      envValues.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS || "",
+  };
+
+  const serialized = Object.entries(configEntries)
+    .map(([key, value]) => `  ${key}: ${JSON.stringify(value)},`)
+    .join("\n");
+
+  const output = `window.__APP_ENV__ = Object.freeze({\n${serialized}\n});\n`;
 
   fs.writeFileSync(ENV_OUTPUT_PATH, output, "utf8");
   console.log(`Environment file generated at ${ENV_OUTPUT_PATH}`);

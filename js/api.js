@@ -202,6 +202,194 @@ const AuditLog = {
   },
 };
 
+const EmailNotifications = (() => {
+  const config = window.APP_CONFIG || {};
+  const endpoint = typeof config.EMAIL_NOTIFICATIONS_URL === "string"
+    ? config.EMAIL_NOTIFICATIONS_URL.trim()
+    : "";
+  const defaultSender = typeof config.EMAIL_NOTIFICATIONS_FROM === "string"
+    ? config.EMAIL_NOTIFICATIONS_FROM.trim()
+    : "";
+  const defaultRecipients = Array.isArray(config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS)
+    ? config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS.filter((value) => typeof value === "string" && value.trim())
+    : [];
+  const isEnabled = Boolean(endpoint);
+
+  const ACTION_LABELS = {
+    created: "aangemaakt",
+    cancelled: "geannuleerd",
+  };
+
+  const buildDisabledResult = (reason) => ({ ok: false, reason });
+  const DISABLED_RESULT = buildDisabledResult("disabled");
+
+  function normalizeEmail(value) {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      return null;
+    }
+    return trimmed.toLowerCase();
+  }
+
+  function mergeRecipients(order, details, additionalRecipients = [], includeDefaults = true) {
+    const recipients = new Set();
+    const add = (value) => {
+      const email = normalizeEmail(value);
+      if (email) {
+        recipients.add(email);
+      }
+    };
+
+    if (includeDefaults) {
+      defaultRecipients.forEach(add);
+    }
+    add(order?.customer_contact_email);
+    if (details && typeof details === "object") {
+      add(details.contactEmail);
+      if (details.contact && typeof details.contact === "string" && details.contact.includes("@")) {
+        add(details.contact);
+      }
+    }
+    const extras = Array.isArray(additionalRecipients)
+      ? additionalRecipients
+      : [additionalRecipients];
+    extras.forEach(add);
+
+    return Array.from(recipients);
+  }
+
+  function buildReference(order) {
+    if (!order || typeof order !== "object") {
+      return "transportorder";
+    }
+    return (
+      order.request_reference ||
+      order.reference ||
+      order.order_reference ||
+      (order.id !== undefined ? `#${order.id}` : "transportorder")
+    );
+  }
+
+  function buildSubject(action, order) {
+    const actionLabel = ACTION_LABELS[action] || action;
+    const reference = buildReference(order);
+    return `Transportorder ${reference} ${actionLabel}`;
+  }
+
+  function buildMessage(action, order, details, actorName) {
+    const actionLabel = ACTION_LABELS[action] || action;
+    const lines = [];
+    const reference = buildReference(order);
+    lines.push(`Transportorder ${reference} is ${actionLabel}.`);
+    if (actorName) {
+      lines.push(`Gebeurd door: ${actorName}.`);
+    }
+    if (order?.customer_name) {
+      const city = order.customer_city ? ` (${order.customer_city})` : "";
+      lines.push(`Klant: ${order.customer_name}${city}.`);
+    }
+    const plannedDate =
+      details?.delivery?.date ||
+      order?.planned_date ||
+      order?.delivery_date ||
+      order?.due_date ||
+      null;
+    if (plannedDate) {
+      lines.push(`Geplande datum: ${plannedDate}.`);
+    }
+    const deliveryLocation = details?.delivery?.location || order?.delivery_location || null;
+    if (deliveryLocation) {
+      lines.push(`Leveradres: ${deliveryLocation}.`);
+    }
+    if (details?.instructions) {
+      lines.push("Instructies:");
+      lines.push(details.instructions);
+    }
+    return lines.join("\n");
+  }
+
+  async function send(action, order, context = {}) {
+    if (!isEnabled) {
+      return DISABLED_RESULT;
+    }
+    if (!order) {
+      return buildDisabledResult("missing-order");
+    }
+
+    const details = context.details || null;
+    const actorName = context.actorName || null;
+    const recipients = mergeRecipients(order, details, context.additionalRecipients, true);
+    if (!recipients.length) {
+      return buildDisabledResult("no-recipients");
+    }
+
+    const payload = {
+      action,
+      subject: context.subject || buildSubject(action, order),
+      message: context.message || buildMessage(action, order, details, actorName),
+      recipients,
+      order: sanitizeAuditPayload(order),
+      details: sanitizeAuditPayload(details),
+      meta: sanitizeAuditPayload({
+        actorName,
+        requestReference: order?.request_reference ?? null,
+        orderReference: order?.order_reference ?? order?.reference ?? null,
+      }),
+    };
+
+    if (defaultSender) {
+      payload.sender = defaultSender;
+    }
+
+    if (Array.isArray(context.cc) && context.cc.length) {
+      const cc = mergeRecipients(null, null, context.cc, false);
+      if (cc.length) {
+        payload.cc = cc;
+      }
+    }
+
+    if (Array.isArray(context.bcc) && context.bcc.length) {
+      const bcc = mergeRecipients(null, null, context.bcc, false);
+      if (bcc.length) {
+        payload.bcc = bcc;
+      }
+    }
+
+    if (context.extra) {
+      payload.extra = sanitizeAuditPayload(context.extra);
+    }
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText || "");
+        throw new Error(errorText || `Email endpoint responded with ${response.status}`);
+      }
+      return { ok: true };
+    } catch (error) {
+      console.warn(`E-mail notificatie (${action}) mislukt`, error);
+      return { ok: false, reason: "request-failed", error };
+    }
+  }
+
+  return {
+    isEnabled,
+    notifyOrderCreated(order, context = {}) {
+      return send("created", order, context);
+    },
+    notifyOrderCancelled(order, context = {}) {
+      return send("cancelled", order, context);
+    },
+  };
+})();
+
 function buildSelectQuery(query = "") {
   const trimmed = (query || "").trim();
   if (!trimmed) {
@@ -580,4 +768,5 @@ window.Lines = Lines;
 window.Carriers = Carriers;
 window.Users = Users;
 window.AuditLog = AuditLog;
+window.EmailNotifications = EmailNotifications;
 window.ApiHelpers = Object.assign({}, window.ApiHelpers, { formatSupabaseError, tryWrap });

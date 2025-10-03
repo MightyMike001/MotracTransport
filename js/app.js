@@ -68,6 +68,19 @@ const showToastMessage = (type, message) => {
   }
 };
 
+function getUserDisplayName(user) {
+  if (!user || typeof user !== "object") {
+    return "";
+  }
+  return (
+    user.name ||
+    user.full_name ||
+    user.email ||
+    user.username ||
+    ""
+  );
+}
+
 function createDebounce(fn, delay = 300) {
   let timeoutId = null;
   const debounced = (...args) => {
@@ -3852,6 +3865,12 @@ async function deleteOrder(event){
   if (!window.confirm("Weet je zeker dat je dit transport wilt verwijderen?")) {
     return;
   }
+  const notificationOrder = CURRENT_EDIT_ORDER ? { ...CURRENT_EDIT_ORDER } : null;
+  const notificationDetails = CURRENT_EDIT_ORDER_DETAILS
+    ? JSON.parse(JSON.stringify(CURRENT_EDIT_ORDER_DETAILS))
+    : notificationOrder
+      ? parseOrderDetails(notificationOrder)
+      : null;
   try {
     setStatus(els.editStatus, "Verwijderen…");
     await Orders.delete(id);
@@ -3859,6 +3878,23 @@ async function deleteOrder(event){
     const successMessage = "Transport verwijderd.";
     setStatus(els.editStatus, successMessage, "success");
     showToastMessage("success", successMessage);
+    if (
+      notificationOrder &&
+      window.EmailNotifications &&
+      typeof window.EmailNotifications.notifyOrderCancelled === "function"
+    ) {
+      const actorName = getUserDisplayName(user) || null;
+      window.EmailNotifications
+        .notifyOrderCancelled(notificationOrder, { details: notificationDetails, actorName })
+        .then((result) => {
+          if (result && result.reason === "request-failed") {
+            showToastMessage("error", "E-mailnotificatie versturen mislukt.");
+          }
+        })
+        .catch((error) => {
+          console.warn("Kan e-mailnotificatie voor verwijderde order niet versturen", error);
+        });
+    }
     if (els.dlg?.open) {
       els.dlg.close();
     }
@@ -4626,7 +4662,7 @@ async function createOrder(){
     const userId = user?.id ?? user?.user_id ?? null;
     if (userId !== null && userId !== undefined) {
       payload.created_by = userId;
-      const creatorName = user?.name ?? user?.full_name ?? user?.email ?? null;
+      const creatorName = getUserDisplayName(user);
       if (creatorName) {
         payload.created_by_name = creatorName;
       }
@@ -4659,6 +4695,23 @@ async function createOrder(){
     const successMessage = "Transport aangemaakt";
     setStatus(els.createStatus, successMessage, "success");
     showToastMessage("success", successMessage);
+    if (
+      window.EmailNotifications &&
+      typeof window.EmailNotifications.notifyOrderCreated === "function"
+    ) {
+      const details = parseOrderDetails(created);
+      const actorName = getUserDisplayName(user) || null;
+      window.EmailNotifications
+        .notifyOrderCreated(created, { details, actorName })
+        .then((result) => {
+          if (result && result.reason === "request-failed") {
+            showToastMessage("error", "E-mailnotificatie versturen mislukt.");
+          }
+        })
+        .catch((error) => {
+          console.warn("Kan e-mailnotificatie voor nieuwe order niet versturen", error);
+        });
+    }
     resetOrderForm();
     await assignRequestReference();
     await loadOrders();
