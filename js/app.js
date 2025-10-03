@@ -811,6 +811,7 @@ const STORAGE_KEYS = {
   trucks: "transport_trucks_v1",
   board: "transport_board_v1",
   lastReference: "transport_last_reference_v1",
+  orderFilters: "transport_order_filters_v1",
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1168,6 +1169,73 @@ function canUserEditOrder(order, user = getCurrentUser()) {
 function hydrateLocalState() {
   TRUCKS = storageGet(STORAGE_KEYS.trucks, []);
   PLAN_BOARD = sanitizePlanBoard(storageGet(STORAGE_KEYS.board, {}));
+}
+
+function captureOrderFilterState() {
+  return {
+    region: els.filterRegion?.value ?? "",
+    status: els.filterStatus?.value ?? "",
+    customer: els.filterCustomer?.value ?? "",
+    customerOrder: els.filterCustomerOrder?.value ?? "",
+    query: els.filterQuery?.value ?? "",
+    date: els.filterDate?.value ?? "",
+    pageSize: Number.isFinite(PAGINATION.pageSize) && PAGINATION.pageSize > 0
+      ? PAGINATION.pageSize
+      : undefined,
+  };
+}
+
+function persistOrderFilters() {
+  if (
+    !els ||
+    (!els.filterRegion &&
+      !els.filterStatus &&
+      !els.filterCustomer &&
+      !els.filterCustomerOrder &&
+      !els.filterQuery &&
+      !els.filterDate &&
+      !els.pagerPageSize)
+  ) {
+    return;
+  }
+  const state = captureOrderFilterState();
+  storageSet(STORAGE_KEYS.orderFilters, state);
+}
+
+function restoreOrderFilters() {
+  if (!els) {
+    return;
+  }
+  const saved = storageGet(STORAGE_KEYS.orderFilters, null);
+  if (!saved || typeof saved !== "object") {
+    return;
+  }
+  const applyValue = (element, value) => {
+    if (!element) return;
+    const normalized = value === undefined || value === null ? "" : String(value);
+    if (element.value === normalized) return;
+    element.value = normalized;
+    if (element.value !== normalized) {
+      element.value = "";
+    }
+  };
+  applyValue(els.filterRegion, saved.region);
+  applyValue(els.filterStatus, saved.status);
+  applyValue(els.filterCustomer, saved.customer);
+  applyValue(els.filterCustomerOrder, saved.customerOrder);
+  applyValue(els.filterQuery, saved.query);
+  applyValue(els.filterDate, saved.date);
+  const savedPageSize = Number(saved.pageSize);
+  if (els.pagerPageSize && Number.isFinite(savedPageSize) && savedPageSize > 0) {
+    const normalizedSize = Math.max(1, Math.floor(savedPageSize));
+    const desired = String(normalizedSize);
+    if (els.pagerPageSize.value !== desired) {
+      els.pagerPageSize.value = desired;
+    }
+    if (els.pagerPageSize.value === desired) {
+      PAGINATION.pageSize = normalizedSize;
+    }
+  }
 }
 
 function saveTrucks() {
@@ -1865,12 +1933,14 @@ async function loadOrders(options = {}) {
   }
   const requestedPageSize = Number(options.pageSize);
   if (Number.isFinite(requestedPageSize) && requestedPageSize > 0) {
-    PAGINATION.pageSize = requestedPageSize;
+    PAGINATION.pageSize = Math.max(1, Math.floor(requestedPageSize));
   }
   const requestedPage = Number(options.page);
   if (Number.isFinite(requestedPage) && requestedPage >= 1) {
-    PAGINATION.currentPage = requestedPage;
+    PAGINATION.currentPage = Math.max(1, Math.floor(requestedPage));
   }
+
+  persistOrderFilters();
 
   const usePagination = Boolean(els.ordersTable && els.pager);
 
@@ -2250,8 +2320,12 @@ function handlePageSizeChange(event) {
   if (!Number.isFinite(value) || value <= 0) {
     return;
   }
+  const normalized = Math.max(1, Math.floor(value));
+  if (event?.target && String(event.target.value) !== String(normalized)) {
+    event.target.value = String(normalized);
+  }
   PAGINATION.currentPage = 1;
-  loadOrders({ page: 1, pageSize: value });
+  loadOrders({ page: 1, pageSize: normalized });
 }
 
 function formatAuditActionLabel(action) {
@@ -4199,7 +4273,10 @@ function bind(canManagePlanning){
   if (els.pagerPageSize) {
     const defaultSize = Number(els.pagerPageSize.value);
     if (Number.isFinite(defaultSize) && defaultSize > 0) {
-      PAGINATION.pageSize = defaultSize;
+      PAGINATION.pageSize = Math.max(1, Math.floor(defaultSize));
+      if (String(els.pagerPageSize.value) !== String(PAGINATION.pageSize)) {
+        els.pagerPageSize.value = String(PAGINATION.pageSize);
+      }
     }
     addBoundListener(els.pagerPageSize, "change", handlePageSizeChange);
   }
@@ -4218,6 +4295,7 @@ function bind(canManagePlanning){
 
 async function initAppPage() {
   refreshElements();
+  restoreOrderFilters();
   updateSortIndicators();
   enforceDateInputs(document);
   const user = window.Auth?.getUser ? window.Auth.getUser() : null;

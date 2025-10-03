@@ -329,22 +329,34 @@ const Orders = {
     }
     params.push(`order=${orderClauses.join(",")}`);
 
-    const rawQuery = params.length ? `?${params.join("&")}` : "";
-    const qs = buildSelectQuery(rawQuery);
-
     const pageSizeValue = Number(options.pageSize);
     const hasPagination = Number.isFinite(pageSizeValue) && pageSizeValue > 0;
     let pageValue = Number(options.page);
     if (!Number.isFinite(pageValue) || pageValue < 1) {
       pageValue = 1;
     }
+    pageValue = Math.floor(pageValue);
+    if (pageValue < 1) {
+      pageValue = 1;
+    }
+    let limitValue = null;
+    let offsetValue = null;
+    if (hasPagination) {
+      limitValue = Math.max(1, Math.floor(pageSizeValue));
+      offsetValue = Math.max(0, (pageValue - 1) * limitValue);
+      params.push(`limit=${limitValue}`);
+      params.push(`offset=${offsetValue}`);
+    }
+
+    const rawQuery = params.length ? `?${params.join("&")}` : "";
+    const qs = buildSelectQuery(rawQuery);
 
     const headers = { ...SB_HEADERS };
     if (hasPagination) {
-      const from = (pageValue - 1) * pageSizeValue;
-      const to = from + pageSizeValue - 1;
-      headers.Range = `${from}-${Math.max(from, to)}`;
-      headers.Prefer = "count=exact";
+      const from = offsetValue;
+      const to = Math.max(from, from + limitValue - 1);
+      headers.Range = `${from}-${to}`;
+      headers.Prefer = headers.Prefer ? `${headers.Prefer},count=exact` : "count=exact";
     }
 
     const { response, data } = await tryWrap(async () => {
@@ -372,7 +384,7 @@ const Orders = {
       rows: Array.isArray(data) ? data : [],
       total,
       page: hasPagination ? pageValue : 1,
-      pageSize: hasPagination ? pageSizeValue : (Array.isArray(data) ? data.length : 0),
+      pageSize: hasPagination ? limitValue : (Array.isArray(data) ? data.length : 0),
     };
   },
   create: async (o) => {
