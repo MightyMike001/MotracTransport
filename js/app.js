@@ -4679,6 +4679,26 @@ async function createOrder(){
   }
 }
 
+function getButtonLabel(button) {
+  if (!button) {
+    return "";
+  }
+  const label = button.querySelector(".btn__label");
+  return label?.textContent?.trim() || button.textContent?.trim() || "";
+}
+
+function setButtonLabel(button, text) {
+  if (!button) {
+    return;
+  }
+  const label = button.querySelector(".btn__label");
+  if (label) {
+    label.textContent = text;
+  } else {
+    button.textContent = text;
+  }
+}
+
 function ensureCarrierFormLabels() {
   const button = els?.btnAddCarrier;
   if (!button) {
@@ -4691,7 +4711,7 @@ function ensureCarrierFormLabels() {
     const datasetDefault = button.dataset?.defaultLabel;
     CARRIER_FORM_DEFAULT_LABEL = datasetDefault && datasetDefault.length
       ? datasetDefault
-      : button.textContent?.trim() || "Carrier toevoegen";
+      : getButtonLabel(button) || "Carrier toevoegen";
   }
   if (!CARRIER_FORM_EDIT_LABEL) {
     const datasetEdit = button.dataset?.editLabel;
@@ -4711,11 +4731,11 @@ function setCarrierFormMode(mode) {
   const { defaultLabel, editLabel } = ensureCarrierFormLabels();
   if (button) {
     if (mode === "edit") {
-      button.textContent = editLabel;
+      setButtonLabel(button, editLabel);
       button.classList.add("primary");
       button.dataset.mode = "edit";
     } else {
-      button.textContent = defaultLabel;
+      setButtonLabel(button, defaultLabel);
       button.classList.remove("primary");
       button.dataset.mode = "create";
     }
@@ -4966,7 +4986,7 @@ function ensureTruckFormLabels(){
     const datasetDefault = button.dataset?.defaultLabel;
     TRUCK_FORM_DEFAULT_LABEL = datasetDefault && datasetDefault.length
       ? datasetDefault
-      : button.textContent?.trim() || "Vrachtwagen opslaan";
+      : getButtonLabel(button) || "Vrachtwagen opslaan";
   }
   if (!TRUCK_FORM_EDIT_LABEL){
     const datasetEdit = button.dataset?.editLabel;
@@ -4986,11 +5006,11 @@ function setTruckFormMode(mode){
   const { defaultLabel, editLabel } = ensureTruckFormLabels();
   if (button){
     if (mode === "edit"){
-      button.textContent = editLabel;
+      setButtonLabel(button, editLabel);
       button.classList.add("primary");
       button.dataset.mode = "edit";
     } else {
-      button.textContent = defaultLabel;
+      setButtonLabel(button, defaultLabel);
       button.classList.remove("primary");
       button.dataset.mode = "create";
     }
