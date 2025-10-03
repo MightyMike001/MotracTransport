@@ -8,6 +8,36 @@ if (
 
 const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.APP_CONFIG;
 
+function normalizeSupabaseRestUrl(url) {
+  if (!url || typeof url !== "string") {
+    return "";
+  }
+
+  let normalized = url.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  // Remove trailing slashes to simplify further checks.
+  normalized = normalized.replace(/\/+$/g, "");
+
+  const restV1Pattern = /\/rest\/v1$/i;
+  if (restV1Pattern.test(normalized)) {
+    return normalized;
+  }
+
+  // Strip a trailing `/rest` segment so that we can safely append `/rest/v1`.
+  normalized = normalized.replace(/\/rest$/i, "");
+
+  return `${normalized}/rest/v1`;
+}
+
+const SUPABASE_REST_URL = normalizeSupabaseRestUrl(SUPABASE_URL);
+
+if (!SUPABASE_REST_URL) {
+  throw new Error("Ongeldige Supabase REST URL");
+}
+
 const SB_HEADERS = {
   "Content-Type": "application/json",
   "apikey": SUPABASE_ANON_KEY,
@@ -181,7 +211,7 @@ function buildSelectQuery(query = "") {
 async function sbSelect(table, query = "") {
   return tryWrap(async () => {
     const normalizedQuery = buildSelectQuery(query);
-    const r = await fetch(`${SUPABASE_URL}/${table}${normalizedQuery}`, { headers: SB_HEADERS });
+    const r = await fetch(`${SUPABASE_REST_URL}/${table}${normalizedQuery}`, { headers: SB_HEADERS });
     const data = await r.json();
     if (!r.ok) throw new Error(JSON.stringify(data));
     return data;
@@ -190,7 +220,7 @@ async function sbSelect(table, query = "") {
 
 async function sbInsert(table, rows) {
   return tryWrap(async () => {
-    const r = await fetch(`${SUPABASE_URL}/${table}`, {
+    const r = await fetch(`${SUPABASE_REST_URL}/${table}`, {
       method: "POST",
       headers: { ...SB_HEADERS, "Prefer": "return=representation" },
       body: JSON.stringify(rows)
@@ -203,7 +233,7 @@ async function sbInsert(table, rows) {
 
 async function sbUpdate(table, match, patch) {
   return tryWrap(async () => {
-    const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
+    const r = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
       method: "PATCH",
       headers: { ...SB_HEADERS, "Prefer": "return=representation" },
       body: JSON.stringify(patch)
@@ -216,7 +246,7 @@ async function sbUpdate(table, match, patch) {
 
 async function sbDelete(table, match) {
   return tryWrap(async () => {
-    const r = await fetch(`${SUPABASE_URL}/${table}?${match}`, {
+    const r = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
       method: "DELETE",
       headers: SB_HEADERS
     });
@@ -360,7 +390,7 @@ const Orders = {
     }
 
     const { response, data } = await tryWrap(async () => {
-      const response = await fetch(`${SUPABASE_URL}/transport_orders${qs}`, { headers });
+      const response = await fetch(`${SUPABASE_REST_URL}/transport_orders${qs}`, { headers });
       const data = await response.json();
       if (!response.ok) throw new Error(JSON.stringify(data));
       return { response, data };
@@ -415,7 +445,7 @@ const Orders = {
   latestReference: async () => {
     const query = "?select=request_reference,reference,created_at&request_reference=not.is.null&order=created_at.desc&limit=1";
     const { response, data } = await tryWrap(async () => {
-      const response = await fetch(`${SUPABASE_URL}/transport_orders${query}`, { headers: SB_HEADERS });
+      const response = await fetch(`${SUPABASE_REST_URL}/transport_orders${query}`, { headers: SB_HEADERS });
       const data = await response.json();
       if (!response.ok) throw new Error(JSON.stringify(data));
       return { response, data };
