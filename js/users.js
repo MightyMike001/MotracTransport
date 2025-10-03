@@ -42,9 +42,32 @@
     { value: "admin", label: "Admin" },
   ];
 
+  function debounce(fn, delay = 300) {
+    let timeoutId = null;
+    const debounced = (...args) => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        fn(...args);
+      }, delay);
+    };
+    debounced.cancel = () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+    return debounced;
+  }
+
   let els = {};
   let USER_CACHE = [];
   let filters = { query: "", status: "all" };
+  const runSearch = debounce((value) => {
+    updateFilters({ query: value });
+  }, 300);
   const listeners = [];
 
   function addListener(element, type, handler) {
@@ -323,7 +346,7 @@
   }
 
   function handleSearchInput(event) {
-    updateFilters({ query: event.target.value || "" });
+    runSearch(event.target.value || "");
   }
 
   function handleStatusFilter(event) {
@@ -365,6 +388,9 @@
     els = {};
     USER_CACHE = [];
     filters = { query: "", status: "all" };
+    if (typeof runSearch.cancel === "function") {
+      runSearch.cancel();
+    }
   }
 
   window.Pages.users = {

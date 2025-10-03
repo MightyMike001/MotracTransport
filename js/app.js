@@ -1,4 +1,5 @@
 let els = {};
+let ordersFiltersDebounce = null;
 
 const DATE_UTILS = window.DateUtils || {};
 
@@ -66,6 +67,26 @@ const showToastMessage = (type, message) => {
     window.showToast(type, message);
   }
 };
+
+function createDebounce(fn, delay = 300) {
+  let timeoutId = null;
+  const debounced = (...args) => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = window.setTimeout(() => {
+      timeoutId = null;
+      fn(...args);
+    }, delay);
+  };
+  debounced.cancel = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+  return debounced;
+}
 
 function getSupabaseErrorMessage(error, fallback) {
   if (window.ApiHelpers?.formatSupabaseError) {
@@ -5029,6 +5050,16 @@ function bind(canManagePlanning){
     el.removeAttribute("aria-disabled");
     addBoundListener(el, "click", handler);
   };
+  const scheduleOrdersReload = createDebounce(() => loadOrders({ page: 1 }), 300);
+  ordersFiltersDebounce = scheduleOrdersReload;
+  const handleTextFilterInput = () => {
+    PAGINATION.currentPage = 1;
+    scheduleOrdersReload();
+  };
+  const handleSelectFilterChange = () => {
+    PAGINATION.currentPage = 1;
+    loadOrders({ page: 1 });
+  };
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
   if (Array.isArray(els.wizardNextButtons)) {
@@ -5098,6 +5129,24 @@ function bind(canManagePlanning){
   }
   if (els.pagerNext) {
     addBoundListener(els.pagerNext, "click", goToNextPage);
+  }
+  if (els.filterCustomer) {
+    addBoundListener(els.filterCustomer, "input", handleTextFilterInput);
+  }
+  if (els.filterCustomerOrder) {
+    addBoundListener(els.filterCustomerOrder, "input", handleTextFilterInput);
+  }
+  if (els.filterQuery) {
+    addBoundListener(els.filterQuery, "input", handleTextFilterInput);
+  }
+  if (els.filterRegion) {
+    addBoundListener(els.filterRegion, "change", handleSelectFilterChange);
+  }
+  if (els.filterStatus) {
+    addBoundListener(els.filterStatus, "change", handleSelectFilterChange);
+  }
+  if (els.filterDate) {
+    addBoundListener(els.filterDate, "change", handleTextFilterInput);
   }
   if (els.pagerPageSize) {
     const defaultSize = Number(els.pagerPageSize.value);
@@ -5180,6 +5229,10 @@ function destroyAppPage() {
   DRAG_CONTEXT = null;
   ORDER_FORM_VALIDATOR = null;
   ARTICLE_IMPORT_STATE = null;
+  if (ordersFiltersDebounce && typeof ordersFiltersDebounce.cancel === "function") {
+    ordersFiltersDebounce.cancel();
+  }
+  ordersFiltersDebounce = null;
 }
 
 window.Pages = window.Pages || {};
