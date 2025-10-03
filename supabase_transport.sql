@@ -156,37 +156,58 @@ begin
     if not exists (
       select 1 from pg_policies
       where schemaname = 'public'
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_select_by_role''
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_select_by_role'
     ) then
-      execute ''create policy transport_trucks_select_by_role on public.transport_trucks for select using (public.current_app_role() in (''''admin'''',''''planner'''',''''werknemer''''))'';
+      execute $policy$
+        create policy transport_trucks_select_by_role
+          on public.transport_trucks
+          for select
+          using (public.current_app_role() in ('admin', 'planner', 'werknemer'))
+      $policy$;
     end if;
 
     if not exists (
       select 1 from pg_policies
       where schemaname = 'public'
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_insert_by_planner''
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_insert_by_planner'
     ) then
-      execute ''create policy transport_trucks_insert_by_planner on public.transport_trucks for insert with check (public.current_app_role() in (''''admin'''',''''planner''''))'';
+      execute $policy$
+        create policy transport_trucks_insert_by_planner
+          on public.transport_trucks
+          for insert
+          with check (public.current_app_role() in ('admin', 'planner'))
+      $policy$;
     end if;
 
     if not exists (
       select 1 from pg_policies
       where schemaname = 'public'
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_update_by_planner''
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_update_by_planner'
     ) then
-      execute ''create policy transport_trucks_update_by_planner on public.transport_trucks for update using (public.current_app_role() in (''''admin'''',''''planner'''')) with check (public.current_app_role() in (''''admin'''',''''planner''''))'';
+      execute $policy$
+        create policy transport_trucks_update_by_planner
+          on public.transport_trucks
+          for update
+          using (public.current_app_role() in ('admin', 'planner'))
+          with check (public.current_app_role() in ('admin', 'planner'))
+      $policy$;
     end if;
 
     if not exists (
       select 1 from pg_policies
       where schemaname = 'public'
-        and tablename = ''transport_trucks''
-        and policyname = ''transport_trucks_delete_by_admin''
+        and tablename = 'transport_trucks'
+        and policyname = 'transport_trucks_delete_by_admin'
     ) then
-      execute ''create policy transport_trucks_delete_by_admin on public.transport_trucks for delete using (public.current_app_role() = ''''admin'''')'';
+      execute $policy$
+        create policy transport_trucks_delete_by_admin
+          on public.transport_trucks
+          for delete
+          using (public.current_app_role() = 'admin')
+      $policy$;
     end if;
   end if;
 end $$;
