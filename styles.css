@@ -1408,6 +1408,7 @@ dialog::backdrop {
   margin-top: 12px;
 }
 
+.carrier-list,
 .truck-list {
   list-style: none;
   padding: 0;
@@ -1417,6 +1418,7 @@ dialog::backdrop {
   gap: 12px;
 }
 
+.carrier-form-actions,
 .truck-form-actions {
   display: flex;
   gap: 8px;
@@ -1425,6 +1427,7 @@ dialog::backdrop {
   margin-top: 12px;
 }
 
+.carrier-list li,
 .truck-list li {
   padding: 14px;
   border: 1px solid var(--color-border);
@@ -1436,15 +1439,18 @@ dialog::backdrop {
   box-shadow: var(--shadow-sm);
 }
 
+.carrier-list li.is-editing,
 .truck-list li.is-editing {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(226, 0, 26, 0.15);
 }
 
+.carrier-list li.is-editing strong,
 .truck-list li.is-editing strong {
   color: var(--color-primary);
 }
 
+.carrier-list li header,
 .truck-list li header {
   display: flex;
   justify-content: space-between;
@@ -1452,12 +1458,14 @@ dialog::backdrop {
   gap: 12px;
 }
 
+.carrier-actions,
 .truck-actions {
   display: inline-flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.carrier-meta,
 .truck-meta {
   font-size: 12px;
   color: var(--color-muted);

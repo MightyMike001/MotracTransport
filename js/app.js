@@ -424,7 +424,9 @@ function refreshElements() {
     quickCapacity: doc.getElementById("quickCapacity"),
     quickRegion: doc.getElementById("quickRegion"),
     btnAddCarrier: doc.getElementById("btnAddCarrier"),
+    btnCancelCarrierEdit: doc.getElementById("btnCancelCarrierEdit"),
     carrierStatus: doc.getElementById("carrierStatus"),
+    carrierManageList: doc.getElementById("carrierManageList"),
     orderForm: doc.getElementById("orderForm"),
     oRequestReference: doc.getElementById("oRequestReference"),
     oTransportType: doc.getElementById("oTransportType"),
@@ -1294,6 +1296,10 @@ function randomId() {
 let ORDERS_CACHE = [];
 let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
+let CARRIERS = [];
+let EDITING_CARRIER_ID = null;
+let CARRIER_FORM_DEFAULT_LABEL = null;
+let CARRIER_FORM_EDIT_LABEL = null;
 let EDITING_TRUCK_ID = null;
 let TRUCK_FORM_DEFAULT_LABEL = null;
 let TRUCK_FORM_EDIT_LABEL = null;
@@ -2740,13 +2746,28 @@ function buildOrderPrintDocument(order, details, lines = []) {
 }
 
 async function refreshCarriersDatalist() {
-  if (!els.carrierList) return;
   try {
     const carriers = await Carriers.list();
-    els.carrierList.innerHTML = carriers.map(c => `<option value="${c.name}">`).join("");
-  } catch (e) {
-    console.error("Kan carriers niet laden", e);
-    els.carrierList.innerHTML = "";
+    CARRIERS = Array.isArray(carriers) ? carriers : [];
+    sortCarriersInPlace();
+    if (els.carrierList) {
+      els.carrierList.innerHTML = CARRIERS.map((c) => `<option value="${c.name}">`).join("");
+    }
+    if (
+      EDITING_CARRIER_ID &&
+      !CARRIERS.some((carrier) => String(carrier.id) === String(EDITING_CARRIER_ID))
+    ) {
+      resetCarrierForm();
+    }
+    renderCarrierList();
+  } catch (error) {
+    console.error("Kan carriers niet laden", error);
+    CARRIERS = [];
+    if (els.carrierList) {
+      els.carrierList.innerHTML = "";
+    }
+    renderCarrierList();
+    setStatus(els.carrierStatus, "Carriers laden mislukt.", "error");
   }
 }
 
@@ -4600,10 +4621,194 @@ async function createOrder(){
   }
 }
 
-async function addCarrier(){
+function ensureCarrierFormLabels() {
+  const button = els?.btnAddCarrier;
+  if (!button) {
+    return {
+      defaultLabel: CARRIER_FORM_DEFAULT_LABEL || "Carrier toevoegen",
+      editLabel: CARRIER_FORM_EDIT_LABEL || "Wijzigingen opslaan",
+    };
+  }
+  if (!CARRIER_FORM_DEFAULT_LABEL) {
+    const datasetDefault = button.dataset?.defaultLabel;
+    CARRIER_FORM_DEFAULT_LABEL = datasetDefault && datasetDefault.length
+      ? datasetDefault
+      : button.textContent?.trim() || "Carrier toevoegen";
+  }
+  if (!CARRIER_FORM_EDIT_LABEL) {
+    const datasetEdit = button.dataset?.editLabel;
+    CARRIER_FORM_EDIT_LABEL = datasetEdit && datasetEdit.length
+      ? datasetEdit
+      : "Wijzigingen opslaan";
+  }
+  return {
+    defaultLabel: CARRIER_FORM_DEFAULT_LABEL,
+    editLabel: CARRIER_FORM_EDIT_LABEL,
+  };
+}
+
+function setCarrierFormMode(mode) {
+  const button = els?.btnAddCarrier;
+  const cancelButton = els?.btnCancelCarrierEdit;
+  const { defaultLabel, editLabel } = ensureCarrierFormLabels();
+  if (button) {
+    if (mode === "edit") {
+      button.textContent = editLabel;
+      button.classList.add("primary");
+      button.dataset.mode = "edit";
+    } else {
+      button.textContent = defaultLabel;
+      button.classList.remove("primary");
+      button.dataset.mode = "create";
+    }
+  }
+  if (cancelButton) {
+    cancelButton.hidden = mode !== "edit";
+  }
+}
+
+function resetCarrierForm() {
+  EDITING_CARRIER_ID = null;
+  if (els.quickCarrier) {
+    els.quickCarrier.value = "";
+  }
+  if (els.quickCapacity) {
+    const defaultValue = els.quickCapacity.dataset?.defaultValue || els.quickCapacity.defaultValue || "";
+    if (defaultValue !== undefined) {
+      els.quickCapacity.value = defaultValue;
+    } else {
+      els.quickCapacity.value = "";
+    }
+  }
+  if (els.quickRegion) {
+    const defaultRegion = els.quickRegion.dataset?.defaultValue;
+    if (defaultRegion) {
+      els.quickRegion.value = defaultRegion;
+    } else if (typeof els.quickRegion.selectedIndex === "number") {
+      els.quickRegion.selectedIndex = 0;
+    }
+  }
+  setCarrierFormMode("create");
+}
+
+function sortCarriersInPlace() {
+  if (!Array.isArray(CARRIERS)) {
+    return;
+  }
+  CARRIERS.sort((a, b) => {
+    const nameA = (a && typeof a.name === "string" ? a.name : "").trim();
+    const nameB = (b && typeof b.name === "string" ? b.name : "").trim();
+    return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+  });
+}
+
+function renderCarrierList() {
+  const list = els.carrierManageList;
+  if (!list) {
+    return;
+  }
+  sortCarriersInPlace();
+  list.innerHTML = "";
+  if (!Array.isArray(CARRIERS) || !CARRIERS.length) {
+    const li = document.createElement("li");
+    li.className = "empty-hint";
+    li.textContent = "Nog geen carriers opgeslagen.";
+    list.appendChild(li);
+    return;
+  }
+  for (const carrier of CARRIERS) {
+    const li = document.createElement("li");
+    if (String(EDITING_CARRIER_ID) === String(carrier.id)) {
+      li.classList.add("is-editing");
+    }
+    const header = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = carrier.name || "(naamloos)";
+    header.appendChild(title);
+    const actions = document.createElement("div");
+    actions.className = "carrier-actions";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn ghost small";
+    editBtn.textContent = "Bewerken";
+    editBtn.addEventListener("click", () => startCarrierEdit(carrier.id));
+    actions.appendChild(editBtn);
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn ghost small";
+    removeBtn.textContent = "Verwijderen";
+    removeBtn.addEventListener("click", () => removeCarrier(carrier.id));
+    actions.appendChild(removeBtn);
+    header.appendChild(actions);
+    li.appendChild(header);
+    const meta = document.createElement("div");
+    meta.className = "carrier-meta";
+    const metaParts = [];
+    if (carrier.base_region) {
+      metaParts.push(`Regio ${carrier.base_region}`);
+    }
+    const capacityValue = Number(carrier.capacity_per_day);
+    if (Number.isFinite(capacityValue) && capacityValue > 0) {
+      metaParts.push(`${capacityValue} capaciteit/dag`);
+    }
+    metaParts.push(carrier.active === false ? "Inactief" : "Actief");
+    meta.textContent = metaParts.join(" • ");
+    li.appendChild(meta);
+    list.appendChild(li);
+  }
+}
+
+function startCarrierEdit(id) {
+  if (!id) {
+    return;
+  }
+  const carrier = CARRIERS.find((c) => String(c.id) === String(id));
+  if (!carrier) {
+    setStatus(els.carrierStatus, "Het geselecteerde record bestaat niet meer.", "error");
+    resetCarrierForm();
+    renderCarrierList();
+    return;
+  }
+  EDITING_CARRIER_ID = carrier.id;
+  if (els.quickCarrier) {
+    els.quickCarrier.value = carrier.name || "";
+  }
+  if (els.quickCapacity) {
+    const capacityValue = Number(carrier.capacity_per_day);
+    els.quickCapacity.value = Number.isFinite(capacityValue) ? String(capacityValue) : (els.quickCapacity.dataset?.defaultValue || "");
+  }
+  if (els.quickRegion) {
+    if (carrier.base_region) {
+      els.quickRegion.value = carrier.base_region;
+    } else if (typeof els.quickRegion.selectedIndex === "number") {
+      els.quickRegion.selectedIndex = 0;
+    }
+  }
+  setCarrierFormMode("edit");
+  const label = carrier.name || "Carrier";
+  setStatus(els.carrierStatus, `${label} bewerken…`);
+  if (typeof els.quickCarrier?.focus === "function") {
+    els.quickCarrier.focus();
+  }
+  renderCarrierList();
+}
+
+function cancelCarrierEdit(event) {
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
+  resetCarrierForm();
+  renderCarrierList();
+  setStatus(els.carrierStatus, "Bewerken geannuleerd.");
+}
+
+async function addCarrier(event) {
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
   if (!els.quickCarrier || !els.quickRegion) return;
   const name = els.quickCarrier.value.trim();
-  const capacity = parseInt(els.quickCapacity.value || "", 10);
+  const capacity = parseInt(els.quickCapacity?.value || "", 10);
   if (!name) {
     setStatus(els.carrierStatus, "Vul een carriernaam in.", "error");
     return;
@@ -4612,20 +4817,82 @@ async function addCarrier(){
     setStatus(els.carrierStatus, "Voer een geldige capaciteit in.", "error");
     return;
   }
-  setStatus(els.carrierStatus, "Bezig…");
+  const payload = {
+    name,
+    base_region: els.quickRegion.value,
+    capacity_per_day: capacity,
+  };
+  const isEditing = Boolean(EDITING_CARRIER_ID);
+  const busyMessage = isEditing ? "Carrier bijwerken…" : "Carrier opslaan…";
+  setStatus(els.carrierStatus, busyMessage);
   try {
-    await Carriers.create({
-      name,
-      base_region: els.quickRegion.value,
-      capacity_per_day: capacity,
-      active: true
-    });
-    setStatus(els.carrierStatus, "Toegevoegd", "success");
-    els.quickCarrier.value = "";
+    if (isEditing) {
+      const carrierIndex = CARRIERS.findIndex((c) => String(c.id) === String(EDITING_CARRIER_ID));
+      if (carrierIndex === -1) {
+        setStatus(els.carrierStatus, "Het geselecteerde record bestaat niet meer.", "error");
+        resetCarrierForm();
+        renderCarrierList();
+        await refreshCarriersDatalist();
+        return;
+      }
+      const updated = await Carriers.update(EDITING_CARRIER_ID, payload);
+      const updatedCarrier = Array.isArray(updated) ? updated[0] : updated;
+      if (updatedCarrier && typeof updatedCarrier === "object") {
+        CARRIERS[carrierIndex] = Object.assign({}, CARRIERS[carrierIndex], updatedCarrier);
+      } else {
+        CARRIERS[carrierIndex] = Object.assign({}, CARRIERS[carrierIndex], payload);
+      }
+      sortCarriersInPlace();
+    } else {
+      const created = await Carriers.create(Object.assign({ active: true }, payload));
+      if (created && typeof created === "object") {
+        CARRIERS.push(created);
+        sortCarriersInPlace();
+      }
+    }
+    const successMessage = isEditing ? "Carrier geüpdatet" : "Carrier toegevoegd";
+    setStatus(els.carrierStatus, successMessage, "success");
+    showToastMessage("success", successMessage);
+    resetCarrierForm();
+    renderCarrierList();
     await refreshCarriersDatalist();
-  } catch (e) {
-    console.error(e);
-    setStatus(els.carrierStatus, "Mislukt", "error");
+  } catch (error) {
+    console.error("Carrier opslaan mislukt", error);
+    const message = getSupabaseErrorMessage(error, isEditing ? "Carrier bijwerken mislukt" : "Carrier opslaan mislukt");
+    setStatus(els.carrierStatus, message, "error");
+  }
+}
+
+async function removeCarrier(id) {
+  if (!id) {
+    return;
+  }
+  const carrier = CARRIERS.find((c) => String(c.id) === String(id));
+  const confirmationMessage = carrier && carrier.name
+    ? `Weet u het zeker? ${carrier.name} wordt definitief verwijderd.`
+    : "Weet u het zeker? Deze carrier wordt definitief verwijderd.";
+  const confirmed = typeof window.confirm === "function"
+    ? window.confirm(confirmationMessage)
+    : true;
+  if (!confirmed) {
+    return;
+  }
+  setStatus(els.carrierStatus, "Carrier verwijderen…");
+  try {
+    await Carriers.remove(id);
+    CARRIERS = CARRIERS.filter((c) => String(c.id) !== String(id));
+    if (String(EDITING_CARRIER_ID) === String(id)) {
+      resetCarrierForm();
+    }
+    const successMessage = "Carrier verwijderd";
+    setStatus(els.carrierStatus, successMessage, "success");
+    showToastMessage("success", successMessage);
+    renderCarrierList();
+    await refreshCarriersDatalist();
+  } catch (error) {
+    console.error("Carrier verwijderen mislukt", error);
+    const message = getSupabaseErrorMessage(error, "Carrier verwijderen mislukt");
+    setStatus(els.carrierStatus, message, "error");
   }
 }
 
@@ -5601,6 +5868,7 @@ function bind(canManagePlanning){
   bindClick(els.btnReload, () => loadOrders());
   bindClick(els.btnExportOrders, handleExportMenuToggle);
   bindClick(els.btnAddCarrier, addCarrier);
+  bindClick(els.btnCancelCarrierEdit, cancelCarrierEdit);
   bindClick(els.btnSuggestPlan, suggestPlan, canManagePlanning);
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
   bindClick(els.btnDeleteOrder, deleteOrder);
@@ -5727,6 +5995,8 @@ async function initAppPage() {
   if (els.planEnd) els.planEnd.value = endValue;
   if (els.boardDate) els.boardDate.value = todayValue;
   renderTrucks();
+  resetCarrierForm();
+  renderCarrierList();
   await refreshCarriersDatalist();
   const needsOrders = Boolean(
     els.ordersTable ||
@@ -5753,6 +6023,8 @@ function destroyAppPage() {
   clearCurrentEditContext();
   els = {};
   PLAN_SUGGESTIONS = [];
+  CARRIERS = [];
+  EDITING_CARRIER_ID = null;
   DRAG_CONTEXT = null;
   ORDER_FORM_VALIDATOR = null;
   ARTICLE_IMPORT_STATE = null;
