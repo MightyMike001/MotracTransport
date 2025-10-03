@@ -44,6 +44,42 @@
     };
   }
 
+  const htmlEscape = typeof window.escapeHtml === "function"
+    ? window.escapeHtml
+    : (value) => String(value ?? "").replace(/[&<>"']/g, (char) => {
+        switch (char) {
+          case "&":
+            return "&amp;";
+          case "<":
+            return "&lt;";
+          case ">":
+            return "&gt;";
+          case '"':
+            return "&quot;";
+          case "'":
+            return "&#39;";
+          default:
+            return char;
+        }
+      });
+
+  const buildTimeSlot = typeof window.buildTimeSlot === "function"
+    ? window.buildTimeSlot
+    : (from, to) => {
+        const normalize = (value) => {
+          if (!value) return null;
+          const text = String(value).trim();
+          if (!text) return null;
+          if (/^\d{2}:\d{2}$/.test(text)) return text;
+          if (/^\d{4}$/.test(text)) return `${text.slice(0, 2)}:${text.slice(2)}`;
+          return text;
+        };
+        const start = normalize(from);
+        const end = normalize(to);
+        if (start && end) return `${start}-${end}`;
+        return start || end || null;
+      };
+
   const STORAGE_KEYS = {
     trucks: "transport_trucks_v1",
   };
@@ -85,6 +121,612 @@
   let routesLayer = null;
   let lastBounds = null;
   const listeners = [];
+  let latestExportSnapshot = null;
+
+  function cloneStop(stop) {
+    if (!stop || typeof stop !== "object") {
+      return {
+        location: null,
+        date: null,
+        slot: null,
+        time_from: null,
+        time_to: null,
+        confirmed: null,
+        contact: null,
+        phone: null,
+        instructions: null,
+      };
+    }
+    return {
+      location: stop.location || null,
+      date: stop.date || null,
+      slot: stop.slot || null,
+      time_from: stop.time_from || null,
+      time_to: stop.time_to || null,
+      confirmed: typeof stop.confirmed === "boolean" ? stop.confirmed : null,
+      contact: stop.contact || null,
+      phone: stop.phone || null,
+      instructions: stop.instructions || null,
+    };
+  }
+
+  function cloneCargo(cargo) {
+    if (!cargo || typeof cargo !== "object") {
+      return { type: null };
+    }
+    return {
+      type: cargo.type || null,
+      description: cargo.description || null,
+      pallets: cargo.pallets || null,
+      weight: cargo.weight || null,
+    };
+  }
+
+  function cloneStopDetails(details) {
+    if (!details || typeof details !== "object") {
+      return {
+        reference: null,
+        transportType: null,
+        customerOrderNumber: null,
+        customerNumber: null,
+        orderReference: null,
+        orderDescription: null,
+        pickup: cloneStop(null),
+        delivery: cloneStop(null),
+        cargo: cloneCargo(null),
+        instructions: null,
+        contact: null,
+        contactName: null,
+        contactPhone: null,
+        contactEmail: null,
+      };
+    }
+    return {
+      reference: details.reference || null,
+      transportType: details.transportType || null,
+      customerOrderNumber: details.customerOrderNumber || null,
+      customerNumber: details.customerNumber || null,
+      orderReference: details.orderReference || null,
+      orderDescription: details.orderDescription || null,
+      pickup: cloneStop(details.pickup),
+      delivery: cloneStop(details.delivery),
+      cargo: cloneCargo(details.cargo),
+      instructions: details.instructions || null,
+      contact: details.contact || null,
+      contactName: details.contactName || null,
+      contactPhone: details.contactPhone || null,
+      contactEmail: details.contactEmail || null,
+    };
+  }
+
+  function cloneOrderForExport(order) {
+    if (!order || typeof order !== "object") {
+      return {
+        id: null,
+        request_reference: null,
+        customer_name: null,
+        customer_order_number: null,
+        customer_number: null,
+        customer_city: null,
+        region: null,
+        status: null,
+        planned_date: null,
+        planned_slot: null,
+        due_date: null,
+        assigned_carrier: null,
+      };
+    }
+    return {
+      id: order.id ?? null,
+      request_reference: order.request_reference || null,
+      reference: order.reference || null,
+      customer_name: order.customer_name || null,
+      customer_order_number: order.customer_order_number || null,
+      customer_number: order.customer_number || null,
+      customer_city: order.customer_city || null,
+      region: order.region || null,
+      status: order.status || null,
+      planned_date: order.planned_date || null,
+      planned_slot: order.planned_slot || null,
+      due_date: order.due_date || null,
+      assigned_carrier: order.assigned_carrier || null,
+    };
+  }
+
+  function normalizeExportStop(stop) {
+    if (!stop || typeof stop !== "object") {
+      return {
+        order: cloneOrderForExport(null),
+        details: cloneStopDetails(null),
+      };
+    }
+    return {
+      order: cloneOrderForExport(stop.order),
+      details: cloneStopDetails(stop.details),
+    };
+  }
+
+  function updateExportSnapshot(groups, backlog, date) {
+    const timestamp = new Date().toISOString();
+    latestExportSnapshot = {
+      date: date || null,
+      generatedAt: timestamp,
+      groups: Array.isArray(groups)
+        ? groups.map((group) => ({
+            carrier: group?.carrier || null,
+            label: group?.label || group?.carrier || null,
+            color: group?.color || "#E2001A",
+            distance: Number.isFinite(Number(group?.distance)) ? Number(group.distance) : 0,
+            stops: Array.isArray(group?.stops) ? group.stops.map((stop) => normalizeExportStop(stop)) : [],
+          }))
+        : [],
+      backlog: Array.isArray(backlog) ? backlog.map((stop) => normalizeExportStop(stop)) : [],
+    };
+  }
+
+  function formatValue(value) {
+    if (value === null || value === undefined) {
+      return '<span class="route-export__placeholder">-</span>';
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return '<span class="route-export__placeholder">-</span>';
+    }
+    return htmlEscape(text);
+  }
+
+  function formatMultiline(value) {
+    if (Array.isArray(value)) {
+      return formatMultiline(value.filter(Boolean).join("\n"));
+    }
+    if (value === null || value === undefined) {
+      return '<span class="route-export__placeholder">-</span>';
+    }
+    const text = String(value).trim();
+    if (!text) {
+      return '<span class="route-export__placeholder">-</span>';
+    }
+    return htmlEscape(text).replace(/\n+/g, "<br/>");
+  }
+
+  function formatStopDisplay(stop) {
+    if (!stop || typeof stop !== "object") {
+      return null;
+    }
+    const parts = [];
+    if (stop.location) {
+      parts.push(stop.location);
+    }
+    if (stop.date) {
+      const displayDate = formatDateDisplay(stop.date);
+      parts.push(displayDate && displayDate !== "-" ? displayDate : stop.date);
+    }
+    const slot = stop.slot || buildTimeSlot(stop.time_from, stop.time_to, null);
+    if (slot) {
+      parts.push(slot);
+    }
+    return parts.length ? parts.join(" • ") : null;
+  }
+
+  function formatDateTimeLabel(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+  }
+
+  function getPlannedLabel(order) {
+    if (!order) return null;
+    const label = typeof window.formatPlanned === "function" ? window.formatPlanned(order) : (() => {
+      const parts = [];
+      if (order.planned_date) {
+        const formatted = formatDateDisplay(order.planned_date);
+        parts.push(formatted && formatted !== "-" ? formatted : order.planned_date);
+      }
+      if (order.planned_slot) {
+        parts.push(`(${order.planned_slot})`);
+      }
+      return parts.join(" ").trim();
+    })();
+    const text = (label || "").trim();
+    if (!text || text === "-") {
+      return null;
+    }
+    return text;
+  }
+
+  function buildDefinition(term, valueHtml) {
+    return `<div class="route-export__definition"><dt>${htmlEscape(term)}</dt><dd>${valueHtml}</dd></div>`;
+  }
+
+  function buildLocationColumn(title, stop) {
+    const summary = formatStopDisplay(stop);
+    const contactParts = [];
+    if (stop?.contact) contactParts.push(stop.contact);
+    if (stop?.phone) contactParts.push(stop.phone);
+    if (stop?.instructions) contactParts.push(stop.instructions);
+    const contactHtml = contactParts.length
+      ? `<div class="route-export__small">${formatMultiline(contactParts.join("\n"))}</div>`
+      : "";
+    return `<div class="route-export__stop-column"><h5>${htmlEscape(title)}</h5><p>${summary ? formatValue(summary) : '<span class="route-export__placeholder">-</span>'}</p>${contactHtml}</div>`;
+  }
+
+  function renderArticles(lines) {
+    if (!Array.isArray(lines) || !lines.length) {
+      return '<div class="route-export__articles route-export__articles--empty">Geen artikelen geregistreerd.</div>';
+    }
+    const items = lines.map((line) => {
+      if (!line || typeof line !== "object") {
+        return "";
+      }
+      const parts = [];
+      const quantity = Number.isFinite(Number(line.quantity)) ? Number(line.quantity) : null;
+      if (quantity !== null) {
+        parts.push(`<span class="route-export__article-qty">${htmlEscape(String(quantity))}×</span>`);
+      }
+      const product = line.product ? htmlEscape(line.product) : "Onbekend artikel";
+      parts.push(`<span class="route-export__article-name">${product}</span>`);
+      if (line.serialNumber) {
+        parts.push(`<span class="route-export__article-serial">${htmlEscape(line.serialNumber)}</span>`);
+      }
+      return `<li>${parts.join(" ")}</li>`;
+    });
+    return `<ul class="route-export__articles">${items.join("")}</ul>`;
+  }
+
+  function buildStopHtml(stop, index, linesByOrder, { isBacklog = false } = {}) {
+    const order = stop?.order || {};
+    const details = stop?.details || {};
+    const orderId = order.id ?? null;
+    const orderKey = orderId !== null && orderId !== undefined ? String(orderId) : null;
+    const lines = orderKey && linesByOrder.has(orderKey) ? linesByOrder.get(orderKey) : [];
+    const reference = details.reference
+      || order.request_reference
+      || order.reference
+      || order.customer_order_number
+      || order.customer_name
+      || (orderId ? `Order #${orderId}` : "Order onbekend");
+    const stopTitlePrefix = isBacklog ? "Open opdracht" : "Stop";
+    const stopNumber = index + 1;
+    const plannedLabel = getPlannedLabel(order);
+    const dueLabel = order.due_date ? formatDateDisplay(order.due_date) : null;
+    const headerMetaParts = [];
+    if (orderId !== null && orderId !== undefined) {
+      headerMetaParts.push(`Order #${htmlEscape(String(orderId))}`);
+    }
+    if (order.status) {
+      headerMetaParts.push(htmlEscape(order.status));
+    }
+    if (!isBacklog && plannedLabel) {
+      headerMetaParts.push(htmlEscape(plannedLabel));
+    }
+    const headerMeta = headerMetaParts.length ? `<div class="route-export__stop-meta">${headerMetaParts.join(" • ")}</div>` : "";
+    const planningItems = [
+      buildDefinition("Voertuig", formatValue(order.assigned_carrier)),
+      buildDefinition("Status", formatValue(order.status)),
+      buildDefinition("Gepland", plannedLabel ? htmlEscape(plannedLabel) : '<span class="route-export__placeholder">-</span>'),
+      buildDefinition("Gewenste leverdatum", dueLabel && dueLabel !== "-" ? htmlEscape(dueLabel) : '<span class="route-export__placeholder">-</span>'),
+      buildDefinition("Transporttype", formatValue(details.transportType || details.cargo?.type)),
+    ];
+    const customerItems = [
+      buildDefinition("Klant", formatValue(order.customer_name)),
+      buildDefinition("Klantnummer", formatValue(details.customerNumber || order.customer_number)),
+      buildDefinition("PO / referentie klant", formatValue(details.customerOrderNumber || order.customer_order_number)),
+      buildDefinition("Contact", formatMultiline(details.contact || [details.contactName, details.contactPhone, details.contactEmail]))
+    ];
+    const notesParts = [];
+    if (details.orderDescription && details.orderDescription !== details.instructions) {
+      notesParts.push(details.orderDescription);
+    }
+    if (details.instructions) {
+      notesParts.push(details.instructions);
+    }
+    const notesHtml = notesParts.length
+      ? `<div class="route-export__stop-notes"><strong>Opmerkingen</strong><p>${formatMultiline(notesParts.join("\n\n"))}</p></div>`
+      : "";
+    return `<article class="route-export__stop">
+      <header>
+        <h4>${htmlEscape(`${stopTitlePrefix} ${stopNumber} — ${reference}`)}</h4>
+        ${headerMeta}
+      </header>
+      <div class="route-export__stop-columns">
+        <div class="route-export__stop-column">
+          <h5>Klantgegevens</h5>
+          <dl>${customerItems.join("")}</dl>
+        </div>
+        ${buildLocationColumn("Laadlocatie", details.pickup)}
+        ${buildLocationColumn("Loslocatie", details.delivery)}
+      </div>
+      <div class="route-export__stop-columns route-export__stop-columns--secondary">
+        <div class="route-export__stop-column">
+          <h5>Planning</h5>
+          <dl>${planningItems.join("")}</dl>
+        </div>
+        <div class="route-export__stop-column route-export__stop-column--wide">
+          <h5>Artikelen</h5>
+          ${renderArticles(lines)}
+        </div>
+      </div>
+      ${notesHtml}
+    </article>`;
+  }
+
+  function buildRouteSection(group, index, linesByOrder) {
+    if (!group) return "";
+    const stopsHtml = Array.isArray(group.stops)
+      ? group.stops.map((stop, stopIndex) => buildStopHtml(stop, stopIndex, linesByOrder)).join("")
+      : "";
+    const distanceText = Number.isFinite(Number(group.distance))
+      ? `${Number(group.distance).toFixed(1)} km`
+      : "-";
+    const stopCount = Array.isArray(group.stops) ? group.stops.length : 0;
+    const headerMeta = `${stopCount} stops • ${distanceText}`;
+    const routeLabel = group.label || group.carrier || `Route ${index + 1}`;
+    const badgeLabel = group.carrier || "Voertuig";
+    const color = group.color || "#E2001A";
+    return `<section class="route-export__route" style="--route-color:${color};">
+      <header class="route-export__route-header">
+        <div>
+          <h2>${htmlEscape(routeLabel)}</h2>
+          <div class="route-export__route-meta">${htmlEscape(headerMeta)}</div>
+        </div>
+        <div class="route-export__route-badge">${htmlEscape(badgeLabel)}</div>
+      </header>
+      ${stopsHtml || '<p class="route-export__empty">Geen stops voor deze route.</p>'}
+    </section>`;
+  }
+
+  function buildBacklogSection(backlog, linesByOrder) {
+    if (!Array.isArray(backlog) || !backlog.length) {
+      return "";
+    }
+    const items = backlog
+      .map((stop, index) => buildStopHtml(stop, index, linesByOrder, { isBacklog: true }))
+      .join("");
+    return `<section class="route-export__route route-export__backlog" style="--route-color:#6F6F6F;">
+      <header class="route-export__route-header">
+        <div>
+          <h2>Nog niet ingepland</h2>
+          <div class="route-export__route-meta">${htmlEscape(`${backlog.length} open opdrachten`)}</div>
+        </div>
+      </header>
+      ${items}
+    </section>`;
+  }
+
+  function buildRoutesExportLoadingDocument(snapshot) {
+    const dateLabel = snapshot?.date ? formatDateDisplay(snapshot.date) : null;
+    const subtitle = dateLabel && dateLabel !== "-"
+      ? `Dagplanning voor ${dateLabel}`
+      : "Dagplanning wordt geladen";
+    return `<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Routeplanning wordt geladen…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: only light; }
+    body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; background: #f5f5f5; color: #2f343b; }
+    .loading-shell { max-width: 860px; margin: 0 auto; background: #ffffff; padding: 56px 40px; border-radius: 16px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12); text-align: center; }
+    h1 { font-size: 1.75rem; margin-bottom: 12px; }
+    p { margin: 0; font-size: 1.05rem; color: #606b77; }
+  </style>
+</head>
+<body>
+  <div class="loading-shell">
+    <h1>Routeplanning wordt voorbereid…</h1>
+    <p>${htmlEscape(subtitle)}</p>
+  </div>
+</body>
+</html>`;
+  }
+
+  function buildRoutesExportDocument(snapshot, linesByOrder) {
+    const dateLabel = snapshot?.date ? formatDateDisplay(snapshot.date) : null;
+    const displayDate = dateLabel && dateLabel !== "-" ? dateLabel : "Onbekende datum";
+    const generated = formatDateTimeLabel(snapshot?.generatedAt) || formatDateTimeLabel(new Date().toISOString()) || "";
+    const totalRoutes = Array.isArray(snapshot?.groups) ? snapshot.groups.length : 0;
+    const totalStops = Array.isArray(snapshot?.groups)
+      ? snapshot.groups.reduce((sum, group) => sum + (Array.isArray(group.stops) ? group.stops.length : 0), 0)
+      : 0;
+    const totalBacklog = Array.isArray(snapshot?.backlog) ? snapshot.backlog.length : 0;
+    const routesHtml = Array.isArray(snapshot?.groups)
+      ? snapshot.groups.map((group, index) => buildRouteSection(group, index, linesByOrder)).join("")
+      : "";
+    const backlogHtml = buildBacklogSection(snapshot?.backlog, linesByOrder);
+    const hasContent = (routesHtml && routesHtml.trim()) || backlogHtml;
+    const emptyState = `<section class="route-export__route">
+      <p class="route-export__empty">Er zijn nog geen routes voor deze dag. Plan ritten in de planning of wijs opdrachten toe aan een voertuig.</p>
+    </section>`;
+    return `<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Routeplanning ${htmlEscape(displayDate)}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: only light; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body.route-export { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #eef1f6; color: #1f2933; margin: 0; padding: 32px; }
+    .route-export__page { max-width: 960px; margin: 0 auto; background: #ffffff; border-radius: 18px; padding: 36px 42px 48px; box-shadow: 0 22px 45px rgba(15, 23, 42, 0.16); }
+    .route-export__header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+    .route-export__title { margin: 0; font-size: 2rem; }
+    .route-export__subtitle { margin: 4px 0 0; font-size: 1.05rem; color: #4b5563; }
+    .route-export__meta { min-width: 220px; font-size: 0.95rem; color: #4b5563; }
+    .route-export__meta-item { display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding: 6px 0; }
+    .route-export__meta-item strong { color: #111827; }
+    .route-export__route { border-top: 6px solid var(--route-color, #0f766e); border-radius: 14px; padding: 20px 24px 24px; background: #fafbff; margin-top: 28px; page-break-inside: avoid; }
+    .route-export__route-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+    .route-export__route-header h2 { margin: 0; font-size: 1.4rem; }
+    .route-export__route-meta { margin-top: 6px; font-size: 0.95rem; color: #4b5563; }
+    .route-export__route-badge { background: rgba(15, 118, 110, 0.12); color: #0f766e; border-radius: 999px; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; align-self: flex-start; }
+    .route-export__stop { margin-top: 16px; padding: 16px 18px 18px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04); page-break-inside: avoid; }
+    .route-export__stop header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .route-export__stop h4 { margin: 0; font-size: 1.15rem; }
+    .route-export__stop-meta { font-size: 0.9rem; color: #4b5563; }
+    .route-export__stop-columns { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .route-export__stop-columns--secondary { margin-top: 12px; }
+    .route-export__stop-column h5 { margin: 0 0 8px; font-size: 1rem; color: #1f2933; }
+    .route-export__stop-column p { margin: 0 0 8px; font-size: 0.95rem; }
+    .route-export__stop-column--wide { grid-column: span 2; }
+    dl { margin: 0; }
+    .route-export__definition { display: flex; gap: 8px; margin-bottom: 6px; font-size: 0.95rem; }
+    .route-export__definition dt { min-width: 110px; color: #4b5563; font-weight: 600; }
+    .route-export__definition dd { margin: 0; flex: 1; color: #111827; }
+    .route-export__small { font-size: 0.9rem; color: #4b5563; }
+    .route-export__articles { margin: 0; padding-left: 18px; font-size: 0.95rem; }
+    .route-export__articles li { margin-bottom: 4px; }
+    .route-export__articles--empty { font-style: italic; color: #6b7280; }
+    .route-export__article-qty { font-weight: 600; color: #0f172a; }
+    .route-export__article-serial { color: #6b7280; font-style: italic; margin-left: 6px; }
+    .route-export__stop-notes { margin-top: 12px; font-size: 0.95rem; background: #f9fafb; padding: 12px 14px; border-radius: 10px; border: 1px solid #e5e7eb; }
+    .route-export__placeholder { color: #9ca3af; font-style: italic; }
+    .route-export__empty { margin: 12px 0 0; font-size: 0.95rem; color: #6b7280; }
+    .route-export__actions { margin-top: 28px; display: flex; justify-content: flex-end; }
+    .route-export__actions button { border: none; border-radius: 999px; background: #E2001A; color: #fff; padding: 12px 22px; font-size: 1rem; cursor: pointer; box-shadow: 0 10px 18px rgba(226, 0, 26, 0.25); }
+    .route-export__actions button:hover { background: #c90018; }
+    .route-export__backlog { background: #fff7ed; border-top-color: #fb923c; }
+    .route-export__backlog .route-export__route-badge { background: rgba(251, 146, 60, 0.18); color: #c2410c; }
+    .no-print { margin-top: 32px; }
+    @media print {
+      body.route-export { background: #ffffff; padding: 0; }
+      .route-export__page { box-shadow: none; border-radius: 0; padding: 24px 32px; }
+      .route-export__route { box-shadow: none; background: #ffffff; border-radius: 0; }
+      .route-export__stop { box-shadow: none; }
+      .route-export__stop-column--wide { grid-column: span 1; }
+      .no-print { display: none !important; }
+      .route-export__route-badge { background: rgba(15, 118, 110, 0.2); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body class="route-export">
+  <div class="route-export__page">
+    <header class="route-export__header">
+      <div>
+        <h1 class="route-export__title">Routeplanning</h1>
+        <p class="route-export__subtitle">Dagplanning voor ${htmlEscape(displayDate)}</p>
+      </div>
+      <div class="route-export__meta">
+        <div class="route-export__meta-item"><strong>Routes</strong><span>${htmlEscape(String(totalRoutes))}</span></div>
+        <div class="route-export__meta-item"><strong>Stops</strong><span>${htmlEscape(String(totalStops))}</span></div>
+        <div class="route-export__meta-item"><strong>Open opdrachten</strong><span>${htmlEscape(String(totalBacklog))}</span></div>
+        <div class="route-export__meta-item"><strong>Gegenereerd</strong><span>${generated ? htmlEscape(generated) : 'n.v.t.'}</span></div>
+      </div>
+    </header>
+    ${hasContent ? routesHtml + backlogHtml : emptyState}
+    <div class="route-export__actions no-print">
+      <button type="button" onclick="window.print()">Printen / Download als PDF</button>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        try { window.print(); } catch (error) { console.warn('Printen niet beschikbaar', error); }
+      }, 500);
+    });
+  </script>
+</body>
+</html>`;
+  }
+
+  async function prepareRouteLines(snapshot) {
+    const linesMap = new Map();
+    if (!snapshot) {
+      return linesMap;
+    }
+    const loadLines = typeof window.loadOrderLines === "function" ? window.loadOrderLines : null;
+    if (!loadLines) {
+      return linesMap;
+    }
+    const ids = new Set();
+    if (Array.isArray(snapshot.groups)) {
+      snapshot.groups.forEach((group) => {
+        group.stops?.forEach((stop) => {
+          const id = stop?.order?.id;
+          if (Number.isFinite(Number(id))) {
+            ids.add(String(id));
+          }
+        });
+      });
+    }
+    if (Array.isArray(snapshot.backlog)) {
+      snapshot.backlog.forEach((stop) => {
+        const id = stop?.order?.id;
+        if (Number.isFinite(Number(id))) {
+          ids.add(String(id));
+        }
+      });
+    }
+    const tasks = Array.from(ids).map(async (id) => {
+      try {
+        const lines = await loadLines(Number(id));
+        if (Array.isArray(lines)) {
+          linesMap.set(id, lines);
+        } else {
+          linesMap.set(id, []);
+        }
+      } catch (error) {
+        console.warn(`Kan orderregels niet laden voor export (${id})`, error);
+        linesMap.set(id, []);
+      }
+    });
+    await Promise.allSettled(tasks);
+    return linesMap;
+  }
+
+  async function openRoutesExport() {
+    const snapshot = latestExportSnapshot;
+    const exportWindow = window.open("", "_blank", "noopener=yes");
+    if (!exportWindow) {
+      window.alert("Kan geen exportvenster openen. Sta pop-ups toe voor deze site.");
+      return;
+    }
+    const loadingHtml = buildRoutesExportLoadingDocument(snapshot);
+    try {
+      exportWindow.document.open();
+      exportWindow.document.write(loadingHtml);
+      exportWindow.document.close();
+    } catch (error) {
+      console.warn("Kan exportvenster niet voorbereiden", error);
+    }
+    if (!snapshot) {
+      const emptyHtml = buildRoutesExportDocument({ date: null, generatedAt: new Date().toISOString(), groups: [], backlog: [] }, new Map());
+      try {
+        exportWindow.document.open();
+        exportWindow.document.write(emptyHtml);
+        exportWindow.document.close();
+      } catch (error) {
+        console.warn("Kan exportdocument niet tonen", error);
+      }
+      return;
+    }
+    let linesByOrder = new Map();
+    try {
+      linesByOrder = await prepareRouteLines(snapshot);
+    } catch (error) {
+      console.warn("Kan artikelen voor export niet laden", error);
+    }
+    if (!exportWindow || exportWindow.closed) {
+      return;
+    }
+    const documentHtml = buildRoutesExportDocument(snapshot, linesByOrder);
+    try {
+      exportWindow.document.open();
+      exportWindow.document.write(documentHtml);
+      exportWindow.document.close();
+    } catch (error) {
+      console.warn("Kan exportdocument niet tonen", error);
+    }
+  }
+
 
   function addListener(element, type, handler) {
     if (!element || typeof element.addEventListener !== "function") return;
@@ -489,10 +1131,12 @@
       }
 
       renderSummary(grouped, backlog, date);
+      updateExportSnapshot(grouped, backlog, date);
       setStatus(`Kaart bijgewerkt voor ${formatDateDisplay(date)}.`, "success");
     } catch (e) {
       console.error("Kan routes niet laden", e);
       setStatus("Routes laden mislukt. Probeer het opnieuw.", "error");
+      updateExportSnapshot([], [], date);
     }
   }
 
@@ -525,7 +1169,7 @@
     });
     addListener(els.btnPrint, "click", (event) => {
       event.preventDefault();
-      window.print();
+      openRoutesExport();
     });
     addListener(window, "beforeprint", () => {
       if (map && typeof map.invalidateSize === "function") {
@@ -547,6 +1191,7 @@
     removeListeners();
     destroyMap();
     els = {};
+    latestExportSnapshot = null;
   }
 
   window.Pages.routekaart = {

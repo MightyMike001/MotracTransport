@@ -2413,6 +2413,40 @@ function formatPrintDate(value) {
   return text || null;
 }
 
+function buildOrderPrintLoadingDocument(order) {
+  const safeOrder = order || {};
+  const escape = typeof escapeHtml === "function"
+    ? escapeHtml
+    : (value) => String(value ?? "");
+  const reference = escape(
+    safeOrder.request_reference
+      || safeOrder.reference
+      || safeOrder.customer_name
+      || (safeOrder.id ? `Order #${safeOrder.id}` : "Bon")
+  );
+  return `<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>${reference} — bon wordt voorbereid…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: only light; }
+    body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; background: #f7f7f7; color: #333; }
+    .loading-shell { max-width: 720px; margin: 0 auto; text-align: center; padding: 48px 24px; background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
+    h1 { font-size: 1.5rem; margin-bottom: 16px; }
+    p { margin: 0; font-size: 1rem; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="loading-shell">
+    <h1>Bon wordt geladen…</h1>
+    <p>Een moment geduld alstublieft. De printable versie van deze opdracht wordt voorbereid.</p>
+  </div>
+</body>
+</html>`;
+}
+
 function buildOrderPrintDocument(order, details, lines = []) {
   const safeOrder = order || {};
   const safeDetails = details || parseOrderDetails(order);
@@ -3689,6 +3723,21 @@ async function printCurrentOrder() {
   }
   const order = CURRENT_EDIT_ORDER;
   const details = CURRENT_EDIT_ORDER_DETAILS || parseOrderDetails(order);
+  const printWindow = window.open("", "_blank", "noopener=yes");
+  if (!printWindow) {
+    window.alert("Kan geen printvenster openen. Sta pop-ups toe voor deze site.");
+    return;
+  }
+
+  const loadingHtml = buildOrderPrintLoadingDocument(order);
+  try {
+    printWindow.document.open();
+    printWindow.document.write(loadingHtml);
+    printWindow.document.close();
+  } catch (error) {
+    console.warn("Kan printvenster niet voorbereiden", error);
+  }
+
   let lines = CURRENT_EDIT_ORDER_LINES;
   if (!Array.isArray(lines)) {
     try {
@@ -3705,15 +3754,24 @@ async function printCurrentOrder() {
       lines = [];
     }
   }
-  const printWindow = window.open("", "_blank", "noopener=yes");
-  if (!printWindow) {
-    window.alert("Kan geen printvenster openen. Sta pop-ups toe voor deze site.");
+
+  if (!printWindow || printWindow.closed) {
     return;
   }
+
   const documentHtml = buildOrderPrintDocument(order, details, Array.isArray(lines) ? lines : []);
-  printWindow.document.open();
-  printWindow.document.write(documentHtml);
-  printWindow.document.close();
+  try {
+    printWindow.document.open();
+    printWindow.document.write(documentHtml);
+    printWindow.document.close();
+  } catch (error) {
+    console.error("Kan printdocument niet tonen", error);
+    try {
+      printWindow.document.body.innerHTML = "<p style=\"font-family:Arial,sans-serif;padding:24px;color:#a1000b;\">Printen mislukt. Sluit dit venster en probeer het opnieuw.</p>";
+    } catch (innerError) {
+      console.warn("Kan foutstatus niet tonen", innerError);
+    }
+  }
   try {
     printWindow.focus();
   } catch (error) {
