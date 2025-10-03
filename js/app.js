@@ -508,6 +508,7 @@ function refreshElements() {
     truckDriver: doc.getElementById("truckDriver"),
     truckCapacity: doc.getElementById("truckCapacity"),
     btnAddTruck: doc.getElementById("btnAddTruck"),
+    btnCancelTruckEdit: doc.getElementById("btnCancelTruckEdit"),
     truckStatus: doc.getElementById("truckStatus"),
     truckList: doc.getElementById("truckList"),
     boardDate: doc.getElementById("boardDate"),
@@ -1293,6 +1294,9 @@ function randomId() {
 let ORDERS_CACHE = [];
 let PLAN_SUGGESTIONS = [];
 let TRUCKS = [];
+let EDITING_TRUCK_ID = null;
+let TRUCK_FORM_DEFAULT_LABEL = null;
+let TRUCK_FORM_EDIT_LABEL = null;
 let PLAN_BOARD = {};
 let SUPABASE_REALTIME_CLIENT = null;
 let ORDERS_REALTIME_CHANNEL = null;
@@ -4625,6 +4629,111 @@ async function addCarrier(){
   }
 }
 
+function ensureTruckFormLabels(){
+  const button = els?.btnAddTruck;
+  if (!button) {
+    return {
+      defaultLabel: TRUCK_FORM_DEFAULT_LABEL || "Vrachtwagen opslaan",
+      editLabel: TRUCK_FORM_EDIT_LABEL || "Wijzigingen opslaan",
+    };
+  }
+  if (!TRUCK_FORM_DEFAULT_LABEL){
+    const datasetDefault = button.dataset?.defaultLabel;
+    TRUCK_FORM_DEFAULT_LABEL = datasetDefault && datasetDefault.length
+      ? datasetDefault
+      : button.textContent?.trim() || "Vrachtwagen opslaan";
+  }
+  if (!TRUCK_FORM_EDIT_LABEL){
+    const datasetEdit = button.dataset?.editLabel;
+    TRUCK_FORM_EDIT_LABEL = datasetEdit && datasetEdit.length
+      ? datasetEdit
+      : "Wijzigingen opslaan";
+  }
+  return {
+    defaultLabel: TRUCK_FORM_DEFAULT_LABEL,
+    editLabel: TRUCK_FORM_EDIT_LABEL,
+  };
+}
+
+function setTruckFormMode(mode){
+  const button = els?.btnAddTruck;
+  const cancelButton = els?.btnCancelTruckEdit;
+  const { defaultLabel, editLabel } = ensureTruckFormLabels();
+  if (button){
+    if (mode === "edit"){
+      button.textContent = editLabel;
+      button.classList.add("primary");
+      button.dataset.mode = "edit";
+    } else {
+      button.textContent = defaultLabel;
+      button.classList.remove("primary");
+      button.dataset.mode = "create";
+    }
+  }
+  if (cancelButton){
+    cancelButton.hidden = mode !== "edit";
+  }
+}
+
+function resetTruckForm(){
+  EDITING_TRUCK_ID = null;
+  setTruckFormMode("create");
+  if (!els?.truckName) {
+    return;
+  }
+  els.truckName.value = "";
+  if (els.truckPlate) {
+    els.truckPlate.value = "";
+  }
+  if (els.truckDriver) {
+    els.truckDriver.value = "";
+  }
+  if (els.truckCapacity) {
+    const defaultValue = els.truckCapacity.dataset?.defaultValue
+      || els.truckCapacity.getAttribute("value")
+      || "6";
+    els.truckCapacity.value = String(defaultValue);
+  }
+}
+
+function startTruckEdit(id){
+  if (!els?.truckName) return;
+  const truck = TRUCKS.find((t) => String(t.id) === String(id));
+  if (!truck){
+    setStatus(els.truckStatus, "Voertuig niet gevonden.", "error");
+    return;
+  }
+  EDITING_TRUCK_ID = truck.id;
+  els.truckName.value = truck.name || "";
+  if (els.truckPlate) {
+    els.truckPlate.value = truck.plate || "";
+  }
+  if (els.truckDriver) {
+    els.truckDriver.value = truck.driver || "";
+  }
+  if (els.truckCapacity) {
+    const capacityValue = Number.isFinite(truck.capacity)
+      ? truck.capacity
+      : Number.parseInt(els.truckCapacity.dataset?.defaultValue || els.truckCapacity.getAttribute("value") || "6", 10);
+    els.truckCapacity.value = String(capacityValue);
+  }
+  setTruckFormMode("edit");
+  setStatus(els.truckStatus, `${truck.name} bewerken…`);
+  if (typeof els.truckName.focus === "function") {
+    els.truckName.focus();
+  }
+  renderTrucks();
+}
+
+function cancelTruckEdit(event){
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
+  resetTruckForm();
+  renderTrucks();
+  setStatus(els.truckStatus, "Bewerken geannuleerd.");
+}
+
 function renderTrucks(){
   const list = els.truckList;
   if (!list) return;
@@ -4637,15 +4746,28 @@ function renderTrucks(){
   } else {
     for (const truck of TRUCKS){
       const li = document.createElement("li");
+      if (String(EDITING_TRUCK_ID) === String(truck.id)) {
+        li.classList.add("is-editing");
+      }
       const header = document.createElement("header");
       const title = document.createElement("strong");
       title.textContent = truck.name;
       header.appendChild(title);
+      const actions = document.createElement("div");
+      actions.className = "truck-actions";
+      const editBtn = document.createElement("button");
+      editBtn.className = "btn ghost small";
+      editBtn.type = "button";
+      editBtn.textContent = "Bewerken";
+      editBtn.addEventListener("click", () => startTruckEdit(truck.id));
+      actions.appendChild(editBtn);
       const removeBtn = document.createElement("button");
       removeBtn.className = "btn ghost small";
+      removeBtn.type = "button";
       removeBtn.textContent = "Verwijderen";
       removeBtn.addEventListener("click", () => removeTruck(truck.id));
-      header.appendChild(removeBtn);
+      actions.appendChild(removeBtn);
+      header.appendChild(actions);
       li.appendChild(header);
       const meta = document.createElement("div");
       meta.className = "truck-meta";
@@ -4661,31 +4783,67 @@ function renderTrucks(){
   renderPlanBoard();
 }
 
-function addTruck(){
+async function addTruck(event){
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
   if (!els.truckName) return;
   const name = els.truckName.value.trim();
   if (!name){
     setStatus(els.truckStatus, "Vul een naam in.", "error");
     return;
   }
-  const capacity = parseInt(els.truckCapacity.value || "6", 10);
+  const capacity = parseInt(els.truckCapacity?.value || "6", 10);
   if (!Number.isFinite(capacity) || capacity <= 0) {
     setStatus(els.truckStatus, "Voer een geldige capaciteit in.", "error");
+    return;
+  }
+  if (EDITING_TRUCK_ID){
+    const truck = TRUCKS.find((t) => String(t.id) === String(EDITING_TRUCK_ID));
+    if (!truck){
+      setStatus(els.truckStatus, "Het geselecteerde voertuig bestaat niet meer.", "error");
+      resetTruckForm();
+      renderTrucks();
+      return;
+    }
+    const previousName = truck.name;
+    Object.assign(truck, {
+      name,
+      plate: els.truckPlate?.value.trim() || "",
+      driver: els.truckDriver?.value.trim() || "",
+      capacity,
+    });
+    EDITING_TRUCK_ID = null;
+    saveTrucks();
+    renderTrucks();
+    const successMessage = `${truck.name} bijgewerkt.`;
+    setStatus(els.truckStatus, successMessage, "success");
+    let syncResult = null;
+    if (previousName !== truck.name){
+      syncResult = await syncTruckAssignmentsAfterEdit(truck);
+    }
+    resetTruckForm();
+    if (syncResult && syncResult.failed){
+      setStatus(els.boardStatus, "Opdrachten konden niet worden bijgewerkt naar de nieuwe naam.", "error");
+      return;
+    }
+    if (syncResult && syncResult.updated){
+      setStatus(els.boardStatus, `Opdrachten bijgewerkt naar ${truck.name}.`, "success");
+    }
     return;
   }
   const truck = {
     id: randomId(),
     name,
-    plate: els.truckPlate.value.trim(),
-    driver: els.truckDriver.value.trim(),
-    capacity
+    plate: els.truckPlate?.value.trim() || "",
+    driver: els.truckDriver?.value.trim() || "",
+    capacity,
   };
   TRUCKS.push(truck);
   saveTrucks();
-  setStatus(els.truckStatus, `${truck.name} opgeslagen.`, "success");
-  ["truckName","truckPlate","truckDriver"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
-  els.truckCapacity.value = "6";
   renderTrucks();
+  setStatus(els.truckStatus, `${truck.name} opgeslagen.`, "success");
+  resetTruckForm();
 }
 
 async function removeTruck(id){
@@ -4712,9 +4870,60 @@ async function removeTruck(id){
   if (boardChanged){
     savePlanBoard();
   }
+  if (String(EDITING_TRUCK_ID) === String(id)) {
+    resetTruckForm();
+  }
   renderTrucks();
-  setStatus(els.boardStatus, truck ? `Planning voor ${truck.name} verwijderd.` : "Vrachtwagen verwijderd.");
+  const removalMessage = truck ? `${truck.name} verwijderd.` : "Vrachtwagen verwijderd.";
+  setStatus(els.truckStatus, removalMessage, "success");
+  setStatus(
+    els.boardStatus,
+    truck ? `Planning voor ${truck.name} verwijderd.` : "Vrachtwagen verwijderd.",
+    "success"
+  );
   await loadOrders();
+}
+
+async function syncTruckAssignmentsAfterEdit(truck){
+  if (!truck) {
+    return { updated: false, failed: false };
+  }
+  const affectedOrderIds = new Map();
+  for (const trucksForDay of Object.values(PLAN_BOARD)){
+    if (!trucksForDay || typeof trucksForDay !== "object") continue;
+    const assignments = trucksForDay[truck.id];
+    if (!Array.isArray(assignments) || !assignments.length) continue;
+    for (const assignment of assignments){
+      if (!assignment || assignment.orderId === undefined || assignment.orderId === null) continue;
+      const key = String(assignment.orderId);
+      if (!affectedOrderIds.has(key)){
+        affectedOrderIds.set(key, assignment.orderId);
+      }
+    }
+  }
+  if (!affectedOrderIds.size){
+    return { updated: false, failed: false };
+  }
+  const patch = {
+    assigned_carrier: truck.name,
+    updated_at: new Date().toISOString(),
+  };
+  const tasks = Array.from(affectedOrderIds.values()).map((orderId) =>
+    Orders.update(orderId, patch)
+  );
+  const results = await Promise.allSettled(tasks);
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length){
+    console.error("Kan toegewezen orders niet bijwerken na truckbewerking", failed[0].reason || failed[0]);
+    return { updated: true, failed: true };
+  }
+  try {
+    await loadOrders();
+  } catch (error) {
+    console.error("Kan orders niet verversen na truckbewerking", error);
+    return { updated: true, failed: true };
+  }
+  return { updated: true, failed: false };
 }
 
 function syncPlanBoardFromOrders(){
@@ -5148,7 +5357,11 @@ async function handleDrop(target){
   const existing = assignments.find((a) => String(a.orderId) === String(orderId));
   const capacityValue = Number.isFinite(truck.capacity) ? Number(truck.capacity) : null;
   if (!existing && capacityValue && assignments.length >= capacityValue){
-    setStatus(els.boardStatus, `${truck.name} heeft de maximale capaciteit bereikt.`, "error");
+    setStatus(
+      els.boardStatus,
+      `${truck.name} heeft het maximale aantal stops bereikt. De opdracht is niet toegewezen.`,
+      "error"
+    );
     renderPlanBoard();
     return;
   }
@@ -5398,6 +5611,7 @@ function bind(canManagePlanning){
   if (els.dlg) {
     addBoundListener(els.dlg, "close", () => { clearCurrentEditContext(); });
   }
+  bindClick(els.btnCancelTruckEdit, cancelTruckEdit);
   bindClick(els.btnAddTruck, addTruck);
   bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
   if (els.articleList) {
