@@ -392,6 +392,14 @@ function createFormValidator(form, schema, registerListener) {
   };
 }
 
+window.FormValidation = Object.assign({}, window.FormValidation, {
+  createValidator: (form, schema, registerListener) =>
+    createFormValidator(form, schema, registerListener),
+  setFieldError,
+  clearFieldError,
+  classes: VALIDATION_CLASSES,
+});
+
 function refreshElements() {
   const doc = document;
   const ordersTableElement = doc.getElementById("ordersTable");
