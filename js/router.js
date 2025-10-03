@@ -64,6 +64,16 @@
     },
   };
 
+  const PAGE_SCRIPTS = {
+    processen: "js/processen.js",
+    routekaart: "js/routes.js",
+    users: "js/users.js",
+    login: "js/login.js",
+    "create-user": "js/create-user.js",
+  };
+
+  const scriptPromises = new Map();
+
   const PATH_ALIASES = {
     "": "start",
     "/": "start",
@@ -84,6 +94,8 @@
     console.error("Kan appRoot niet vinden");
     return;
   }
+
+  window.Pages = window.Pages || {};
 
   let currentRoute = null;
   let currentController = null;
@@ -155,12 +167,73 @@
     return window.Pages[route] || null;
   }
 
+  function loadPageScript(routeKey) {
+    const url = PAGE_SCRIPTS[routeKey];
+    if (!url) {
+      return Promise.resolve();
+    }
+    if (window.Pages && window.Pages[routeKey]) {
+      return Promise.resolve();
+    }
+    if (scriptPromises.has(routeKey)) {
+      return scriptPromises.get(routeKey);
+    }
+    const promise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = url;
+      script.async = true;
+      script.dataset.pageModule = routeKey;
+      script.addEventListener(
+        "load",
+        () => {
+          scriptPromises.delete(routeKey);
+          resolve();
+        },
+        { once: true }
+      );
+      script.addEventListener(
+        "error",
+        () => {
+          scriptPromises.delete(routeKey);
+          script.remove();
+          reject(new Error(`Kan script voor route "${routeKey}" niet laden (${url})`));
+        },
+        { once: true }
+      );
+      document.head.appendChild(script);
+    });
+    scriptPromises.set(routeKey, promise);
+    return promise;
+  }
+
+  async function ensurePageModule(routeKey) {
+    if (!PAGE_SCRIPTS[routeKey]) {
+      return;
+    }
+    if (window.Pages && window.Pages[routeKey]) {
+      return;
+    }
+    await loadPageScript(routeKey);
+  }
+
+  function applyLazyLoading(scope) {
+    if (!scope || typeof scope.querySelectorAll !== "function") {
+      return;
+    }
+    const images = scope.querySelectorAll("img:not([loading])");
+    images.forEach((img) => {
+      if (img.dataset && (img.dataset.lazy === "false" || img.dataset.noLazy !== undefined)) {
+        return;
+      }
+      img.setAttribute("loading", "lazy");
+    });
+  }
+
   async function renderRoute(routeKey, options = {}) {
     const meta = ROUTES[routeKey];
     if (!meta) {
       throw new Error(`Onbekende route: ${routeKey}`);
     }
-
     if (currentController && typeof currentController.destroy === "function") {
       try {
         currentController.destroy();
@@ -188,6 +261,7 @@
         }
         appRoot.appendChild(child);
       });
+      applyLazyLoading(rootElement || appRoot);
       document.title = meta.title || "Transportplanner";
       setActiveNav(routeKey);
       if (window.Auth && typeof window.Auth.applyRoleVisibility === "function") {
@@ -197,6 +271,7 @@
         window.DateUtils.enforceDateInputs(rootElement || appRoot);
       }
       currentRoute = routeKey;
+      await ensurePageModule(routeKey);
       const module = getPageModule(routeKey);
       if (module && typeof module.init === "function") {
         module.init({ route: routeKey, root: rootElement, meta });
