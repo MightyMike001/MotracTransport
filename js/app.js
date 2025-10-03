@@ -469,6 +469,9 @@ function refreshElements() {
     wizardNextButtons: Array.from(doc.querySelectorAll('[data-action="wizard-next"]')),
     wizardPrevButtons: Array.from(doc.querySelectorAll('[data-action="wizard-prev"]')),
     wizardStatus: doc.getElementById("wizardStatus"),
+    wizardProgressLabel: doc.getElementById("wizardProgressLabel"),
+    wizardProgressTrack: doc.getElementById("wizardProgressTrack"),
+    wizardProgressIndicator: doc.getElementById("wizardProgressIndicator"),
     orderSummary: doc.getElementById("orderSummary"),
     orderSummaryArticles: doc.getElementById("orderSummaryArticles"),
     btnReload: doc.getElementById("btnReload"),
@@ -534,12 +537,14 @@ function removeBoundListeners() {
 function setupOrderFormValidation() {
   if (!els.orderForm) {
     ORDER_FORM_VALIDATOR = null;
+    updateWizardNavigationState();
     return;
   }
   ORDER_FORM_VALIDATOR = createFormValidator(els.orderForm, ORDER_FORM_SCHEMA, addBoundListener);
   if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
     ORDER_FORM_VALIDATOR.reset();
   }
+  setupWizardFieldObservers();
 }
 
 function getWizardPanels() {
@@ -554,6 +559,159 @@ function resetWizardStatus() {
   if (els.wizardStatus) {
     setStatus(els.wizardStatus, "");
   }
+}
+
+function updateWizardProgress(step) {
+  const panels = getWizardPanels();
+  const total = panels.length || ORDER_WIZARD_STATE.totalSteps || 1;
+  const clampedStep = Math.min(Math.max(1, Number(step) || 1), total);
+  if (els.wizardProgressLabel) {
+    els.wizardProgressLabel.textContent = `Stap ${clampedStep} van ${total}`;
+  }
+  if (els.wizardProgressTrack) {
+    els.wizardProgressTrack.setAttribute("aria-valuemin", "1");
+    els.wizardProgressTrack.setAttribute("aria-valuemax", String(total));
+    els.wizardProgressTrack.setAttribute("aria-valuenow", String(clampedStep));
+  }
+  if (els.wizardProgressIndicator) {
+    const percent = total > 0 ? (clampedStep / total) * 100 : 0;
+    const width = Math.max(0, Math.min(100, percent));
+    els.wizardProgressIndicator.style.width = `${width}%`;
+  }
+}
+
+function getWizardNextButton(step) {
+  const panel = findWizardPanel(step);
+  if (!panel) return null;
+  return panel.querySelector('[data-action="wizard-next"]');
+}
+
+function isFieldMarkedInvalid(field) {
+  const container = getFieldContainer(field);
+  return container ? container.classList.contains(VALIDATION_CLASSES.fieldInvalid) : false;
+}
+
+function isFieldValueFilled(field) {
+  if (!field) return true;
+  if (field.hasAttribute("disabled")) return true;
+  const tag = field.tagName ? field.tagName.toLowerCase() : "";
+  const type = (field.getAttribute && field.getAttribute("type")) || field.type || "";
+  if (type === "checkbox") {
+    return field.checked;
+  }
+  if (type === "radio") {
+    if (field.name && els.orderForm) {
+      const selected = els.orderForm.querySelector(`input[name="${field.name}"]:checked`);
+      return !!selected;
+    }
+    return field.checked;
+  }
+  if (tag === "select") {
+    return field.value !== null && field.value !== undefined && field.value !== "";
+  }
+  const value = field.value;
+  if (typeof value === "string") {
+    return value.trim() !== "";
+  }
+  return value !== null && value !== undefined && value !== "";
+}
+
+function isWizardStepReady(step) {
+  const keys = ORDER_WIZARD_STEP_FIELDS[step];
+  if (Array.isArray(keys)) {
+    for (const key of keys) {
+      const field = els[key];
+      if (!field) continue;
+      if (!isFieldValueFilled(field)) {
+        return false;
+      }
+      if (isFieldMarkedInvalid(field)) {
+        return false;
+      }
+    }
+  }
+  if (step === 4) {
+    const articleType = getArticleType();
+    if (!articleType) {
+      return false;
+    }
+    try {
+      collectArticles(articleType);
+    } catch (error) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function updateWizardNavigationState() {
+  const panels = getWizardPanels();
+  if (!panels.length) {
+    return;
+  }
+  for (const panel of panels) {
+    const step = Number(panel?.getAttribute?.("data-order-step"));
+    if (!Number.isFinite(step)) {
+      continue;
+    }
+    const nextButton = getWizardNextButton(step);
+    if (!nextButton) {
+      continue;
+    }
+    const ready = isWizardStepReady(step);
+    if (ready) {
+      nextButton.removeAttribute("disabled");
+      nextButton.removeAttribute("aria-disabled");
+    } else {
+      nextButton.setAttribute("disabled", "disabled");
+      nextButton.setAttribute("aria-disabled", "true");
+    }
+  }
+}
+
+function getWizardFieldEventType(field) {
+  if (!field) return "input";
+  const tag = field.tagName ? field.tagName.toLowerCase() : "";
+  const type = (field.getAttribute && field.getAttribute("type")) || field.type || "";
+  if (type === "checkbox" || type === "radio") return "change";
+  if (tag === "select") return "change";
+  if (["date", "time", "number"].includes(type)) return "change";
+  return "input";
+}
+
+function observeWizardField(field) {
+  if (!field) return;
+  const handler = () => updateWizardNavigationState();
+  const eventType = getWizardFieldEventType(field);
+  addBoundListener(field, eventType, handler);
+  if (eventType !== "change") {
+    addBoundListener(field, "change", handler);
+  }
+  addBoundListener(field, "blur", handler);
+}
+
+function setupWizardFieldObservers() {
+  if (!els.orderForm) {
+    return;
+  }
+  const stepKeys = Object.values(ORDER_WIZARD_STEP_FIELDS || {});
+  for (const keys of stepKeys) {
+    if (!Array.isArray(keys)) continue;
+    for (const key of keys) {
+      observeWizardField(els[key]);
+    }
+  }
+  if (els.articleTypeInputs && typeof els.articleTypeInputs[Symbol.iterator] === "function") {
+    for (const input of els.articleTypeInputs) {
+      observeWizardField(input);
+    }
+  }
+  if (els.articleList) {
+    const handler = () => updateWizardNavigationState();
+    addBoundListener(els.articleList, "input", handler);
+    addBoundListener(els.articleList, "change", handler);
+  }
+  updateWizardNavigationState();
 }
 
 function updateWizardStepper(step) {
@@ -596,6 +754,8 @@ function setWizardStep(step) {
     }
   }
   updateWizardStepper(targetStep);
+  updateWizardProgress(targetStep);
+  updateWizardNavigationState();
   resetWizardStatus();
   if (targetStep === ORDER_WIZARD_STATE.totalSteps) {
     updateOrderSummary();
@@ -622,6 +782,7 @@ function validateWizardStep(step) {
       if (els.wizardStatus) {
         setStatus(els.wizardStatus, "Controleer de gemarkeerde velden.", "error");
       }
+      updateWizardNavigationState();
       return false;
     }
   }
@@ -631,6 +792,7 @@ function validateWizardStep(step) {
       if (els.wizardStatus) {
         setStatus(els.wizardStatus, "Kies het artikeltype.", "error");
       }
+      updateWizardNavigationState();
       return false;
     }
     try {
@@ -643,9 +805,11 @@ function validateWizardStep(step) {
           "error"
         );
       }
+      updateWizardNavigationState();
       return false;
     }
   }
+  updateWizardNavigationState();
   return true;
 }
 
@@ -1104,6 +1268,7 @@ async function assignRequestReference() {
   } catch (error) {
     console.warn("Kan laatste transportreferentie niet ophalen", error);
   }
+  updateWizardNavigationState();
 }
 
 function applyDefaultReceivedDate() {
@@ -3575,6 +3740,7 @@ function updateArticleRowsForType(articleType) {
   for (const row of rows) {
     updateArticleRowMode(row, articleType);
   }
+  updateWizardNavigationState();
 }
 
 function ensureMinimumArticleRows() {
@@ -3604,6 +3770,7 @@ function addArticleRow(prefill = null) {
       quantityInput.value = String(prefill.quantity);
     }
   }
+  updateWizardNavigationState();
   return row;
 }
 
@@ -3612,6 +3779,7 @@ function removeArticleRow(row) {
   row.remove();
   ensureMinimumArticleRows();
   updateArticleRowsForType(getArticleType());
+  updateWizardNavigationState();
 }
 
 function isArticleRowEmpty(row, articleType) {
@@ -3956,6 +4124,7 @@ function resetArticleImport(options = {}) {
     setStatus(els.articleImportStatus, "");
   }
   updateArticleImportActions([]);
+  updateWizardNavigationState();
 }
 
 function processArticleCsvContent(text) {
@@ -4049,6 +4218,7 @@ function applyArticleImport(event) {
     setStatus(els.articleImportStatus, message, "success");
   }
   resetArticleImport({ clearStatus: false });
+  updateWizardNavigationState();
 }
 
 function resetArticlesSection() {
@@ -4063,6 +4233,7 @@ function resetArticlesSection() {
   ensureMinimumArticleRows();
   updateArticleRowsForType(getArticleType());
   resetArticleImport();
+  updateWizardNavigationState();
 }
 
 function collectArticles(articleType) {
