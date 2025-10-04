@@ -4,6 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Transportplanner</title>
+  <script>
+    (() => {
+      const storageKey = "transportplanner-theme";
+      let preferredTheme;
+
+      try {
+        preferredTheme = window.localStorage.getItem(storageKey);
+      } catch (error) {
+        preferredTheme = null;
+      }
+
+      if (!preferredTheme) {
+        let prefersDark = false;
+
+        if (typeof window.matchMedia === "function") {
+          prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        }
+
+        preferredTheme = prefersDark ? "dark" : "light";
+      }
+
+      document.documentElement.dataset.theme = preferredTheme;
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css" />
   <link
     rel="stylesheet"
@@ -107,6 +131,10 @@
           <span class="nav-label">Gebruikers</span>
         </a>
       </nav>
+      <button type="button" id="themeToggle" class="theme-toggle" aria-pressed="false" title="Schakel naar donker thema">
+        <span class="theme-toggle__icon" aria-hidden="true">☀️</span>
+        <span class="theme-toggle__label">Donker thema</span>
+      </button>
       <div class="auth-area" id="authArea"></div>
     </div>
   </header>
@@ -131,6 +159,7 @@
   <script src="js/auth.js"></script>
   <script src="js/toast.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/theme-toggle.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="js/router.js"></script>
 </body>
