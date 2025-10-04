@@ -142,7 +142,7 @@ begin
   ) then
     alter table public.transport_orders
       add constraint transport_orders_transport_type_allowed
-      check (transport_type is null or transport_type = 'Afleveren');
+      check (transport_type is null or transport_type in ('Afleveren', 'Retour'));
   end if;
 end $$;
 

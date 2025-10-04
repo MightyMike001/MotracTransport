@@ -25,6 +25,9 @@
     EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS: Object.freeze(
       parseList(sourceEnv.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS)
     ),
+    EMAIL_NOTIFICATIONS_ENABLED_EVENTS: Object.freeze(
+      parseList(sourceEnv.EMAIL_NOTIFICATIONS_ENABLED_EVENTS)
+    ),
   };
 
   const missing = Object.entries(config)
@@ -45,6 +48,14 @@
 
   if (!config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS.length) {
     config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS = Object.freeze([]);
+  }
+
+  if (!config.EMAIL_NOTIFICATIONS_ENABLED_EVENTS.length) {
+    config.EMAIL_NOTIFICATIONS_ENABLED_EVENTS = Object.freeze([
+      "created",
+      "updated",
+      "cancelled",
+    ]);
   }
 
   window.APP_CONFIG = Object.freeze(config);
