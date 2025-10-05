@@ -33,6 +33,10 @@
             <span class="stepper-index">3</span>
             <span class="stepper-label">Los</span>
           </li>
+          <li class="stepper-item" data-stepper-step="4" data-flow="combined" hidden>
+            <span class="stepper-index">4</span>
+            <span class="stepper-label">Retour</span>
+          </li>
           <li class="stepper-item" data-stepper-step="4">
             <span class="stepper-index">4</span>
             <span class="stepper-label">Artikelen</span>
@@ -86,6 +90,13 @@
             <label class="form-field-full">Order omschrijving
               <textarea id="oOrderDescription" rows="3" placeholder="Bijvoorbeeld: levering reachtruck aan vestiging Antwerpen"></textarea>
             </label>
+            <label class="checkbox form-field-full">
+              <input type="checkbox" id="oCombinedFlow" />
+              <span>Gecombineerde aanvraag (doorbreng en retour in één workflow)</span>
+            </label>
+            <p class="muted small form-field-full" id="combinedFlowHint" hidden>
+              Activeer deze optie wanneer het transport ook een retourstroom heeft. Je kunt dan de retourgegevens vastleggen voordat je de aanvraag verstuurt.
+            </p>
           </div>
           <aside class="form-panel form-panel-secondary">
             <h5 class="panel-title">Order contact</h5>
@@ -242,6 +253,80 @@
         </div>
       </section>
 
+      <section class="form-section wizard-panel" data-order-step="4" data-flow="combined" hidden>
+        <h4 class="section-title">4. Retour ophalen &amp; afleveren</h4>
+        <div class="section-grid section-grid-balanced">
+          <div class="form-panel">
+            <h5 class="panel-title">Retour ophalen</h5>
+            <div class="grid2">
+              <label class="checkbox form-field-full">
+                <input type="checkbox" id="oReturnPickupConfirmed" />
+                <span>Bevestigd</span>
+              </label>
+              <label>Retour ophaaldatum
+                <input id="oReturnPickupDate" type="date" />
+              </label>
+              <label>Ophaal tijdslot start
+                <input id="oReturnPickupTimeFrom" type="time" />
+              </label>
+              <label>Ophaal tijdslot eind
+                <input id="oReturnPickupTimeTo" type="time" />
+              </label>
+            </div>
+            <div class="grid2">
+              <label>Contactpersoon
+                <input id="oReturnPickupContact" placeholder="Naam retourcontact" />
+              </label>
+              <label>Contact telefoon
+                <input id="oReturnPickupPhone" placeholder="Telefoon retourcontact" />
+              </label>
+              <label class="form-field-full">Locatie
+                <input id="oReturnPickupLocation" placeholder="Straat, nummer, plaats" />
+              </label>
+              <label class="form-field-full">Instructies
+                <textarea id="oReturnPickupInstructions" rows="3" placeholder="Aanmeldbalie, documenten, toegangsprocedures..."></textarea>
+              </label>
+            </div>
+          </div>
+          <aside class="form-panel form-panel-secondary">
+            <h5 class="panel-title">Retour afleveren</h5>
+            <div class="grid2">
+              <label class="checkbox form-field-full">
+                <input type="checkbox" id="oReturnDeliveryConfirmed" />
+                <span>Bevestigd</span>
+              </label>
+              <label>Retour afleverdatum
+                <input id="oReturnDeliveryDate" type="date" />
+              </label>
+              <label>Aflever tijdslot start
+                <input id="oReturnDeliveryTimeFrom" type="time" />
+              </label>
+              <label>Aflever tijdslot eind
+                <input id="oReturnDeliveryTimeTo" type="time" />
+              </label>
+            </div>
+            <div class="grid2">
+              <label>Contactpersoon
+                <input id="oReturnDeliveryContact" placeholder="Naam aflevercontact" />
+              </label>
+              <label>Contact telefoon
+                <input id="oReturnDeliveryPhone" placeholder="Telefoon aflevercontact" />
+              </label>
+              <label class="form-field-full">Locatie
+                <input id="oReturnDeliveryLocation" placeholder="Straat, nummer, plaats" />
+              </label>
+              <label class="form-field-full">Instructies
+                <textarea id="oReturnDeliveryInstructions" rows="3" placeholder="Afleverinstructies retour"></textarea>
+              </label>
+            </div>
+          </aside>
+        </div>
+        <div class="wizard-actions">
+          <button type="button" class="btn ghost" data-action="wizard-prev">Vorige</button>
+          <button type="button" class="btn primary" data-action="wizard-next">Volgende</button>
+        </div>
+      </section>
+
       <section class="form-section wizard-panel" data-order-step="4" hidden>
         <h4 class="section-title">4. Artikelen</h4>
         <div class="section-grid">
@@ -372,6 +457,10 @@
                 <dt>Contact e-mail</dt>
                 <dd data-summary-field="order_contact_email">-</dd>
               </div>
+              <div class="summary-row">
+                <dt>Gecombineerde aanvraag</dt>
+                <dd data-summary-field="combined_flow">Nee</dd>
+              </div>
             </dl>
           </section>
           <section class="summary-card">
@@ -437,6 +526,67 @@
               <div class="summary-row">
                 <dt>Instructies</dt>
                 <dd data-summary-field="delivery_instructions">-</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="summary-card" data-flow="combined" hidden>
+            <h5>Retour</h5>
+            <dl class="summary-list">
+              <div class="summary-row">
+                <dt>Ophaal bevestigd</dt>
+                <dd data-summary-field="return_pickup_confirmed">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ophaaldatum</dt>
+                <dd data-summary-field="return_pickup_date">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ophaal tijdslot</dt>
+                <dd data-summary-field="return_pickup_slot">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ophaal contact</dt>
+                <dd data-summary-field="return_pickup_contact">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ophaal telefoon</dt>
+                <dd data-summary-field="return_pickup_phone">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ophaal locatie</dt>
+                <dd data-summary-field="return_pickup_location">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Ophaal instructies</dt>
+                <dd data-summary-field="return_pickup_instructions">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Aflever bevestigd</dt>
+                <dd data-summary-field="return_delivery_confirmed">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Afleverdatum</dt>
+                <dd data-summary-field="return_delivery_date">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Aflever tijdslot</dt>
+                <dd data-summary-field="return_delivery_slot">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Aflever contact</dt>
+                <dd data-summary-field="return_delivery_contact">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Aflever telefoon</dt>
+                <dd data-summary-field="return_delivery_phone">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Aflever locatie</dt>
+                <dd data-summary-field="return_delivery_location">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Aflever instructies</dt>
+                <dd data-summary-field="return_delivery_instructions">-</dd>
               </div>
             </dl>
           </section>

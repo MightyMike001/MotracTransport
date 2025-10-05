@@ -451,6 +451,8 @@ function refreshElements() {
     oCustomerOrderNumber: doc.getElementById("oCustomerOrderNumber"),
     oOrderReference: doc.getElementById("oOrderReference"),
     oOrderDescription: doc.getElementById("oOrderDescription"),
+    oCombinedFlow: doc.getElementById("oCombinedFlow"),
+    combinedFlowHint: doc.getElementById("combinedFlowHint"),
     oOrderContact: doc.getElementById("oOrderContact"),
     oOrderContactPhone: doc.getElementById("oOrderContactPhone"),
     oOrderContactEmail: doc.getElementById("oOrderContactEmail"),
@@ -470,6 +472,22 @@ function refreshElements() {
     oDeliveryPhone: doc.getElementById("oDeliveryPhone"),
     oDeliveryLocation: doc.getElementById("oDeliveryLocation"),
     oDeliveryInstructions: doc.getElementById("oDeliveryInstructions"),
+    oReturnPickupConfirmed: doc.getElementById("oReturnPickupConfirmed"),
+    oReturnPickupDate: doc.getElementById("oReturnPickupDate"),
+    oReturnPickupTimeFrom: doc.getElementById("oReturnPickupTimeFrom"),
+    oReturnPickupTimeTo: doc.getElementById("oReturnPickupTimeTo"),
+    oReturnPickupContact: doc.getElementById("oReturnPickupContact"),
+    oReturnPickupPhone: doc.getElementById("oReturnPickupPhone"),
+    oReturnPickupLocation: doc.getElementById("oReturnPickupLocation"),
+    oReturnPickupInstructions: doc.getElementById("oReturnPickupInstructions"),
+    oReturnDeliveryConfirmed: doc.getElementById("oReturnDeliveryConfirmed"),
+    oReturnDeliveryDate: doc.getElementById("oReturnDeliveryDate"),
+    oReturnDeliveryTimeFrom: doc.getElementById("oReturnDeliveryTimeFrom"),
+    oReturnDeliveryTimeTo: doc.getElementById("oReturnDeliveryTimeTo"),
+    oReturnDeliveryContact: doc.getElementById("oReturnDeliveryContact"),
+    oReturnDeliveryPhone: doc.getElementById("oReturnDeliveryPhone"),
+    oReturnDeliveryLocation: doc.getElementById("oReturnDeliveryLocation"),
+    oReturnDeliveryInstructions: doc.getElementById("oReturnDeliveryInstructions"),
     articleTypeInputs: doc.querySelectorAll('input[name="articleType"]'),
     articleList: doc.getElementById("articleList"),
     articleRowTemplate: doc.getElementById("articleRowTemplate"),
@@ -567,11 +585,27 @@ function setupOrderFormValidation() {
 }
 
 function getWizardPanels() {
-  return Array.isArray(els.wizardPanels) ? els.wizardPanels : [];
+  const panels = Array.isArray(els.wizardPanels) ? els.wizardPanels : [];
+  return panels.filter((panel) => {
+    if (!panel) {
+      return false;
+    }
+    const flow = panel.dataset?.flow || "default";
+    if (flow === "combined") {
+      return isCombinedFlowEnabled();
+    }
+    return true;
+  });
+}
+
+function getWizardPanelByIndex(step) {
+  const panels = getWizardPanels();
+  const index = Math.max(1, Number(step) || 1) - 1;
+  return panels[index] || null;
 }
 
 function findWizardPanel(step) {
-  return getWizardPanels().find((panel) => Number(panel?.getAttribute?.("data-order-step")) === step) || null;
+  return getWizardPanelByIndex(step);
 }
 
 function resetWizardStatus() {
@@ -600,7 +634,7 @@ function updateWizardProgress(step) {
 }
 
 function getWizardNextButton(step) {
-  const panel = findWizardPanel(step);
+  const panel = getWizardPanelByIndex(step);
   if (!panel) return null;
   return panel.querySelector('[data-action="wizard-next"]');
 }
@@ -636,7 +670,8 @@ function isFieldValueFilled(field) {
 }
 
 function isWizardStepReady(step) {
-  const keys = ORDER_WIZARD_STEP_FIELDS[step];
+  const fieldsMap = getOrderWizardStepFields();
+  const keys = fieldsMap[step];
   if (Array.isArray(keys)) {
     for (const key of keys) {
       const field = els[key];
@@ -649,7 +684,7 @@ function isWizardStepReady(step) {
       }
     }
   }
-  if (step === 4) {
+  if (step === getArticleStepIndex()) {
     const articleType = getArticleType();
     if (!articleType) {
       return false;
@@ -668,11 +703,8 @@ function updateWizardNavigationState() {
   if (!panels.length) {
     return;
   }
-  for (const panel of panels) {
-    const step = Number(panel?.getAttribute?.("data-order-step"));
-    if (!Number.isFinite(step)) {
-      continue;
-    }
+  for (let index = 0; index < panels.length; index += 1) {
+    const step = index + 1;
     const nextButton = getWizardNextButton(step);
     if (!nextButton) {
       continue;
@@ -713,10 +745,16 @@ function setupWizardFieldObservers() {
   if (!els.orderForm) {
     return;
   }
-  const stepKeys = Object.values(ORDER_WIZARD_STEP_FIELDS || {});
-  for (const keys of stepKeys) {
+  const groups = [
+    ...Object.values(ORDER_WIZARD_STEP_FIELDS_DEFAULT || {}),
+    ...Object.values(ORDER_WIZARD_STEP_FIELDS_COMBINED || {}),
+  ];
+  const processed = new Set();
+  for (const keys of groups) {
     if (!Array.isArray(keys)) continue;
     for (const key of keys) {
+      if (processed.has(key)) continue;
+      processed.add(key);
       observeWizardField(els[key]);
     }
   }
@@ -733,14 +771,29 @@ function setupWizardFieldObservers() {
   updateWizardNavigationState();
 }
 
+function getWizardStepperItems() {
+  const items = Array.isArray(els.wizardStepperItems) ? els.wizardStepperItems : [];
+  return items.filter((item) => {
+    if (!item) {
+      return false;
+    }
+    const flow = item.dataset?.flow || "default";
+    if (flow === "combined") {
+      return isCombinedFlowEnabled();
+    }
+    return true;
+  });
+}
+
 function updateWizardStepper(step) {
-  if (!Array.isArray(els.wizardStepperItems)) {
+  const activeItems = getWizardStepperItems();
+  if (!activeItems.length) {
     return;
   }
-  for (const item of els.wizardStepperItems) {
-    const itemStep = Number(item?.getAttribute?.("data-stepper-step"));
+  activeItems.forEach((item, index) => {
+    const itemStep = index + 1;
     const isCurrent = itemStep === step;
-    const isComplete = Number.isFinite(itemStep) && itemStep < step;
+    const isComplete = itemStep < step;
     if (isCurrent) {
       item.setAttribute("aria-current", "step");
     } else {
@@ -748,38 +801,61 @@ function updateWizardStepper(step) {
     }
     item.classList.toggle("is-current", isCurrent);
     item.classList.toggle("is-complete", isComplete);
-  }
+    const indexEl = item.querySelector(".stepper-index");
+    if (indexEl) {
+      indexEl.textContent = String(itemStep);
+    }
+    if (isCombinedFlowEnabled()) {
+      item.removeAttribute("hidden");
+    } else if (item.dataset?.flow === "combined") {
+      item.setAttribute("hidden", "hidden");
+    }
+  });
 }
 
 function setWizardStep(step) {
   const panels = getWizardPanels();
+  const allPanels = Array.isArray(els.wizardPanels) ? els.wizardPanels : [];
   if (!panels.length) {
     ORDER_WIZARD_STATE.currentStep = 1;
     ORDER_WIZARD_STATE.totalSteps = 1;
+    for (const panel of allPanels) {
+      if (!panel) continue;
+      panel.classList.remove("is-active");
+      panel.setAttribute("hidden", "hidden");
+    }
     return;
   }
   const total = panels.length;
   ORDER_WIZARD_STATE.totalSteps = total;
-  const targetStep = Math.min(Math.max(1, Number(step) || 1), total);
-  ORDER_WIZARD_STATE.currentStep = targetStep;
-  for (const panel of panels) {
-    const panelStep = Number(panel.getAttribute("data-order-step"));
-    const isActive = panelStep === targetStep;
+  const clampedIndex = Math.min(Math.max(1, Number(step) || 1), total) - 1;
+  ORDER_WIZARD_STATE.currentStep = clampedIndex + 1;
+  for (const panel of allPanels) {
+    if (!panel) continue;
+    if (!panels.includes(panel)) {
+      panel.classList.remove("is-active");
+      panel.setAttribute("hidden", "hidden");
+    }
+  }
+  panels.forEach((panel, index) => {
+    const isActive = index === clampedIndex;
     panel.classList.toggle("is-active", isActive);
     if (isActive) {
       panel.removeAttribute("hidden");
     } else {
       panel.setAttribute("hidden", "hidden");
     }
-  }
-  updateWizardStepper(targetStep);
-  updateWizardProgress(targetStep);
+    panel.dataset.orderStepIndex = String(index + 1);
+  });
+  const currentStepNumber = clampedIndex + 1;
+  updateWizardStepper(currentStepNumber);
+  updateWizardProgress(currentStepNumber);
   updateWizardNavigationState();
   resetWizardStatus();
-  if (targetStep === ORDER_WIZARD_STATE.totalSteps) {
+  if (currentStepNumber === ORDER_WIZARD_STATE.totalSteps) {
     updateOrderSummary();
   }
-  const activePanel = findWizardPanel(targetStep);
+  const activePanel = panels[clampedIndex] || null;
   if (activePanel) {
     const focusTarget = activePanel.querySelector(
       "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])"
@@ -796,8 +872,9 @@ function goToWizardStep(step) {
 
 function validateWizardStep(step) {
   resetWizardStatus();
-  if (ORDER_FORM_VALIDATOR && Array.isArray(ORDER_WIZARD_STEP_FIELDS[step]) && ORDER_WIZARD_STEP_FIELDS[step].length) {
-    if (!ORDER_FORM_VALIDATOR.validateGroup(ORDER_WIZARD_STEP_FIELDS[step])) {
+  const fieldsMap = getOrderWizardStepFields();
+  if (ORDER_FORM_VALIDATOR && Array.isArray(fieldsMap[step]) && fieldsMap[step].length) {
+    if (!ORDER_FORM_VALIDATOR.validateGroup(fieldsMap[step])) {
       if (els.wizardStatus) {
         setStatus(els.wizardStatus, "Controleer de gemarkeerde velden.", "error");
       }
@@ -805,7 +882,7 @@ function validateWizardStep(step) {
       return false;
     }
   }
-  if (step === 4) {
+  if (step === getArticleStepIndex()) {
     const articleType = getArticleType();
     if (!articleType) {
       if (els.wizardStatus) {
@@ -974,6 +1051,34 @@ function updateOrderSummary() {
   const deliveryPhone = cleanText(els.oDeliveryPhone?.value) || "-";
   const deliveryLocation = cleanText(els.oDeliveryLocation?.value) || "-";
   const deliveryInstructions = cleanText(els.oDeliveryInstructions?.value) || "-";
+  const combinedFlow = isCombinedFlowEnabled();
+  if (els.orderSummary) {
+    const combinedSections = els.orderSummary.querySelectorAll('[data-flow="combined"]');
+    combinedSections.forEach((section) => {
+      if (combinedFlow) {
+        section.removeAttribute("hidden");
+      } else {
+        section.setAttribute("hidden", "hidden");
+      }
+    });
+  }
+  const returnPickupConfirmed = els.oReturnPickupConfirmed?.checked ? "Ja" : "Nee";
+  const returnPickupDate = formatDateDisplay(els.oReturnPickupDate?.value);
+  const returnPickupSlot = buildTimeSlot(els.oReturnPickupTimeFrom?.value, els.oReturnPickupTimeTo?.value) || "-";
+  const returnPickupContact = cleanText(els.oReturnPickupContact?.value) || "-";
+  const returnPickupPhone = cleanText(els.oReturnPickupPhone?.value) || "-";
+  const returnPickupLocation = cleanText(els.oReturnPickupLocation?.value) || "-";
+  const returnPickupInstructions = cleanText(els.oReturnPickupInstructions?.value) || "-";
+  const returnDeliveryConfirmed = els.oReturnDeliveryConfirmed?.checked ? "Ja" : "Nee";
+  const returnDeliveryDate = formatDateDisplay(els.oReturnDeliveryDate?.value);
+  const returnDeliverySlot = buildTimeSlot(
+    els.oReturnDeliveryTimeFrom?.value,
+    els.oReturnDeliveryTimeTo?.value
+  ) || "-";
+  const returnDeliveryContact = cleanText(els.oReturnDeliveryContact?.value) || "-";
+  const returnDeliveryPhone = cleanText(els.oReturnDeliveryPhone?.value) || "-";
+  const returnDeliveryLocation = cleanText(els.oReturnDeliveryLocation?.value) || "-";
+  const returnDeliveryInstructions = cleanText(els.oReturnDeliveryInstructions?.value) || "-";
   const articleType = getArticleType();
   let articles = [];
   try {
@@ -991,6 +1096,7 @@ function updateOrderSummary() {
   setSummaryField("order_contact", orderContact);
   setSummaryField("order_contact_phone", orderContactPhone);
   setSummaryField("order_contact_email", orderContactEmail);
+  setSummaryField("combined_flow", combinedFlow ? "Ja" : "Nee");
   setSummaryField("pickup_confirmed", pickupConfirmed);
   setSummaryField("pickup_date", pickupDate);
   setSummaryField("pickup_slot", pickupSlot);
@@ -1005,6 +1111,20 @@ function updateOrderSummary() {
   setSummaryField("delivery_phone", deliveryPhone);
   setSummaryField("delivery_location", deliveryLocation);
   setSummaryField("delivery_instructions", deliveryInstructions);
+  setSummaryField("return_pickup_confirmed", combinedFlow ? returnPickupConfirmed : "-");
+  setSummaryField("return_pickup_date", combinedFlow ? returnPickupDate : "-");
+  setSummaryField("return_pickup_slot", combinedFlow ? returnPickupSlot : "-");
+  setSummaryField("return_pickup_contact", combinedFlow ? returnPickupContact : "-");
+  setSummaryField("return_pickup_phone", combinedFlow ? returnPickupPhone : "-");
+  setSummaryField("return_pickup_location", combinedFlow ? returnPickupLocation : "-");
+  setSummaryField("return_pickup_instructions", combinedFlow ? returnPickupInstructions : "-");
+  setSummaryField("return_delivery_confirmed", combinedFlow ? returnDeliveryConfirmed : "-");
+  setSummaryField("return_delivery_date", combinedFlow ? returnDeliveryDate : "-");
+  setSummaryField("return_delivery_slot", combinedFlow ? returnDeliverySlot : "-");
+  setSummaryField("return_delivery_contact", combinedFlow ? returnDeliveryContact : "-");
+  setSummaryField("return_delivery_phone", combinedFlow ? returnDeliveryPhone : "-");
+  setSummaryField("return_delivery_location", combinedFlow ? returnDeliveryLocation : "-");
+  setSummaryField("return_delivery_instructions", combinedFlow ? returnDeliveryInstructions : "-");
   setSummaryField("article_type", getSelectedArticleTypeLabel(articleType));
   renderOrderSummaryArticles(articleType, articles);
 }
@@ -1029,6 +1149,25 @@ const STORAGE_KEYS = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^[+0-9()\s-]{6,}$/;
+
+const ORDER_FORM_FLOW = {
+  combined: false,
+};
+
+function isCombinedFlowEnabled() {
+  return Boolean(ORDER_FORM_FLOW.combined);
+}
+
+function validateCombinedRequired(value, message) {
+  if (!isCombinedFlowEnabled()) {
+    return true;
+  }
+  const normalized = typeof value === "string" ? value.trim() : value;
+  if (normalized === null || normalized === undefined || normalized === "" || normalized === false) {
+    return message;
+  }
+  return true;
+}
 
 const ORDER_FORM_SCHEMA = {
   oRequestReference: {
@@ -1127,9 +1266,119 @@ const ORDER_FORM_SCHEMA = {
   oDeliveryLocation: {
     required: "Vul de loslocatie in.",
   },
+  oReturnPickupDate: {
+    validate: (value) => validateCombinedRequired(value, "Vul de retour ophaaldatum in."),
+  },
+  oReturnPickupTimeFrom: {
+    revalidate: ["oReturnPickupTimeTo"],
+    validate: (value, values) => {
+      const requiredResult = validateCombinedRequired(value, "Vul het begin van het retour ophaal tijdslot in.");
+      if (requiredResult !== true) {
+        return requiredResult;
+      }
+      if (!isCombinedFlowEnabled()) {
+        return true;
+      }
+      if (values.oReturnPickupTimeTo && value > values.oReturnPickupTimeTo) {
+        return "Het begintijdstip ligt na het eindtijdstip.";
+      }
+      return true;
+    },
+  },
+  oReturnPickupTimeTo: {
+    validate: (value, values) => {
+      const requiredResult = validateCombinedRequired(value, "Vul het einde van het retour ophaal tijdslot in.");
+      if (requiredResult !== true) {
+        return requiredResult;
+      }
+      if (!isCombinedFlowEnabled()) {
+        return true;
+      }
+      if (values.oReturnPickupTimeFrom && values.oReturnPickupTimeFrom > value) {
+        return "Het eindtijdstip ligt vóór de starttijd.";
+      }
+      return true;
+    },
+  },
+  oReturnPickupContact: {
+    validate: (value) => validateCombinedRequired(value, "Vul de retour ophaal contactpersoon in."),
+  },
+  oReturnPickupPhone: {
+    validate: (value) => {
+      if (!isCombinedFlowEnabled()) {
+        return true;
+      }
+      const normalized = typeof value === "string" ? value.trim() : value;
+      if (!normalized) {
+        return "Vul het telefoonnummer van het retour contact in.";
+      }
+      if (!PHONE_PATTERN.test(normalized)) {
+        return "Gebruik minimaal 6 cijfers of tekens.";
+      }
+      return true;
+    },
+  },
+  oReturnPickupLocation: {
+    validate: (value) => validateCombinedRequired(value, "Vul de retour ophaallocatie in."),
+  },
+  oReturnDeliveryDate: {
+    validate: (value) => validateCombinedRequired(value, "Vul de retour afleverdatum in."),
+  },
+  oReturnDeliveryTimeFrom: {
+    revalidate: ["oReturnDeliveryTimeTo"],
+    validate: (value, values) => {
+      const requiredResult = validateCombinedRequired(value, "Vul het begin van het retour aflever tijdslot in.");
+      if (requiredResult !== true) {
+        return requiredResult;
+      }
+      if (!isCombinedFlowEnabled()) {
+        return true;
+      }
+      if (values.oReturnDeliveryTimeTo && value > values.oReturnDeliveryTimeTo) {
+        return "Het begintijdstip ligt na het eindtijdstip.";
+      }
+      return true;
+    },
+  },
+  oReturnDeliveryTimeTo: {
+    validate: (value, values) => {
+      const requiredResult = validateCombinedRequired(value, "Vul het einde van het retour aflever tijdslot in.");
+      if (requiredResult !== true) {
+        return requiredResult;
+      }
+      if (!isCombinedFlowEnabled()) {
+        return true;
+      }
+      if (values.oReturnDeliveryTimeFrom && values.oReturnDeliveryTimeFrom > value) {
+        return "Het eindtijdstip ligt vóór de starttijd.";
+      }
+      return true;
+    },
+  },
+  oReturnDeliveryContact: {
+    validate: (value) => validateCombinedRequired(value, "Vul de retour aflevercontactpersoon in."),
+  },
+  oReturnDeliveryPhone: {
+    validate: (value) => {
+      if (!isCombinedFlowEnabled()) {
+        return true;
+      }
+      const normalized = typeof value === "string" ? value.trim() : value;
+      if (!normalized) {
+        return "Vul het telefoonnummer van het retour aflevercontact in.";
+      }
+      if (!PHONE_PATTERN.test(normalized)) {
+        return "Gebruik minimaal 6 cijfers of tekens.";
+      }
+      return true;
+    },
+  },
+  oReturnDeliveryLocation: {
+    validate: (value) => validateCombinedRequired(value, "Vul de retour afleverlocatie in."),
+  },
 };
 
-const ORDER_WIZARD_STEP_FIELDS = {
+const ORDER_WIZARD_STEP_FIELDS_DEFAULT = {
   1: [
     "oRequestReference",
     "oDue",
@@ -1158,6 +1407,122 @@ const ORDER_WIZARD_STEP_FIELDS = {
   ],
   4: [],
 };
+
+const ORDER_WIZARD_STEP_FIELDS_COMBINED = {
+  1: ORDER_WIZARD_STEP_FIELDS_DEFAULT[1],
+  2: ORDER_WIZARD_STEP_FIELDS_DEFAULT[2],
+  3: ORDER_WIZARD_STEP_FIELDS_DEFAULT[3],
+  4: [
+    "oReturnPickupDate",
+    "oReturnPickupTimeFrom",
+    "oReturnPickupTimeTo",
+    "oReturnPickupContact",
+    "oReturnPickupPhone",
+    "oReturnPickupLocation",
+    "oReturnDeliveryDate",
+    "oReturnDeliveryTimeFrom",
+    "oReturnDeliveryTimeTo",
+    "oReturnDeliveryContact",
+    "oReturnDeliveryPhone",
+    "oReturnDeliveryLocation",
+  ],
+  5: [],
+};
+
+function getOrderWizardStepFields() {
+  return isCombinedFlowEnabled() ? ORDER_WIZARD_STEP_FIELDS_COMBINED : ORDER_WIZARD_STEP_FIELDS_DEFAULT;
+}
+
+function getArticleStepIndex() {
+  return isCombinedFlowEnabled() ? 5 : 4;
+}
+
+const COMBINED_FLOW_FIELD_KEYS = [
+  "oReturnPickupConfirmed",
+  "oReturnPickupDate",
+  "oReturnPickupTimeFrom",
+  "oReturnPickupTimeTo",
+  "oReturnPickupContact",
+  "oReturnPickupPhone",
+  "oReturnPickupLocation",
+  "oReturnPickupInstructions",
+  "oReturnDeliveryConfirmed",
+  "oReturnDeliveryDate",
+  "oReturnDeliveryTimeFrom",
+  "oReturnDeliveryTimeTo",
+  "oReturnDeliveryContact",
+  "oReturnDeliveryPhone",
+  "oReturnDeliveryLocation",
+  "oReturnDeliveryInstructions",
+];
+
+function clearCombinedFlowFieldErrors() {
+  for (const key of COMBINED_FLOW_FIELD_KEYS) {
+    const field = els[key];
+    if (field) {
+      clearFieldError(field);
+    }
+  }
+}
+
+function updateCombinedFlowUi(options = {}) {
+  const combined = isCombinedFlowEnabled();
+  const keepStep = Boolean(options.keepStep);
+  if (els.oCombinedFlow) {
+    els.oCombinedFlow.checked = combined;
+    els.oCombinedFlow.setAttribute("aria-pressed", combined ? "true" : "false");
+  }
+  if (els.combinedFlowHint) {
+    els.combinedFlowHint.hidden = !combined;
+  }
+  const allPanels = Array.isArray(els.wizardPanels) ? els.wizardPanels : [];
+  for (const panel of allPanels) {
+    if (!panel) continue;
+    if (panel.dataset?.flow === "combined") {
+      if (combined) {
+        panel.removeAttribute("data-flow-disabled");
+      } else {
+        panel.setAttribute("data-flow-disabled", "true");
+      }
+    }
+  }
+  const stepperItems = Array.isArray(els.wizardStepperItems) ? els.wizardStepperItems : [];
+  for (const item of stepperItems) {
+    if (!item) continue;
+    if (item.dataset?.flow === "combined") {
+      if (combined) {
+        item.removeAttribute("hidden");
+      } else {
+        item.setAttribute("hidden", "hidden");
+      }
+    }
+  }
+  const targetStep = keepStep ? ORDER_WIZARD_STATE.currentStep || 1 : 1;
+  setWizardStep(targetStep);
+  updateOrderSummary();
+}
+
+function setCombinedFlowEnabled(enabled, options = {}) {
+  const normalized = Boolean(enabled);
+  if (ORDER_FORM_FLOW.combined === normalized) {
+    if (!options.skipUi) {
+      updateCombinedFlowUi({ keepStep: options.keepStep });
+    }
+    return;
+  }
+  ORDER_FORM_FLOW.combined = normalized;
+  if (!normalized) {
+    clearCombinedFlowFieldErrors();
+  }
+  updateCombinedFlowUi({ keepStep: options.keepStep });
+}
+
+function syncCombinedFlowFromForm() {
+  if (!els.oCombinedFlow) {
+    return;
+  }
+  setCombinedFlowEnabled(Boolean(els.oCombinedFlow.checked));
+}
 
 const ORDER_WIZARD_STATE = {
   currentStep: 1,
@@ -3834,7 +4199,8 @@ async function saveEdit(){
   };
   try {
     setStatus(els.editStatus, "Opslaan…");
-    await Orders.update(id, patch);
+    const updateResult = await Orders.update(id, patch);
+    const updatedOrder = Array.isArray(updateResult) ? updateResult[0] : updateResult;
     const successMessage = "Transport bijgewerkt.";
     setStatus(els.editStatus, successMessage, "success");
     showToastMessage("success", successMessage);
@@ -3842,6 +4208,24 @@ async function saveEdit(){
       els.dlg.close();
     }
     await loadOrders();
+    if (
+      updatedOrder &&
+      window.EmailNotifications &&
+      typeof window.EmailNotifications.notifyOrderUpdated === "function"
+    ) {
+      const actorName = getUserDisplayName(user) || null;
+      const details = parseOrderDetails(updatedOrder);
+      window.EmailNotifications
+        .notifyOrderUpdated(updatedOrder, { details, actorName })
+        .then((result) => {
+          if (result && result.reason === "request-failed") {
+            showToastMessage("error", "E-mailnotificatie versturen mislukt.");
+          }
+        })
+        .catch((error) => {
+          console.warn("Kan e-mailnotificatie voor bijgewerkte order niet versturen", error);
+        });
+    }
   } catch (e) {
     console.error("Kan order niet opslaan", e);
     const message = getSupabaseErrorMessage(e, "Opslaan mislukt.");
@@ -4534,6 +4918,17 @@ function collectArticles(articleType) {
   return items;
 }
 
+function buildReturnRequestReference(baseReference) {
+  const reference = cleanText(baseReference);
+  if (!reference) {
+    return null;
+  }
+  if (/-ret$/i.test(reference)) {
+    return reference;
+  }
+  return `${reference}-RET`;
+}
+
 function collectOrderPayload(articleType) {
   const requestReference = cleanText(els.oRequestReference?.value);
   const transportType = cleanText(els.oTransportType?.value) || "Afleveren";
@@ -4542,11 +4937,19 @@ function collectOrderPayload(articleType) {
   const orderDescription = cleanText(els.oOrderDescription?.value);
   const pickupInstructions = cleanText(els.oPickupInstructions?.value);
   const deliveryInstructions = cleanText(els.oDeliveryInstructions?.value);
-  const combinedNotes = joinNonEmpty([
+  let combinedNotes = joinNonEmpty([
     orderDescription,
     pickupInstructions,
     deliveryInstructions,
   ], "\n");
+
+  if (isCombinedFlowEnabled()) {
+    const returnReference = buildReturnRequestReference(requestReference);
+    const combinedLabel = returnReference
+      ? `Gecombineerde aanvraag met retourreferentie ${returnReference}.`
+      : "Gecombineerde aanvraag met retourtransport.";
+    combinedNotes = joinNonEmpty([combinedLabel, combinedNotes], "\n");
+  }
 
   const payload = {
     reference: requestReference,
@@ -4594,10 +4997,75 @@ function collectOrderPayload(articleType) {
   return payload;
 }
 
+function collectReturnOrderPayload(articleType) {
+  const baseReference = cleanText(els.oRequestReference?.value);
+  const returnReference = buildReturnRequestReference(baseReference) || baseReference;
+  const orderReference = cleanText(els.oOrderReference?.value);
+  const returnOrderReference = returnReference && orderReference
+    ? `${orderReference}-RET`
+    : orderReference || returnReference;
+  const orderDescription = cleanText(els.oOrderDescription?.value);
+  const pickupInstructions = cleanText(els.oReturnPickupInstructions?.value);
+  const deliveryInstructions = cleanText(els.oReturnDeliveryInstructions?.value);
+  const combinedNotes = joinNonEmpty([
+    returnReference ? `Retour voor ${baseReference || returnReference}.` : "Retourtransport.",
+    orderDescription,
+    pickupInstructions,
+    deliveryInstructions,
+  ], "\n");
+
+  const payload = {
+    reference: returnReference,
+    request_reference: returnReference,
+    transport_type: "Retour",
+    load_type: "Retour",
+    cargo_type: "Retour",
+    status: cleanText(els.oStatus?.value) || "Nieuw",
+    request_received_date: els.oReceivedAt?.value || getTodayDateValue(),
+    due_date: els.oReturnDeliveryDate?.value || els.oDue?.value || null,
+    customer_name: cleanText(els.oCustomerName?.value),
+    customer_number: cleanText(els.oCustomerNumber?.value),
+    customer_contact: cleanText(els.oOrderContact?.value),
+    customer_contact_phone: cleanText(els.oOrderContactPhone?.value),
+    customer_contact_email: cleanText(els.oOrderContactEmail?.value),
+    customer_order_number: cleanText(els.oCustomerOrderNumber?.value),
+    order_reference: returnOrderReference,
+    order_description: orderDescription ? `${orderDescription} (retour)` : "Retourtransport",
+    pickup_confirmed: els.oReturnPickupConfirmed ? !!els.oReturnPickupConfirmed.checked : null,
+    pickup_date: els.oReturnPickupDate?.value || null,
+    pickup_time_from: els.oReturnPickupTimeFrom?.value || null,
+    pickup_time_to: els.oReturnPickupTimeTo?.value || null,
+    pickup_slot: buildTimeSlot(els.oReturnPickupTimeFrom?.value, els.oReturnPickupTimeTo?.value),
+    pickup_contact: cleanText(els.oReturnPickupContact?.value),
+    pickup_contact_phone: cleanText(els.oReturnPickupPhone?.value),
+    pickup_location: cleanText(els.oReturnPickupLocation?.value),
+    pickup_instructions: pickupInstructions,
+    delivery_confirmed: els.oReturnDeliveryConfirmed ? !!els.oReturnDeliveryConfirmed.checked : null,
+    delivery_date: els.oReturnDeliveryDate?.value || null,
+    delivery_time_from: els.oReturnDeliveryTimeFrom?.value || null,
+    delivery_time_to: els.oReturnDeliveryTimeTo?.value || null,
+    delivery_slot: buildTimeSlot(els.oReturnDeliveryTimeFrom?.value, els.oReturnDeliveryTimeTo?.value),
+    delivery_contact: cleanText(els.oReturnDeliveryContact?.value),
+    delivery_contact_phone: cleanText(els.oReturnDeliveryPhone?.value),
+    delivery_location: cleanText(els.oReturnDeliveryLocation?.value),
+    delivery_instructions: deliveryInstructions,
+    instructions: combinedNotes || null,
+    notes: combinedNotes || null,
+    article_type: articleType === "serial" ? "serial" : articleType === "non_serial" ? "non_serial" : null,
+  };
+
+  if (!payload.due_date && payload.delivery_date) {
+    payload.due_date = payload.delivery_date;
+  }
+
+  return payload;
+}
+
 function resetOrderForm(){
   if (els.orderForm) {
     els.orderForm.reset();
   }
+  setCombinedFlowEnabled(false, { keepStep: false });
   if (els.oStatus) {
     els.oStatus.value = "Nieuw";
   }
@@ -4633,6 +5101,7 @@ async function createOrder(){
   const customerName = cleanText(els.oCustomerName.value);
   const requestReference = cleanText(els.oRequestReference.value);
   const articleType = getArticleType();
+  const combinedFlow = isCombinedFlowEnabled();
   if (!articleType) {
     setStatus(els.createStatus, "Kies het artikeltype.", "error");
     setWizardStep(4);
@@ -4654,6 +5123,7 @@ async function createOrder(){
   }
   setStatus(els.createStatus, "Bezig…");
   let createdOrderId = null;
+  let createdReturnOrderId = null;
   try {
     const payload = collectOrderPayload(articleType);
     payload.customer_name = customerName;
@@ -4665,6 +5135,17 @@ async function createOrder(){
       const creatorName = getUserDisplayName(user);
       if (creatorName) {
         payload.created_by_name = creatorName;
+      }
+    }
+    let returnPayload = null;
+    if (combinedFlow) {
+      returnPayload = collectReturnOrderPayload(articleType);
+      if (userId !== null && userId !== undefined) {
+        returnPayload.created_by = userId;
+        const creatorName = getUserDisplayName(user);
+        if (creatorName) {
+          returnPayload.created_by_name = creatorName;
+        }
       }
     }
     const created = await Orders.create(payload);
@@ -4691,6 +5172,42 @@ async function createOrder(){
       }
       throw lineError;
     }
+    let createdReturn = null;
+    if (combinedFlow && returnPayload) {
+      createdReturn = await Orders.create(returnPayload);
+      createdReturnOrderId = createdReturn?.id ?? null;
+      try {
+        for (const line of articleLines) {
+          await Lines.create({
+            order_id: createdReturn.id,
+            product: line.product,
+            quantity: line.quantity,
+            serial_number: line.serial_number,
+            article_type: articleType,
+          });
+        }
+      } catch (returnLineError) {
+        if (createdReturnOrderId) {
+          try {
+            await Orders.delete(createdReturnOrderId);
+          } catch (rollbackReturnError) {
+            console.error("Kan retourorder niet terugdraaien", rollbackReturnError);
+          } finally {
+            createdReturnOrderId = null;
+          }
+        }
+        if (createdOrderId) {
+          try {
+            await Orders.delete(createdOrderId);
+          } catch (rollbackPrimaryError) {
+            console.error("Kan order niet terugdraaien", rollbackPrimaryError);
+          } finally {
+            createdOrderId = null;
+          }
+        }
+        throw returnLineError;
+      }
+    }
     storageSet(STORAGE_KEYS.lastReference, requestReference);
     const successMessage = "Transport aangemaakt";
     setStatus(els.createStatus, successMessage, "success");
@@ -4711,11 +5228,33 @@ async function createOrder(){
         .catch((error) => {
           console.warn("Kan e-mailnotificatie voor nieuwe order niet versturen", error);
         });
+      if (combinedFlow && createdReturnOrderId && createdReturn) {
+        const returnDetails = parseOrderDetails(createdReturn);
+        window.EmailNotifications
+          .notifyOrderCreated(createdReturn, { details: returnDetails, actorName })
+          .then((result) => {
+            if (result && result.reason === "request-failed") {
+              showToastMessage("error", "E-mailnotificatie versturen mislukt.");
+            }
+          })
+          .catch((error) => {
+            console.warn("Kan e-mailnotificatie voor retourorder niet versturen", error);
+          });
+      }
     }
     resetOrderForm();
     await assignRequestReference();
     await loadOrders();
   } catch (e) {
+    if (createdReturnOrderId) {
+      try {
+        await Orders.delete(createdReturnOrderId);
+      } catch (rollbackReturnError) {
+        console.error("Kan retourorder niet terugdraaien", rollbackReturnError);
+      } finally {
+        createdReturnOrderId = null;
+      }
+    }
     if (createdOrderId) {
       try {
         await Orders.delete(createdOrderId);
@@ -6004,6 +6543,11 @@ function bind(canManagePlanning){
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
   bindClick(els.btnDeleteOrder, deleteOrder);
   bindClick(els.btnPrintOrder, () => printCurrentOrder());
+  if (els.oCombinedFlow) {
+    addBoundListener(els.oCombinedFlow, "change", () => {
+      setCombinedFlowEnabled(Boolean(els.oCombinedFlow.checked));
+    });
+  }
   if (els.btnSaveEdit) {
     addBoundListener(els.btnSaveEdit, "click", (e)=>{ e.preventDefault(); saveEdit(); });
   }
@@ -6109,6 +6653,7 @@ async function initAppPage() {
   bind(canManagePlanning);
   setupOrderFormValidation();
   setupOrderWizard();
+  setCombinedFlowEnabled(Boolean(els.oCombinedFlow?.checked), { keepStep: false });
   await assignRequestReference();
   applyDefaultReceivedDate();
   ensureMinimumArticleRows();

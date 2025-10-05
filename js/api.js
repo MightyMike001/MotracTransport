@@ -213,15 +213,32 @@ const EmailNotifications = (() => {
   const defaultRecipients = Array.isArray(config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS)
     ? config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS.filter((value) => typeof value === "string" && value.trim())
     : [];
-  const isEnabled = Boolean(endpoint);
+  const enabledEventConfig = Array.isArray(config.EMAIL_NOTIFICATIONS_ENABLED_EVENTS)
+    ? config.EMAIL_NOTIFICATIONS_ENABLED_EVENTS
+    : [];
+  const enabledEvents = new Set(
+    enabledEventConfig.length
+      ? enabledEventConfig.map((value) => String(value || "").toLowerCase())
+      : ["created", "updated", "cancelled"]
+  );
+
+  const isEnabled = Boolean(endpoint) && enabledEvents.size > 0;
 
   const ACTION_LABELS = {
     created: "aangemaakt",
     cancelled: "geannuleerd",
+    updated: "bijgewerkt",
   };
 
   const buildDisabledResult = (reason) => ({ ok: false, reason });
   const DISABLED_RESULT = buildDisabledResult("disabled");
+
+  function isEventEnabled(action) {
+    if (!action) {
+      return false;
+    }
+    return enabledEvents.has(String(action).toLowerCase());
+  }
 
   function normalizeEmail(value) {
     if (typeof value !== "string") {
@@ -315,6 +332,9 @@ const EmailNotifications = (() => {
     if (!isEnabled) {
       return DISABLED_RESULT;
     }
+    if (!isEventEnabled(action)) {
+      return buildDisabledResult("event-disabled");
+    }
     if (!order) {
       return buildDisabledResult("missing-order");
     }
@@ -381,8 +401,12 @@ const EmailNotifications = (() => {
 
   return {
     isEnabled,
+    isEventEnabled,
     notifyOrderCreated(order, context = {}) {
       return send("created", order, context);
+    },
+    notifyOrderUpdated(order, context = {}) {
+      return send("updated", order, context);
     },
     notifyOrderCancelled(order, context = {}) {
       return send("cancelled", order, context);
