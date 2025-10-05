@@ -50,6 +50,12 @@ function loadEnvValues() {
     values.EMAIL_NOTIFICATIONS_ENABLED_EVENTS =
       process.env.EMAIL_NOTIFICATIONS_ENABLED_EVENTS;
   }
+  if (process.env.DOCUMENT_EMAIL_TEMPLATES) {
+    values.DOCUMENT_EMAIL_TEMPLATES = process.env.DOCUMENT_EMAIL_TEMPLATES;
+  }
+  if (process.env.DOCUMENT_EMAIL_LISTS) {
+    values.DOCUMENT_EMAIL_LISTS = process.env.DOCUMENT_EMAIL_LISTS;
+  }
 
   if ((!values.SUPABASE_URL || !values.SUPABASE_ANON_KEY) && fs.existsSync(ENV_FILE_PATH)) {
     const fileEnv = parseEnv(fs.readFileSync(ENV_FILE_PATH, "utf8"));
@@ -62,6 +68,10 @@ function loadEnvValues() {
       fileEnv.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS;
     values.EMAIL_NOTIFICATIONS_ENABLED_EVENTS =
       values.EMAIL_NOTIFICATIONS_ENABLED_EVENTS || fileEnv.EMAIL_NOTIFICATIONS_ENABLED_EVENTS;
+    values.DOCUMENT_EMAIL_TEMPLATES =
+      values.DOCUMENT_EMAIL_TEMPLATES || fileEnv.DOCUMENT_EMAIL_TEMPLATES;
+    values.DOCUMENT_EMAIL_LISTS =
+      values.DOCUMENT_EMAIL_LISTS || fileEnv.DOCUMENT_EMAIL_LISTS;
   }
 
   return values;
@@ -96,6 +106,8 @@ function build() {
       envValues.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS || "",
     EMAIL_NOTIFICATIONS_ENABLED_EVENTS:
       envValues.EMAIL_NOTIFICATIONS_ENABLED_EVENTS || "",
+    DOCUMENT_EMAIL_TEMPLATES: envValues.DOCUMENT_EMAIL_TEMPLATES || "",
+    DOCUMENT_EMAIL_LISTS: envValues.DOCUMENT_EMAIL_LISTS || "",
   };
 
   const serialized = Object.entries(configEntries)

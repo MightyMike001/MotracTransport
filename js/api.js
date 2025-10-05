@@ -328,6 +328,25 @@ const EmailNotifications = (() => {
     return lines.join("\n");
   }
 
+  function normalizeAttachment(attachment) {
+    if (!attachment || typeof attachment !== "object") {
+      return null;
+    }
+    const content = typeof attachment.content === "string" ? attachment.content.trim() : "";
+    if (!content) {
+      return null;
+    }
+    const filename = typeof attachment.filename === "string" ? attachment.filename.trim() : "";
+    const contentType = typeof attachment.contentType === "string" && attachment.contentType.trim()
+      ? attachment.contentType.trim()
+      : "application/octet-stream";
+    const normalized = { content, contentType };
+    if (filename) {
+      normalized.filename = filename;
+    }
+    return normalized;
+  }
+
   async function send(action, order, context = {}) {
     if (!isEnabled) {
       return DISABLED_RESULT;
@@ -335,29 +354,37 @@ const EmailNotifications = (() => {
     if (!isEventEnabled(action)) {
       return buildDisabledResult("event-disabled");
     }
-    if (!order) {
+    const allowMissingOrder = context.allowMissingOrder === true;
+    if (!order && !allowMissingOrder) {
       return buildDisabledResult("missing-order");
     }
 
+    const safeOrder = order || {};
     const details = context.details || null;
     const actorName = context.actorName || null;
-    const recipients = mergeRecipients(order, details, context.additionalRecipients, true);
+    const includeDefaults = context.includeDefaultRecipients !== false;
+    const recipients = mergeRecipients(safeOrder, details, context.additionalRecipients, includeDefaults);
     if (!recipients.length) {
       return buildDisabledResult("no-recipients");
     }
 
+    const baseMeta = {
+      actorName,
+      requestReference: safeOrder?.request_reference ?? null,
+      orderReference: safeOrder?.order_reference ?? safeOrder?.reference ?? null,
+    };
+    if (context.meta) {
+      baseMeta.document = sanitizeAuditPayload(context.meta);
+    }
+
     const payload = {
       action,
-      subject: context.subject || buildSubject(action, order),
-      message: context.message || buildMessage(action, order, details, actorName),
+      subject: context.subject || buildSubject(action, safeOrder),
+      message: context.message || buildMessage(action, safeOrder, details, actorName),
       recipients,
-      order: sanitizeAuditPayload(order),
+      order: sanitizeAuditPayload(safeOrder),
       details: sanitizeAuditPayload(details),
-      meta: sanitizeAuditPayload({
-        actorName,
-        requestReference: order?.request_reference ?? null,
-        orderReference: order?.order_reference ?? order?.reference ?? null,
-      }),
+      meta: sanitizeAuditPayload(baseMeta),
     };
 
     if (defaultSender) {
@@ -380,6 +407,13 @@ const EmailNotifications = (() => {
 
     if (context.extra) {
       payload.extra = sanitizeAuditPayload(context.extra);
+    }
+
+    if (Array.isArray(context.attachments) && context.attachments.length) {
+      const attachments = context.attachments.map(normalizeAttachment).filter(Boolean);
+      if (attachments.length) {
+        payload.attachments = attachments;
+      }
     }
 
     try {
@@ -410,6 +444,26 @@ const EmailNotifications = (() => {
     },
     notifyOrderCancelled(order, context = {}) {
       return send("cancelled", order, context);
+    },
+    sendDocumentMail(options = {}) {
+      const action = options.action || "document";
+      const order = options.order || null;
+      const context = {
+        subject: options.subject,
+        message: options.message,
+        additionalRecipients: options.recipients,
+        includeDefaultRecipients: options.includeDefaultRecipients,
+        cc: options.cc,
+        bcc: options.bcc,
+        attachments: options.attachments,
+        extra: options.extra,
+        meta: options.meta,
+        allowMissingOrder: !order,
+      };
+      if (options.details) {
+        context.details = options.details;
+      }
+      return send(action, order || {}, context);
     },
   };
 })();

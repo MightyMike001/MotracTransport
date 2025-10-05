@@ -38,7 +38,10 @@
       toggleOptimize: scope.querySelector("#toggleOptimize"),
       btnRebuild: scope.querySelector("#btnRebuildRoutes"),
       btnResetView: scope.querySelector("#btnResetView"),
-      btnPrint: scope.querySelector("#btnPrintRoutes"),
+      documentsMenuContainer: scope.querySelector("[data-export-menu]"),
+      documentsToggle: scope.querySelector("#btnRouteDocuments"),
+      documentsMenu: scope.querySelector("#routeDocumentsMenu"),
+      documentsOptions: scope.querySelectorAll("#routeDocumentsMenu [data-export-format]"),
       status: scope.querySelector("#routesStatus"),
       summary: scope.querySelector("#routesSummary"),
     };
@@ -727,6 +730,213 @@
     }
   }
 
+  function downloadBlob(blob, filename) {
+    if (!(blob instanceof Blob)) {
+      return;
+    }
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = filename || "download.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+  }
+
+  function buildRoutePdfFilename(snapshot) {
+    const dateLabel = snapshot?.date ? formatDateDisplay(snapshot.date) : "";
+    const base = (dateLabel || "routes")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "routes";
+    return `Rittenlijst-${base}.pdf`;
+  }
+
+  function countSnapshotStops(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.groups)) {
+      return 0;
+    }
+    return snapshot.groups.reduce((sum, group) => {
+      const count = Array.isArray(group.stops) ? group.stops.length : 0;
+      return sum + count;
+    }, 0);
+  }
+
+  async function downloadRoutesPdf() {
+    if (!window.TransportDocuments || typeof window.TransportDocuments.generateRouteListPdf !== "function") {
+      window.alert("PDF-generator niet beschikbaar.");
+      return;
+    }
+    const snapshot = latestExportSnapshot;
+    if (!snapshot) {
+      window.alert("Geen routes beschikbaar om te exporteren.");
+      return;
+    }
+    try {
+      const blob = await window.TransportDocuments.generateRouteListPdf(snapshot);
+      if (!(blob instanceof Blob)) {
+        window.alert("Het genereren van de rittenlijst is mislukt.");
+        return;
+      }
+      const filename = buildRoutePdfFilename(snapshot);
+      downloadBlob(blob, filename);
+      setStatus("Rittenlijst (PDF) gedownload.", "success");
+    } catch (error) {
+      console.error("Kan rittenlijst niet genereren", error);
+      setStatus("PDF genereren mislukt.", "error");
+    }
+  }
+
+  async function emailRoutesPdf() {
+    if (!window.TransportDocuments || typeof window.TransportDocuments.generateRouteListPdf !== "function") {
+      window.alert("PDF-generator niet beschikbaar.");
+      return;
+    }
+    if (!window.DocumentMail || typeof window.DocumentMail.open !== "function") {
+      window.alert("E-mailmodule is niet beschikbaar.");
+      return;
+    }
+    const snapshot = latestExportSnapshot;
+    if (!snapshot) {
+      window.alert("Geen routes beschikbaar om te mailen.");
+      return;
+    }
+    let blob;
+    try {
+      blob = await window.TransportDocuments.generateRouteListPdf(snapshot);
+    } catch (error) {
+      console.error("Kan rittenlijst niet genereren", error);
+      setStatus("PDF genereren mislukt.", "error");
+      return;
+    }
+    if (!(blob instanceof Blob)) {
+      setStatus("PDF genereren mislukt.", "error");
+      return;
+    }
+    const filename = buildRoutePdfFilename(snapshot);
+    const routeCount = Array.isArray(snapshot?.groups) ? snapshot.groups.length : 0;
+    const stopCount = countSnapshotStops(snapshot);
+    const backlogCount = Array.isArray(snapshot?.backlog) ? snapshot.backlog.length : 0;
+    const context = {
+      dateLabel: snapshot?.date ? formatDateDisplay(snapshot.date) : "",
+      routeCount,
+      stopCount,
+      backlogCount,
+      generatedAt: formatDateTimeLabel(snapshot?.generatedAt) || "",
+    };
+    try {
+      const result = await window.DocumentMail.open({
+        documentType: "rittenlijst",
+        title: "Rittenlijst mailen",
+        defaultTemplateId: "rittenlijst",
+        defaultListId: "planning",
+        context,
+        attachments: [
+          {
+            filename,
+            blob,
+            contentType: "application/pdf",
+          },
+        ],
+        meta: {
+          date: snapshot?.date || null,
+          generatedAt: snapshot?.generatedAt || null,
+          routeCount,
+          stopCount,
+          backlogCount,
+        },
+      });
+      if (result && result.ok) {
+        setStatus("Rittenlijst per e-mail verzonden.", "success");
+      }
+    } catch (error) {
+      console.error("E-maildialoog kon niet worden geopend", error);
+    }
+  }
+
+  function getDocumentOptions() {
+    if (!els.documentsOptions) {
+      return [];
+    }
+    if (typeof els.documentsOptions.forEach === "function" && !Array.isArray(els.documentsOptions)) {
+      return Array.from(els.documentsOptions);
+    }
+    return Array.isArray(els.documentsOptions) ? els.documentsOptions : [];
+  }
+
+  function isDocumentsMenuOpen() {
+    return Boolean(els.documentsMenuContainer && els.documentsMenuContainer.classList.contains("is-open"));
+  }
+
+  function openDocumentsMenu() {
+    if (!els.documentsMenu || !els.documentsToggle || !els.documentsMenuContainer) {
+      return;
+    }
+    els.documentsMenu.hidden = false;
+    els.documentsMenuContainer.classList.add("is-open");
+    els.documentsToggle.setAttribute("aria-expanded", "true");
+    const options = getDocumentOptions();
+    if (options.length) {
+      options[0].focus();
+    }
+  }
+
+  function closeDocumentsMenu({ focusToggle = false } = {}) {
+    if (!els.documentsMenu || !els.documentsToggle || !els.documentsMenuContainer) {
+      return;
+    }
+    els.documentsMenu.hidden = true;
+    els.documentsMenuContainer.classList.remove("is-open");
+    els.documentsToggle.setAttribute("aria-expanded", "false");
+    if (focusToggle) {
+      els.documentsToggle.focus();
+    }
+  }
+
+  function toggleDocumentsMenu() {
+    if (isDocumentsMenuOpen()) {
+      closeDocumentsMenu({ focusToggle: true });
+    } else {
+      openDocumentsMenu();
+    }
+  }
+
+  function handleDocumentClickForDocumentsMenu(event) {
+    if (!isDocumentsMenuOpen()) {
+      return;
+    }
+    if (!els.documentsMenuContainer) {
+      return;
+    }
+    if (els.documentsMenuContainer.contains(event.target)) {
+      return;
+    }
+    closeDocumentsMenu();
+  }
+
+  function handleDocumentsMenuKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeDocumentsMenu({ focusToggle: true });
+    }
+  }
+
+  function handleDocumentsOptionClick(event) {
+    event.preventDefault();
+    const format = event?.currentTarget?.dataset?.exportFormat || "print";
+    closeDocumentsMenu({ focusToggle: true });
+    if (format === "pdf") {
+      downloadRoutesPdf();
+    } else if (format === "email") {
+      emailRoutesPdf();
+    } else {
+      openRoutesExport();
+    }
+  }
 
   function addListener(element, type, handler) {
     if (!element || typeof element.addEventListener !== "function") return;
@@ -1167,10 +1377,22 @@
       event.preventDefault();
       resetView();
     });
-    addListener(els.btnPrint, "click", (event) => {
-      event.preventDefault();
-      openRoutesExport();
-    });
+    if (els.documentsToggle) {
+      addListener(els.documentsToggle, "click", (event) => {
+        event.preventDefault();
+        toggleDocumentsMenu();
+      });
+    }
+    const optionButtons = getDocumentOptions();
+    if (optionButtons.length) {
+      optionButtons.forEach((button) => {
+        addListener(button, "click", handleDocumentsOptionClick);
+      });
+    }
+    if (els.documentsMenu) {
+      addListener(els.documentsMenu, "keydown", handleDocumentsMenuKeydown);
+    }
+    addListener(document, "click", handleDocumentClickForDocumentsMenu);
     addListener(window, "beforeprint", () => {
       if (map && typeof map.invalidateSize === "function") {
         setTimeout(() => map.invalidateSize(true), 0);

@@ -533,6 +533,8 @@ function refreshElements() {
     editStatus: doc.getElementById("editStatus"),
     btnDeleteOrder: doc.getElementById("btnDeleteOrder"),
     btnPrintOrder: doc.getElementById("btnPrintOrder"),
+    btnDownloadCmr: doc.getElementById("btnDownloadCmr"),
+    btnEmailCmr: doc.getElementById("btnEmailCmr"),
     btnSaveEdit: doc.getElementById("btnSaveEdit"),
     orderAuditLog: doc.getElementById("orderAuditLog"),
     carrierList: doc.getElementById("carrierList"),
@@ -4051,6 +4053,14 @@ function clearCurrentEditContext() {
     els.btnPrintOrder.setAttribute("disabled", "disabled");
     els.btnPrintOrder.setAttribute("aria-disabled", "true");
   }
+  if (els && els.btnDownloadCmr) {
+    els.btnDownloadCmr.setAttribute("disabled", "disabled");
+    els.btnDownloadCmr.setAttribute("aria-disabled", "true");
+  }
+  if (els && els.btnEmailCmr) {
+    els.btnEmailCmr.setAttribute("disabled", "disabled");
+    els.btnEmailCmr.setAttribute("aria-disabled", "true");
+  }
 }
 
 function setCurrentEditContext(order) {
@@ -4065,6 +4075,14 @@ function setCurrentEditContext(order) {
   if (els && els.btnPrintOrder) {
     els.btnPrintOrder.removeAttribute("disabled");
     els.btnPrintOrder.removeAttribute("aria-disabled");
+  }
+  if (els && els.btnDownloadCmr) {
+    els.btnDownloadCmr.removeAttribute("disabled");
+    els.btnDownloadCmr.removeAttribute("aria-disabled");
+  }
+  if (els && els.btnEmailCmr) {
+    els.btnEmailCmr.removeAttribute("disabled");
+    els.btnEmailCmr.removeAttribute("aria-disabled");
   }
   if (Number.isFinite(numericId)) {
     CURRENT_EDIT_LINES_LOADING = loadOrderLines(numericId)
@@ -4094,6 +4112,32 @@ function updateCurrentEditOrderFromCache() {
   }
 }
 
+async function ensureCurrentOrderLines(order) {
+  if (!order) {
+    return [];
+  }
+  let lines = CURRENT_EDIT_ORDER_LINES;
+  if (Array.isArray(lines)) {
+    return lines;
+  }
+  try {
+    if (CURRENT_EDIT_LINES_LOADING) {
+      lines = await CURRENT_EDIT_LINES_LOADING;
+    } else if (order.id !== undefined && order.id !== null) {
+      lines = await loadOrderLines(order.id);
+    } else {
+      lines = [];
+    }
+    if (CURRENT_EDIT_ORDER && String(CURRENT_EDIT_ORDER.id) === String(order.id)) {
+      CURRENT_EDIT_ORDER_LINES = lines;
+    }
+    return Array.isArray(lines) ? lines : [];
+  } catch (error) {
+    console.warn("Kan orderregels niet laden", error);
+    return [];
+  }
+}
+
 async function printCurrentOrder() {
   if (!CURRENT_EDIT_ORDER) {
     window.alert("Open eerst een order om een bon te printen.");
@@ -4116,22 +4160,7 @@ async function printCurrentOrder() {
     console.warn("Kan printvenster niet voorbereiden", error);
   }
 
-  let lines = CURRENT_EDIT_ORDER_LINES;
-  if (!Array.isArray(lines)) {
-    try {
-      if (CURRENT_EDIT_LINES_LOADING) {
-        lines = await CURRENT_EDIT_LINES_LOADING;
-      } else {
-        lines = await loadOrderLines(order.id);
-      }
-      if (CURRENT_EDIT_ORDER && String(CURRENT_EDIT_ORDER.id) === String(order.id)) {
-        CURRENT_EDIT_ORDER_LINES = lines;
-      }
-    } catch (error) {
-      console.warn("Kan orderregels niet laden voor print", error);
-      lines = [];
-    }
-  }
+  const lines = await ensureCurrentOrderLines(order);
 
   if (!printWindow || printWindow.closed) {
     return;
@@ -4154,6 +4183,122 @@ async function printCurrentOrder() {
     printWindow.focus();
   } catch (error) {
     console.warn("Kan printvenster niet focussen", error);
+  }
+}
+
+function buildDocumentFilename(prefix, reference) {
+  const safeReference = cleanText(reference) || "document";
+  const normalized = safeReference
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  const base = normalized || "document";
+  return `${prefix}-${base}.pdf`;
+}
+
+async function downloadCurrentOrderCmr() {
+  if (!CURRENT_EDIT_ORDER) {
+    window.alert("Open eerst een order om een CMR te genereren.");
+    return;
+  }
+  if (!window.TransportDocuments || typeof window.TransportDocuments.generateCmrPdf !== "function") {
+    window.alert("PDF-generator niet beschikbaar. Vernieuw de pagina en probeer opnieuw.");
+    return;
+  }
+  const order = CURRENT_EDIT_ORDER;
+  const details = CURRENT_EDIT_ORDER_DETAILS || parseOrderDetails(order);
+  const lines = await ensureCurrentOrderLines(order);
+  try {
+    const blob = await window.TransportDocuments.generateCmrPdf(order, details, Array.isArray(lines) ? lines : []);
+    if (!(blob instanceof Blob)) {
+      window.alert("Het genereren van de CMR is mislukt.");
+      return;
+    }
+    const reference = details.reference || order.request_reference || order.order_reference || order.id;
+    const filename = buildDocumentFilename("CMR", reference);
+    downloadBlob(blob, filename);
+    showToastMessage("success", "CMR-download gestart.");
+  } catch (error) {
+    console.error("Kan CMR niet genereren", error);
+    window.alert("Het genereren van de CMR is mislukt.");
+  }
+}
+
+async function emailCurrentOrderCmr() {
+  if (!CURRENT_EDIT_ORDER) {
+    window.alert("Open eerst een order om een CMR te mailen.");
+    return;
+  }
+  if (!window.TransportDocuments || typeof window.TransportDocuments.generateCmrPdf !== "function") {
+    window.alert("PDF-generator niet beschikbaar. Vernieuw de pagina en probeer opnieuw.");
+    return;
+  }
+  if (!window.DocumentMail || typeof window.DocumentMail.open !== "function") {
+    window.alert("E-mailmodule is niet beschikbaar.");
+    return;
+  }
+  const order = CURRENT_EDIT_ORDER;
+  const details = CURRENT_EDIT_ORDER_DETAILS || parseOrderDetails(order);
+  const lines = await ensureCurrentOrderLines(order);
+  let blob;
+  try {
+    blob = await window.TransportDocuments.generateCmrPdf(order, details, Array.isArray(lines) ? lines : []);
+  } catch (error) {
+    console.error("Kan CMR niet genereren", error);
+    window.alert("Het genereren van de CMR is mislukt.");
+    return;
+  }
+  if (!(blob instanceof Blob)) {
+    window.alert("Het genereren van de CMR is mislukt.");
+    return;
+  }
+  const reference = details.reference || order.request_reference || order.order_reference || order.id;
+  const filename = buildDocumentFilename("CMR", reference);
+  const plannedLabel = formatDateDisplay(order.planned_date || details.pickup?.date);
+  const deliveryLabel = formatDateDisplay(order.due_date || details.delivery?.date);
+  const recipients = [];
+  const customerEmail = cleanText(order.customer_contact_email);
+  const detailEmail = cleanText(details.contactEmail);
+  if (customerEmail) {
+    recipients.push(customerEmail);
+  }
+  if (detailEmail && detailEmail !== customerEmail) {
+    recipients.push(detailEmail);
+  }
+
+  const context = {
+    reference: cleanText(reference) || "",
+    customer: cleanText(order.customer_name) || "",
+    plannedDate: plannedLabel || "",
+    deliveryDate: deliveryLabel || "",
+  };
+
+  try {
+    const result = await window.DocumentMail.open({
+      documentType: "cmr",
+      title: "CMR mailen",
+      defaultTemplateId: "cmr",
+      defaultListId: "planning",
+      recipients,
+      context,
+      attachments: [
+        {
+          filename,
+          blob,
+          contentType: "application/pdf",
+        },
+      ],
+      meta: {
+        orderId: order.id ?? null,
+        reference: reference || null,
+      },
+    });
+    if (result && result.ok) {
+      showToastMessage("success", "CMR verzonden via e-mail.");
+    }
+  } catch (error) {
+    console.error("E-maildialoog kon niet worden geopend", error);
   }
 }
 
@@ -6543,6 +6688,8 @@ function bind(canManagePlanning){
   bindClick(els.btnApplyPlan, applyPlan, canManagePlanning);
   bindClick(els.btnDeleteOrder, deleteOrder);
   bindClick(els.btnPrintOrder, () => printCurrentOrder());
+  bindClick(els.btnDownloadCmr, () => downloadCurrentOrderCmr());
+  bindClick(els.btnEmailCmr, () => emailCurrentOrderCmr());
   if (els.oCombinedFlow) {
     addBoundListener(els.oCombinedFlow, "change", () => {
       setCombinedFlowEnabled(Boolean(els.oCombinedFlow.checked));
