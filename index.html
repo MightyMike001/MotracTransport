@@ -141,6 +141,36 @@
 
   <main id="appRoot" aria-live="polite" aria-busy="true"></main>
 
+  <dialog id="documentMailDialog" class="document-mail-dialog">
+    <form method="dialog" class="card document-mail" id="documentMailForm">
+      <header class="document-mail__header">
+        <h3 id="documentMailTitle">Document mailen</h3>
+        <p class="muted small" id="documentMailDescription"></p>
+      </header>
+      <label class="document-mail__field">Template
+        <select id="documentMailTemplate"></select>
+      </label>
+      <label class="document-mail__field">Distributielijst
+        <select id="documentMailList"></select>
+      </label>
+      <p class="muted small" id="documentMailListInfo"></p>
+      <label class="document-mail__field">Onderwerp
+        <input type="text" id="documentMailSubject" />
+      </label>
+      <label class="document-mail__field">Bericht
+        <textarea id="documentMailBody" rows="6"></textarea>
+      </label>
+      <label class="document-mail__field">Aanvullende ontvangers
+        <input type="text" id="documentMailAdditional" placeholder="Bijv. chauffeur@example.com, expeditie@example.com" />
+      </label>
+      <div class="document-mail__status" id="documentMailStatus" role="status"></div>
+      <menu class="menu document-mail__actions">
+        <button value="cancel" class="btn ghost">Annuleren</button>
+        <button id="documentMailSubmit" value="default" class="btn primary">Versturen</button>
+      </menu>
+    </form>
+  </dialog>
+
   <script src="js/date-utils.js"></script>
   <script>
     window.__APP_ENV__ = Object.assign(
@@ -158,6 +188,8 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/toast.js"></script>
+  <script src="js/documents.js"></script>
+  <script src="js/document-mail.js"></script>
   <script src="js/app.js"></script>
   <script src="js/theme-toggle.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

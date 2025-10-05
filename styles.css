@@ -1595,6 +1595,59 @@ dialog::backdrop {
   background: rgba(43, 43, 43, 0.4);
 }
 
+.document-mail-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.document-mail {
+  max-width: 520px;
+  width: min(520px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.document-mail__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.document-mail__header h3 {
+  margin: 0;
+}
+
+.document-mail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.95rem;
+}
+
+.document-mail__field input,
+.document-mail__field textarea,
+.document-mail__field select {
+  width: 100%;
+}
+
+.document-mail__status {
+  min-height: 1.2rem;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.document-mail__status.is-error {
+  color: #b3261e;
+}
+
+.document-mail__status.is-success {
+  color: #1b5e20;
+}
+
+.document-mail__actions {
+  justify-content: flex-end;
+}
+
 .menu {
   display: flex;
   justify-content: flex-end;

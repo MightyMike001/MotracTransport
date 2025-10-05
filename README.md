@@ -24,3 +24,20 @@ EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS=logistiek@example.com,planning@example.co
 ```
 
 Alle velden zijn optioneel. Zonder `EMAIL_NOTIFICATIONS_URL` blijven e-mailnotificaties uitgeschakeld. De standaardontvangers worden gecombineerd met het e-mailadres van de klant op de order.
+
+### Documentmailing configureren
+
+De module voor rittenlijsten en CMR's gebruikt sjablonen en distributielijsten. Deze zijn standaard aanwezig, maar kunnen via JSON-configuratie in `.env` worden aangepast:
+
+```
+DOCUMENT_EMAIL_TEMPLATES='[
+  {"id":"rittenlijst","name":"Dagplanning","type":"rittenlijst","subject":"Rittenlijst {date}","body":"..."},
+  {"id":"cmr","name":"CMR","type":"cmr","subject":"CMR {reference}","body":"..."}
+]'
+DOCUMENT_EMAIL_LISTS='[
+  {"id":"planning","name":"Planningsteam","recipients":["planning@example.com"]},
+  {"id":"expeditie","name":"Expeditie","recipients":["expeditie@example.com"],"cc":["magazijn@example.com"]}
+]'
+```
+
+Laat velden leeg of weg om te vallen op de ingebouwde standaards.

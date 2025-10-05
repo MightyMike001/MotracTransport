@@ -16,7 +16,29 @@
       </label>
       <button class="btn" id="btnRebuildRoutes">Herbereken</button>
       <button class="btn ghost" id="btnResetView">Reset view</button>
-      <button class="btn ghost" id="btnPrintRoutes">Print / export</button>
+      <div class="export-menu" data-export-menu>
+        <button
+          class="btn ghost export-menu__toggle"
+          id="btnRouteDocuments"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="routeDocumentsMenu"
+        >
+          Documenten
+        </button>
+        <div
+          class="export-menu__panel"
+          id="routeDocumentsMenu"
+          data-export-menu-panel
+          role="menu"
+          hidden
+        >
+          <button type="button" class="export-menu__item" data-export-format="print" role="menuitem">Printweergave</button>
+          <button type="button" class="export-menu__item" data-export-format="pdf" role="menuitem">Download rittenlijst (PDF)</button>
+          <button type="button" class="export-menu__item" data-export-format="email" role="menuitem">Mail rittenlijst</button>
+        </div>
+      </div>
     </div>
     <div id="routesStatus" class="status" role="status"></div>
     <div class="map-shell">
