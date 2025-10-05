@@ -6,12 +6,6 @@
       path: "index.html",
       requireAuth: true,
     },
-    processen: {
-      template: "partials/processen.html",
-      title: "Transportplanner — Procesoverzicht",
-      path: "processen.html",
-      requireAuth: true,
-    },
     aanvraag: {
       template: "partials/aanvraag.html",
       title: "Transportplanner — Nieuwe aanvraag",
@@ -65,7 +59,6 @@
   };
 
   const PAGE_SCRIPTS = {
-    processen: "js/processen.js",
     routekaart: "js/routes.js",
     users: "js/users.js",
     login: "js/login.js",
@@ -80,7 +73,6 @@
     "index.html": "start",
     "orders.html": "orders",
     "aanvraag.html": "aanvraag",
-    "processen.html": "processen",
     "planning.html": "planning",
     "routekaart.html": "routekaart",
     "vloot.html": "vloot",
