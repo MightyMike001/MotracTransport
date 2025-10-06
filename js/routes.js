@@ -88,10 +88,30 @@
   };
 
   const HUBS = [
-    { id: "noord", name: "Hub Noord (Groningen)", lat: 53.2194, lng: 6.5665 },
-    { id: "midden", name: "Motrac HQ (Deventer)", lat: 52.2574, lng: 6.1608 },
-    { id: "zuid", name: "Hub Zuid (Eindhoven)", lat: 51.4416, lng: 5.4697 },
-    { id: "belgie", name: "Hub België (Antwerpen)", lat: 51.2194, lng: 4.4025 },
+    {
+      id: "noord",
+      name: "Almere — Rondebeltweg 51, 1329 BP",
+      lat: 52.3507,
+      lng: 5.2688,
+    },
+    {
+      id: "midden",
+      name: "Apeldoorn — Wilmersdorf 32, 7327 AC",
+      lat: 52.1818,
+      lng: 5.9964,
+    },
+    {
+      id: "zuid",
+      name: "Venlo — Tasmanweg 6, 5928 LH",
+      lat: 51.3703,
+      lng: 6.1649,
+    },
+    {
+      id: "belgie",
+      name: "Zwijndrecht — Molenvliet 35, 3335 LH",
+      lat: 51.8250,
+      lng: 4.6324,
+    },
   ];
 
   const REGION_TO_HUB = {
