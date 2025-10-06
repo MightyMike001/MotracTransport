@@ -4310,6 +4310,39 @@ async function printCurrentOrder() {
   }
 
   const documentHtml = buildOrderPrintDocument(order, details, Array.isArray(lines) ? lines : []);
+
+  let storageKey = null;
+  let storedSuccessfully = false;
+  try {
+    storageKey = `print-order-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    window.sessionStorage.setItem(storageKey, documentHtml);
+    storedSuccessfully = true;
+  } catch (error) {
+    console.warn("Kan printdocument niet in sessieopslag bewaren", error);
+    storageKey = null;
+  }
+
+  if (storedSuccessfully && storageKey) {
+    const printUrl = new URL("print-order.html", window.location.href);
+    printUrl.searchParams.set("payload", storageKey);
+    try {
+      printWindow.location.replace(printUrl.toString());
+      try {
+        printWindow.focus();
+      } catch (focusError) {
+        console.warn("Kan printvenster niet focussen", focusError);
+      }
+      return;
+    } catch (navigationError) {
+      console.warn("Kan printpagina niet openen via sessieopslag", navigationError);
+      try {
+        window.sessionStorage.removeItem(storageKey);
+      } catch (cleanupError) {
+        console.warn("Kan tijdelijke printdata niet opschonen", cleanupError);
+      }
+    }
+  }
+
   try {
     printWindow.document.open();
     printWindow.document.write(documentHtml);
