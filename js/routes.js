@@ -169,7 +169,6 @@
     if (!details || typeof details !== "object") {
       return {
         reference: null,
-        transportType: null,
         customerOrderNumber: null,
         customerNumber: null,
         orderReference: null,
@@ -186,7 +185,6 @@
     }
     return {
       reference: details.reference || null,
-      transportType: details.transportType || null,
       customerOrderNumber: details.customerOrderNumber || null,
       customerNumber: details.customerNumber || null,
       orderReference: details.orderReference || null,
@@ -416,7 +414,6 @@
       buildDefinition("Status", formatValue(order.status)),
       buildDefinition("Gepland", plannedLabel ? htmlEscape(plannedLabel) : '<span class="route-export__placeholder">-</span>'),
       buildDefinition("Gewenste leverdatum", dueLabel && dueLabel !== "-" ? htmlEscape(dueLabel) : '<span class="route-export__placeholder">-</span>'),
-      buildDefinition("Transporttype", formatValue(details.transportType || details.cargo?.type)),
     ];
     const customerItems = [
       buildDefinition("Klant", formatValue(order.customer_name)),
