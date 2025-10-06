@@ -14,26 +14,30 @@
     <div id="loginStatus" class="status" role="status"></div>
   </section>
 
-  <section class="card narrow">
-    <h2>Account aanvragen</h2>
-    <p class="muted small">
-      Vraag zelf een account aan met je e-mailadres. Een beheerder wijst daarna je definitieve rol toe.
-    </p>
-    <form id="signupForm" class="stack" novalidate>
-      <label>E-mailadres
-        <input type="email" id="signupEmail" required autocomplete="email" placeholder="naam@voorbeeld.nl" />
-      </label>
-      <label>Wachtwoord
-        <input type="password" id="signupPassword" required minlength="6" autocomplete="new-password" />
-      </label>
-      <label>Bevestig wachtwoord
-        <input type="password" id="signupPasswordConfirm" required minlength="6" autocomplete="new-password" />
-      </label>
-      <button class="btn secondary" type="submit" id="btnSignup">Account aanvragen</button>
-    </form>
-    <div id="signupStatus" class="status" role="status"></div>
-    <p class="muted small">
-      Ben je beheerder en wil je iemand anders toevoegen? <a href="create-user.html" data-route="create-user">Gebruik dan het beheerdersformulier</a>.
-    </p>
-  </section>
+  <details class="card narrow collapsible" id="signupPanel">
+    <summary>
+      <h2>Account aanvragen</h2>
+    </summary>
+    <div class="collapsible-content">
+      <p class="muted small">
+        Vraag zelf een account aan met je e-mailadres. Een beheerder wijst daarna je definitieve rol toe.
+      </p>
+      <form id="signupForm" class="stack" novalidate>
+        <label>E-mailadres
+          <input type="email" id="signupEmail" required autocomplete="email" placeholder="naam@voorbeeld.nl" />
+        </label>
+        <label>Wachtwoord
+          <input type="password" id="signupPassword" required minlength="6" autocomplete="new-password" />
+        </label>
+        <label>Bevestig wachtwoord
+          <input type="password" id="signupPasswordConfirm" required minlength="6" autocomplete="new-password" />
+        </label>
+        <button class="btn secondary" type="submit" id="btnSignup">Account aanvragen</button>
+      </form>
+      <div id="signupStatus" class="status" role="status"></div>
+      <p class="muted small">
+        Ben je beheerder en wil je iemand anders toevoegen? <a href="create-user.html" data-route="create-user">Gebruik dan het beheerdersformulier</a>.
+      </p>
+    </div>
+  </details>
 </div>
