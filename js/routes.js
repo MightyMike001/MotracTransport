@@ -114,6 +114,17 @@
     },
   ];
 
+  const DEFAULT_HUB_ID = "noord";
+
+  function getHubById(id) {
+    if (!id) return null;
+    return HUBS.find((hub) => hub.id === id) || null;
+  }
+
+  function getDefaultHub() {
+    return getHubById(DEFAULT_HUB_ID) || HUBS[0] || null;
+  }
+
   const REGION_TO_HUB = {
     Noord: "noord",
     Midden: "midden",
@@ -1149,10 +1160,8 @@
     return ordered;
   }
 
-  function chooseHubForStops(stops) {
-    const region = stops.find((s) => s.region)?.region;
-    const hubId = REGION_TO_HUB[region] || "midden";
-    return HUBS.find((h) => h.id === hubId) || HUBS[1];
+  function chooseHubForStops() {
+    return getDefaultHub();
   }
 
   function buildMarker(latlng, options) {
@@ -1169,6 +1178,38 @@
       [start.lat, start.lng],
       [end.lat, end.lng],
     ];
+  }
+
+  function buildRouteSteps(stops, hub) {
+    const steps = [];
+    const startHub = hub || getDefaultHub();
+    const startLabel = startHub?.name || "Almere";
+    steps.push({
+      type: "start",
+      label: `Vertrek vanuit ${startLabel}`,
+      reference: null,
+    });
+    for (const stop of stops) {
+      const reference = stop.details.reference || stop.order.customer_name || `Order #${stop.order.id}`;
+      const pickupLabel = stop.pickupName || stop.details.pickup?.location || "Laadlocatie onbekend";
+      const deliveryLabel = stop.deliveryName || stop.details.delivery?.location || "Loslocatie onbekend";
+      steps.push({
+        type: "pickup",
+        label: `Laden in ${pickupLabel}`,
+        reference,
+      });
+      steps.push({
+        type: "delivery",
+        label: `Lossen in ${deliveryLabel}`,
+        reference,
+      });
+    }
+    steps.push({
+      type: "return",
+      label: `Terug naar ${startLabel}`,
+      reference: null,
+    });
+    return steps;
   }
 
   function renderSummary(groups, unplanned, date) {
@@ -1199,19 +1240,21 @@
       meta.className = "muted small";
       meta.textContent = `Afstand ${group.distance.toFixed(1)} km`;
       card.appendChild(meta);
-      const list = document.createElement("ul");
-      for (const stop of group.stops) {
+      const list = document.createElement("ol");
+      list.className = "route-summary-steps";
+      const steps = buildRouteSteps(group.stops, group.hub);
+      for (const step of steps) {
         const item = document.createElement("li");
-        const ref = stop.details.reference || stop.order.customer_name || `Order #${stop.order.id}`;
-        const pickupLabel = stop.pickupName || stop.details.pickup?.location || "Laadlocatie onbekend";
-        const deliveryLabel = stop.deliveryName || stop.details.delivery?.location || "Loslocatie onbekend";
-        const title = document.createElement("div");
-        title.textContent = ref;
-        const leg = document.createElement("div");
-        leg.className = "muted small";
-        leg.textContent = `${pickupLabel} → ${deliveryLabel}`;
-        item.appendChild(title);
-        item.appendChild(leg);
+        item.className = `route-summary-step route-summary-step--${step.type}`;
+        const label = document.createElement("div");
+        label.textContent = step.label;
+        item.appendChild(label);
+        if (step.reference) {
+          const ref = document.createElement("div");
+          ref.className = "muted small";
+          ref.textContent = step.reference;
+          item.appendChild(ref);
+        }
         list.appendChild(item);
       }
       card.appendChild(list);
@@ -1414,6 +1457,7 @@
           stops: orderedStops,
           distance,
           color,
+          hub,
         });
       }
 
