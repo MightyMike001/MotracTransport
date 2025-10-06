@@ -1145,25 +1145,10 @@
   }
 
   function buildRouteSegment(start, end) {
-    const segment = [];
-    const distance = haversine(start, end);
-    const steps = Math.max(6, Math.ceil(distance / 25));
-    const latDiff = end.lat - start.lat;
-    const lngDiff = end.lng - start.lng;
-    const length = Math.hypot(latDiff, lngDiff) || 1;
-    const normalLat = -lngDiff / length;
-    const normalLng = latDiff / length;
-    const controlStrength = Math.min(distance / 90, 0.35);
-    const midLat = (start.lat + end.lat) / 2 + normalLat * controlStrength;
-    const midLng = (start.lng + end.lng) / 2 + normalLng * controlStrength;
-    for (let step = 0; step <= steps; step += 1) {
-      const t = step / steps;
-      const oneMinusT = 1 - t;
-      const lat = oneMinusT * oneMinusT * start.lat + 2 * oneMinusT * t * midLat + t * t * end.lat;
-      const lng = oneMinusT * oneMinusT * start.lng + 2 * oneMinusT * t * midLng + t * t * end.lng;
-      segment.push([lat, lng]);
-    }
-    return segment;
+    return [
+      [start.lat, start.lng],
+      [end.lat, end.lng],
+    ];
   }
 
   function renderSummary(groups, unplanned, date) {
