@@ -50,6 +50,7 @@ create table if not exists public.transport_orders (
   customer_order_number text,
   order_reference text,
   order_description text,
+  first_work boolean,
   pickup_confirmed boolean,
   pickup_location text,
   pickup_date date,
@@ -99,6 +100,7 @@ alter table public.transport_orders add column if not exists customer_contact_em
 alter table public.transport_orders add column if not exists customer_order_number text;
 alter table public.transport_orders add column if not exists order_reference text;
 alter table public.transport_orders add column if not exists order_description text;
+alter table public.transport_orders add column if not exists first_work boolean;
 alter table public.transport_orders add column if not exists pickup_confirmed boolean;
 alter table public.transport_orders add column if not exists pickup_location text;
 alter table public.transport_orders add column if not exists pickup_date date;

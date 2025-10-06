@@ -97,6 +97,19 @@
             <label class="form-field-full">Order omschrijving
               <textarea id="oOrderDescription" rows="3" placeholder="Bijvoorbeeld: levering reachtruck aan vestiging Antwerpen"></textarea>
             </label>
+            <div class="form-toggle form-field-full">
+              <span class="toggle-label">Eerste werk?</span>
+              <div class="toggle-group">
+                <label class="toggle-option">
+                  <input type="radio" name="firstWork" id="oFirstWorkYes" value="yes" />
+                  <span>Ja</span>
+                </label>
+                <label class="toggle-option">
+                  <input type="radio" name="firstWork" id="oFirstWorkNo" value="no" checked />
+                  <span>Nee</span>
+                </label>
+              </div>
+            </div>
             <label class="checkbox form-field-full">
               <input type="checkbox" id="oCombinedFlow" />
               <span>Gecombineerde aanvraag (doorbreng en retour in één workflow)</span>
@@ -473,6 +486,10 @@
               <div class="summary-row">
                 <dt>Contact e-mail</dt>
                 <dd data-summary-field="order_contact_email">-</dd>
+              </div>
+              <div class="summary-row">
+                <dt>Eerste werk?</dt>
+                <dd data-summary-field="first_work">Nee</dd>
               </div>
               <div class="summary-row">
                 <dt>Gecombineerde aanvraag</dt>
