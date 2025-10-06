@@ -1203,8 +1203,15 @@
       for (const stop of group.stops) {
         const item = document.createElement("li");
         const ref = stop.details.reference || stop.order.customer_name || `Order #${stop.order.id}`;
-        const location = stop.details.delivery?.location || stop.order.customer_city || "Onbekend";
-        item.textContent = `${ref} — ${location}`;
+        const pickupLabel = stop.pickupName || stop.details.pickup?.location || "Laadlocatie onbekend";
+        const deliveryLabel = stop.deliveryName || stop.details.delivery?.location || "Loslocatie onbekend";
+        const title = document.createElement("div");
+        title.textContent = ref;
+        const leg = document.createElement("div");
+        leg.className = "muted small";
+        leg.textContent = `${pickupLabel} → ${deliveryLabel}`;
+        item.appendChild(title);
+        item.appendChild(leg);
         list.appendChild(item);
       }
       card.appendChild(list);
@@ -1230,8 +1237,15 @@
       for (const stop of unplanned) {
         const item = document.createElement("li");
         const ref = stop.details.reference || stop.order.customer_name || `Order #${stop.order.id}`;
-        const location = stop.details.delivery?.location || stop.order.customer_city || "Onbekend";
-        item.textContent = `${ref} — ${location}`;
+        const pickupLabel = stop.pickupName || stop.details.pickup?.location || "Laadlocatie onbekend";
+        const deliveryLabel = stop.deliveryName || stop.details.delivery?.location || "Loslocatie onbekend";
+        const title = document.createElement("div");
+        title.textContent = ref;
+        const leg = document.createElement("div");
+        leg.className = "muted small";
+        leg.textContent = `${pickupLabel} → ${deliveryLabel}`;
+        item.appendChild(title);
+        item.appendChild(leg);
         list.appendChild(item);
       }
       backlog.appendChild(list);
@@ -1259,6 +1273,7 @@
       markersLayer.clearLayers();
       routesLayer.clearLayers();
       const bounds = L.latLngBounds([]);
+      const loadSegments = [];
 
       HUBS.forEach((hub) => {
         const marker = L.marker([hub.lat, hub.lng], { title: hub.name });
@@ -1276,10 +1291,14 @@
       });
 
       for (const order of dateOrders) {
-        const details = window.parseOrderDetails ? window.parseOrderDetails(order) : { delivery: { location: order.customer_city } };
+        const details = window.parseOrderDetails
+          ? window.parseOrderDetails(order)
+          : { delivery: { location: order.customer_city } };
         const region = order.region || details.delivery?.region || "Midden";
-        const deliveryName = details.delivery?.location || order.customer_city || order.customer_name || "Locatie onbekend";
-        const latlng = geocodeLocation(deliveryName, region);
+        const pickupName = details.pickup?.location || order.pickup_location || order.customer_city || "Laadlocatie onbekend";
+        const deliveryName = details.delivery?.location || order.customer_city || order.customer_name || "Loslocatie onbekend";
+        const pickupLatlng = geocodeLocation(pickupName, order.pickup_region || region);
+        const deliveryLatlng = geocodeLocation(deliveryName, order.delivery_region || region);
         const markerColor = order.assigned_carrier
           ? colorMap.get(order.assigned_carrier) || COLOR_SCALE[colorIndex % COLOR_SCALE.length]
           : "#6F6F6F";
@@ -1287,23 +1306,60 @@
           colorMap.set(order.assigned_carrier, markerColor);
           colorIndex += 1;
         }
-        const marker = buildMarker(latlng, {
+        const reference = details.reference || order.customer_name || `Order #${order.id}`;
+        const pickupMarker = buildMarker(pickupLatlng, {
+          color: markerColor,
+          fillColor: "#FFFFFF",
+          fillOpacity: 1,
+          weight: 3,
+        });
+        pickupMarker
+          .bindPopup(
+            [`<strong>${htmlEscape(reference)}</strong>`, `Laadlocatie`, htmlEscape(pickupName), `→ ${htmlEscape(deliveryName)}`]
+              .filter(Boolean)
+              .join("<br/>")
+          )
+          .bindTooltip("Laad", { permanent: false, direction: "top" });
+        pickupMarker.addTo(markersLayer);
+        const deliveryMarker = buildMarker(deliveryLatlng, {
           color: markerColor,
           fillColor: markerColor,
+          weight: 2,
         });
-        const popupParts = [
-          `<strong>${details.reference || order.customer_name || `Order #${order.id}`}</strong>`,
+        deliveryMarker
+          .bindPopup(
+            [
+              `<strong>${htmlEscape(reference)}</strong>`,
+              "Loslocatie",
+              htmlEscape(deliveryName),
+              order.assigned_carrier ? `Voertuig: ${htmlEscape(order.assigned_carrier)}` : "Nog niet ingepland",
+              `${htmlEscape(pickupName)} → ${htmlEscape(deliveryName)}`,
+            ]
+              .filter(Boolean)
+              .join("<br/>")
+          )
+          .bindTooltip("Los", { permanent: false, direction: "top" });
+        deliveryMarker.addTo(markersLayer);
+        bounds.extend([pickupLatlng.lat, pickupLatlng.lng]);
+        bounds.extend([deliveryLatlng.lat, deliveryLatlng.lng]);
+        loadSegments.push({
+          color: markerColor,
+          pickupLatlng,
+          deliveryLatlng,
+          pickupName,
           deliveryName,
-          order.assigned_carrier ? `Voertuig: ${order.assigned_carrier}` : "Nog niet ingepland",
-        ];
-        marker.bindPopup(popupParts.filter(Boolean).join("<br/>"));
-        marker.addTo(markersLayer);
-        bounds.extend([latlng.lat, latlng.lng]);
+          reference,
+        });
         const stop = {
           order,
           details,
-          latlng,
+          latlng: deliveryLatlng,
+          pickupLatlng,
+          deliveryLatlng,
+          pickupName,
+          deliveryName,
           region,
+          color: markerColor,
         };
         if (order.assigned_carrier) {
           assignments.push(stop);
@@ -1359,6 +1415,30 @@
           distance,
           color,
         });
+      }
+
+      if (showRoutes) {
+        for (const segment of loadSegments) {
+          if (!segment?.pickupLatlng || !segment?.deliveryLatlng) continue;
+          const legLine = L.polyline(
+            [
+              [segment.pickupLatlng.lat, segment.pickupLatlng.lng],
+              [segment.deliveryLatlng.lat, segment.deliveryLatlng.lng],
+            ],
+            {
+              color: segment.color,
+              weight: 3,
+              opacity: 0.85,
+              dashArray: "8 6",
+            }
+          );
+          legLine.bindPopup(
+            [`<strong>${htmlEscape(segment.reference)}</strong>`, `${htmlEscape(segment.pickupName)} → ${htmlEscape(segment.deliveryName)}`]
+              .filter(Boolean)
+              .join("<br/>")
+          );
+          legLine.addTo(routesLayer);
+        }
       }
 
       const hasRoutes = grouped.length > 0;
