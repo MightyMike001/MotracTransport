@@ -601,7 +601,7 @@ h4 {
 .form-sections {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 16px;
 }
 
 .form-section {
@@ -816,9 +816,9 @@ h4 {
 .order-mini-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px 24px;
-  margin-bottom: 20px;
-  padding: 10px 14px;
+  gap: 6px 20px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-subtle-surface);
@@ -849,8 +849,9 @@ h4 {
 @media (max-width: 768px) {
   .order-mini-summary {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 8px 16px;
-    margin-bottom: 16px;
+    gap: 6px 14px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
   }
 }
 
