@@ -2202,6 +2202,25 @@ dialog::backdrop {
   gap: 6px;
 }
 
+.route-summary-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-summary-step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.route-summary-step--start,
+.route-summary-step--return {
+  font-weight: 600;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
