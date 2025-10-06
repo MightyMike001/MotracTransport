@@ -495,6 +495,9 @@ function refreshElements() {
     oCustomerOrderNumber: doc.getElementById("oCustomerOrderNumber"),
     oOrderReference: doc.getElementById("oOrderReference"),
     oOrderDescription: doc.getElementById("oOrderDescription"),
+    summaryReference: doc.querySelector('[data-summary-field="reference"]'),
+    summaryCustomer: doc.querySelector('[data-summary-field="customer"]'),
+    summaryDue: doc.querySelector('[data-summary-field="due"]'),
     oCombinedFlow: doc.getElementById("oCombinedFlow"),
     combinedFlowHint: doc.getElementById("combinedFlowHint"),
     oOrderContact: doc.getElementById("oOrderContact"),
@@ -598,6 +601,18 @@ function refreshElements() {
     btnClearBoard: doc.getElementById("btnClearBoard"),
     planBoard: doc.getElementById("planBoard"),
   };
+}
+
+function updateOrderMiniSummary() {
+  if (!els.summaryReference || !els.summaryCustomer || !els.summaryDue) {
+    return;
+  }
+  const reference = cleanText(els.oRequestReference?.value) || "-";
+  const customer = cleanText(els.oCustomerName?.value) || "-";
+  const due = formatDateDisplay(els.oDue?.value);
+  els.summaryReference.textContent = reference;
+  els.summaryCustomer.textContent = customer;
+  els.summaryDue.textContent = due && due.trim() ? due : "-";
 }
 
 const BOUND_LISTENERS = [];
@@ -1196,6 +1211,9 @@ function updateOrderSummary() {
   const deliveryLocation = cleanText(els.oDeliveryLocation?.value) || "-";
   const deliveryInstructions = cleanText(els.oDeliveryInstructions?.value) || "-";
   const combinedFlow = isCombinedFlowEnabled();
+
+  updateOrderMiniSummary();
+
   if (els.orderSummary) {
     const combinedSections = els.orderSummary.querySelectorAll('[data-flow="combined"]');
     combinedSections.forEach((section) => {
@@ -1779,6 +1797,7 @@ async function assignRequestReference() {
     if (!els.oRequestReference) return;
     els.oRequestReference.value = value;
     els.oRequestReference.defaultValue = value;
+    updateOrderSummary();
   };
   const storedLatest = storageGet(STORAGE_KEYS.lastReference, null);
   let candidate = computeNextRequestReference(storedLatest);
@@ -5379,6 +5398,7 @@ function resetOrderForm(){
   if (els.createStatus) {
     setStatus(els.createStatus, "");
   }
+  updateOrderSummary();
 }
 
 async function createOrder(){
@@ -6870,6 +6890,16 @@ function bind(canManagePlanning){
   setupBranchSelectors();
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
+  if (els.oRequestReference) {
+    addBoundListener(els.oRequestReference, "input", updateOrderSummary);
+  }
+  if (els.oCustomerName) {
+    addBoundListener(els.oCustomerName, "input", updateOrderSummary);
+  }
+  if (els.oDue) {
+    addBoundListener(els.oDue, "input", updateOrderSummary);
+    addBoundListener(els.oDue, "change", updateOrderSummary);
+  }
   if (Array.isArray(els.wizardNextButtons)) {
     for (const button of els.wizardNextButtons) {
       addBoundListener(button, "click", (event) => {
@@ -7012,6 +7042,7 @@ async function initAppPage() {
   setCombinedFlowEnabled(Boolean(els.oCombinedFlow?.checked), { keepStep: false });
   await assignRequestReference();
   applyDefaultReceivedDate();
+  updateOrderSummary();
   ensureMinimumArticleRows();
   resetArticleImport();
   updateArticleRowsForType(getArticleType());
