@@ -68,6 +68,51 @@ const showToastMessage = (type, message) => {
   }
 };
 
+const MOTRAC_BRANCHES = Object.freeze([
+  Object.freeze({
+    id: "almere",
+    name: "Almere",
+    address: "Rondebeltweg 51, 1329 BP Almere",
+  }),
+  Object.freeze({
+    id: "apeldoorn",
+    name: "Apeldoorn",
+    address: "Wilmersdorf 32, 7327 AC Apeldoorn",
+  }),
+  Object.freeze({
+    id: "venlo",
+    name: "Venlo",
+    address: "Tasmanweg 6, 5928 LH Venlo",
+  }),
+  Object.freeze({
+    id: "zwijndrecht",
+    name: "Zwijndrecht",
+    address: "Molenvliet 35, 3335 LH Zwijndrecht",
+  }),
+]);
+
+function normalizeBranchText(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function getBranchById(id) {
+  if (!id) return null;
+  const normalized = String(id).trim().toLowerCase();
+  if (!normalized) return null;
+  return MOTRAC_BRANCHES.find((branch) => branch.id === normalized) || null;
+}
+
+function getBranchByAddress(address) {
+  const normalized = normalizeBranchText(address);
+  if (!normalized) return null;
+  return (
+    MOTRAC_BRANCHES.find((branch) => normalizeBranchText(branch.address) === normalized) || null
+  );
+}
+
 function getUserDisplayName(user) {
   if (!user || typeof user !== "object") {
     return "";
@@ -464,6 +509,7 @@ function refreshElements() {
     oPickupPhone: doc.getElementById("oPickupPhone"),
     oPickupLocation: doc.getElementById("oPickupLocation"),
     oPickupInstructions: doc.getElementById("oPickupInstructions"),
+    oPickupBranch: doc.getElementById("oPickupBranch"),
     oDeliveryConfirmed: doc.getElementById("oDeliveryConfirmed"),
     oDeliveryDate: doc.getElementById("oDeliveryDate"),
     oDeliveryTimeFrom: doc.getElementById("oDeliveryTimeFrom"),
@@ -472,6 +518,7 @@ function refreshElements() {
     oDeliveryPhone: doc.getElementById("oDeliveryPhone"),
     oDeliveryLocation: doc.getElementById("oDeliveryLocation"),
     oDeliveryInstructions: doc.getElementById("oDeliveryInstructions"),
+    oDeliveryBranch: doc.getElementById("oDeliveryBranch"),
     oReturnPickupConfirmed: doc.getElementById("oReturnPickupConfirmed"),
     oReturnPickupDate: doc.getElementById("oReturnPickupDate"),
     oReturnPickupTimeFrom: doc.getElementById("oReturnPickupTimeFrom"),
@@ -562,6 +609,102 @@ function addBoundListener(element, type, handler) {
   }
   element.addEventListener(type, handler);
   BOUND_LISTENERS.push({ element, type, handler });
+}
+
+function setupBranchSelector(select, field) {
+  if (!select || !field) {
+    return;
+  }
+
+  const placeholderOption = select.querySelector('option[value=""]');
+  const placeholderText = placeholderOption?.textContent?.trim() || "Kies een vestiging";
+  const previousSelectedId = select.value;
+
+  while (select.firstChild) {
+    select.removeChild(select.firstChild);
+  }
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = placeholderText;
+  select.appendChild(placeholder);
+
+  for (const branch of MOTRAC_BRANCHES) {
+    const option = document.createElement("option");
+    option.value = branch.id;
+    option.textContent = `${branch.name} — ${branch.address}`;
+    select.appendChild(option);
+  }
+
+  const existingBranch =
+    getBranchByAddress(field.value) || getBranchById(previousSelectedId) || null;
+
+  if (existingBranch) {
+    select.value = existingBranch.id;
+    field.dataset.branchId = existingBranch.id;
+    field.dataset.branchValue = existingBranch.address;
+    if (normalizeBranchText(field.value) !== normalizeBranchText(existingBranch.address)) {
+      field.value = existingBranch.address;
+    }
+  } else {
+    select.value = "";
+    delete field.dataset.branchId;
+    delete field.dataset.branchValue;
+  }
+
+  let programmaticUpdate = false;
+
+  const triggerFieldUpdate = () => {
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  addBoundListener(select, "change", () => {
+    const selectedBranch = getBranchById(select.value);
+    programmaticUpdate = true;
+    if (selectedBranch) {
+      field.value = selectedBranch.address;
+      field.dataset.branchId = selectedBranch.id;
+      field.dataset.branchValue = selectedBranch.address;
+    } else {
+      if (
+        field.dataset.branchId &&
+        normalizeBranchText(field.value) === normalizeBranchText(field.dataset.branchValue)
+      ) {
+        field.value = "";
+      }
+      delete field.dataset.branchId;
+      delete field.dataset.branchValue;
+    }
+    programmaticUpdate = false;
+    triggerFieldUpdate();
+  });
+
+  addBoundListener(field, "input", () => {
+    if (programmaticUpdate) {
+      return;
+    }
+    const currentBranch = getBranchById(select.value);
+    if (!currentBranch) {
+      delete field.dataset.branchId;
+      delete field.dataset.branchValue;
+      return;
+    }
+    if (normalizeBranchText(field.value) !== normalizeBranchText(currentBranch.address)) {
+      select.value = "";
+      delete field.dataset.branchId;
+      delete field.dataset.branchValue;
+    }
+  });
+}
+
+function setupBranchSelectors() {
+  if (els.oPickupBranch && els.oPickupLocation) {
+    setupBranchSelector(els.oPickupBranch, els.oPickupLocation);
+  }
+  if (els.oDeliveryBranch && els.oDeliveryLocation) {
+    setupBranchSelector(els.oDeliveryBranch, els.oDeliveryLocation);
+  }
 }
 
 function removeBoundListeners() {
@@ -6659,6 +6802,7 @@ function bind(canManagePlanning){
     loadOrders({ page: 1 });
   };
   setExportMenuState(false);
+  setupBranchSelectors();
   bindClick(els.btnApplyFilters, () => loadOrders({ page: 1 }));
   bindClick(els.btnCreate, createOrder);
   if (Array.isArray(els.wizardNextButtons)) {
