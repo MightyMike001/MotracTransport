@@ -495,6 +495,9 @@ function refreshElements() {
     oCustomerOrderNumber: doc.getElementById("oCustomerOrderNumber"),
     oOrderReference: doc.getElementById("oOrderReference"),
     oOrderDescription: doc.getElementById("oOrderDescription"),
+    oFirstWorkYes: doc.getElementById("oFirstWorkYes"),
+    oFirstWorkNo: doc.getElementById("oFirstWorkNo"),
+    oFirstWorkInputs: doc.querySelectorAll('input[name="firstWork"]'),
     summaryReference: doc.querySelector('[data-summary-field="reference"]'),
     summaryCustomer: doc.querySelector('[data-summary-field="customer"]'),
     summaryDue: doc.querySelector('[data-summary-field="due"]'),
@@ -917,6 +920,11 @@ function setupWizardFieldObservers() {
       observeWizardField(els[key]);
     }
   }
+  if (els.oFirstWorkInputs && typeof els.oFirstWorkInputs[Symbol.iterator] === "function") {
+    for (const input of els.oFirstWorkInputs) {
+      observeWizardField(input);
+    }
+  }
   if (els.articleTypeInputs && typeof els.articleTypeInputs[Symbol.iterator] === "function") {
     for (const input of els.articleTypeInputs) {
       observeWizardField(input);
@@ -1174,6 +1182,26 @@ function renderOrderSummaryArticles(articleType, articles) {
   els.orderSummaryArticles.appendChild(table);
 }
 
+function getFirstWorkSelection() {
+  if (!els || !els.oFirstWorkInputs || typeof els.oFirstWorkInputs[Symbol.iterator] !== "function") {
+    return null;
+  }
+  for (const input of els.oFirstWorkInputs) {
+    if (!input || !input.checked) {
+      continue;
+    }
+    const raw = typeof input.value === "string" ? input.value.trim().toLowerCase() : "";
+    if (raw === "yes" || raw === "ja" || raw === "true" || raw === "1") {
+      return true;
+    }
+    if (raw === "no" || raw === "nee" || raw === "false" || raw === "0") {
+      return false;
+    }
+    return true;
+  }
+  return null;
+}
+
 function setSummaryField(name, value) {
   if (!els.orderSummary) {
     return;
@@ -1196,6 +1224,8 @@ function updateOrderSummary() {
   const orderContact = cleanText(els.oOrderContact?.value) || "-";
   const orderContactPhone = cleanText(els.oOrderContactPhone?.value) || "-";
   const orderContactEmail = cleanText(els.oOrderContactEmail?.value) || "-";
+  const firstWorkSelection = getFirstWorkSelection();
+  const firstWorkLabel = firstWorkSelection === null ? "-" : firstWorkSelection ? "Ja" : "Nee";
   const pickupConfirmed = els.oPickupConfirmed?.checked ? "Ja" : "Nee";
   const pickupDate = formatDateDisplay(els.oPickupDate?.value);
   const pickupSlot = buildTimeSlot(els.oPickupTimeFrom?.value, els.oPickupTimeTo?.value) || "-";
@@ -1258,6 +1288,7 @@ function updateOrderSummary() {
   setSummaryField("order_contact", orderContact);
   setSummaryField("order_contact_phone", orderContactPhone);
   setSummaryField("order_contact_email", orderContactEmail);
+  setSummaryField("first_work", firstWorkLabel);
   setSummaryField("combined_flow", combinedFlow ? "Ja" : "Nee");
   setSummaryField("pickup_confirmed", pickupConfirmed);
   setSummaryField("pickup_date", pickupDate);
@@ -2761,6 +2792,7 @@ function parseOrderDetails(order) {
     contactName: null,
     contactPhone: null,
     contactEmail: null,
+    firstWork: null,
   };
   if (!order) return details;
 
@@ -2769,6 +2801,7 @@ function parseOrderDetails(order) {
   details.customerNumber = cleanText(order.customer_number);
   details.orderReference = cleanText(order.order_reference);
   details.orderDescription = cleanText(order.order_description);
+  details.firstWork = typeof order.first_work === "boolean" ? order.first_work : null;
 
   details.pickup = normalizeStop({
     location: cleanText(order.pickup_location),
@@ -3619,6 +3652,8 @@ function renderOrders(rows) {
     if (pickupContactInfo) tooltip.push(`Laad contact: ${pickupContactInfo}`);
     const deliveryContactInfo = joinNonEmpty([details.delivery.contact, details.delivery.phone]);
     if (deliveryContactInfo) tooltip.push(`Los contact: ${deliveryContactInfo}`);
+    if (details.firstWork === true) tooltip.push("Eerste werk: Ja");
+    if (details.firstWork === false) tooltip.push("Eerste werk: Nee");
     if (details.pickup.confirmed === true) tooltip.push("Laadlocatie bevestigd");
     if (details.delivery.confirmed === true) tooltip.push("Losadres bevestigd");
     if (!details.orderDescription && details.instructions) {
@@ -5268,6 +5303,7 @@ function collectOrderPayload(articleType) {
     pickupInstructions,
     deliveryInstructions,
   ], "\n");
+  const firstWorkSelection = getFirstWorkSelection();
 
   if (isCombinedFlowEnabled()) {
     const returnReference = buildReturnRequestReference(requestReference);
@@ -5291,6 +5327,7 @@ function collectOrderPayload(articleType) {
     customer_order_number: cleanText(els.oCustomerOrderNumber?.value),
     order_reference: cleanText(els.oOrderReference?.value),
     order_description: orderDescription,
+    first_work: firstWorkSelection,
     pickup_confirmed: els.oPickupConfirmed ? !!els.oPickupConfirmed.checked : null,
     pickup_date: els.oPickupDate?.value || null,
     pickup_time_from: els.oPickupTimeFrom?.value || null,
@@ -5336,6 +5373,7 @@ function collectReturnOrderPayload(articleType) {
     pickupInstructions,
     deliveryInstructions,
   ], "\n");
+  const firstWorkSelection = getFirstWorkSelection();
 
   const payload = {
     reference: returnReference,
@@ -5351,6 +5389,7 @@ function collectReturnOrderPayload(articleType) {
     customer_order_number: cleanText(els.oCustomerOrderNumber?.value),
     order_reference: returnOrderReference,
     order_description: orderDescription ? `${orderDescription} (retour)` : "Retourtransport",
+    first_work: firstWorkSelection,
     pickup_confirmed: els.oReturnPickupConfirmed ? !!els.oReturnPickupConfirmed.checked : null,
     pickup_date: els.oReturnPickupDate?.value || null,
     pickup_time_from: els.oReturnPickupTimeFrom?.value || null,
@@ -6899,6 +6938,14 @@ function bind(canManagePlanning){
   if (els.oDue) {
     addBoundListener(els.oDue, "input", updateOrderSummary);
     addBoundListener(els.oDue, "change", updateOrderSummary);
+  }
+  if (els.oFirstWorkInputs && typeof els.oFirstWorkInputs[Symbol.iterator] === "function") {
+    for (const input of els.oFirstWorkInputs) {
+      addBoundListener(input, "change", () => {
+        updateOrderSummary();
+        updateWizardNavigationState();
+      });
+    }
   }
   if (Array.isArray(els.wizardNextButtons)) {
     for (const button of els.wizardNextButtons) {

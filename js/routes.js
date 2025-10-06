@@ -181,6 +181,7 @@
         contactName: null,
         contactPhone: null,
         contactEmail: null,
+        firstWork: null,
       };
     }
     return {
@@ -197,6 +198,7 @@
       contactName: details.contactName || null,
       contactPhone: details.contactPhone || null,
       contactEmail: details.contactEmail || null,
+      firstWork: typeof details.firstWork === "boolean" ? details.firstWork : null,
     };
   }
 
@@ -415,6 +417,8 @@
       buildDefinition("Gepland", plannedLabel ? htmlEscape(plannedLabel) : '<span class="route-export__placeholder">-</span>'),
       buildDefinition("Gewenste leverdatum", dueLabel && dueLabel !== "-" ? htmlEscape(dueLabel) : '<span class="route-export__placeholder">-</span>'),
     ];
+    const firstWorkDisplay = details.firstWork === true ? "Ja" : details.firstWork === false ? "Nee" : null;
+    planningItems.push(buildDefinition("Eerste werk?", formatValue(firstWorkDisplay)));
     const customerItems = [
       buildDefinition("Klant", formatValue(order.customer_name)),
       buildDefinition("Klantnummer", formatValue(details.customerNumber || order.customer_number)),

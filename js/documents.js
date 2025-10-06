@@ -462,6 +462,14 @@
       if (dueDate && dueDate !== planningDate) {
         planningLines.push(`Gewenste levering: ${dueDate}`);
       }
+      const firstWorkLabel = typeof details.firstWork === "boolean"
+        ? details.firstWork
+          ? "Ja"
+          : "Nee"
+        : "";
+      if (firstWorkLabel) {
+        planningLines.push(`Eerste werk: ${firstWorkLabel}`);
+      }
       const contact = joinNonEmpty([
         details.contactName,
         details.contactPhone,
