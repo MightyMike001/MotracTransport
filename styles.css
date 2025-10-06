@@ -109,6 +109,18 @@ h4 {
   color: var(--color-muted);
 }
 
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .site-header {
   padding: 24px 16px;
   background: var(--color-surface);
@@ -1451,6 +1463,47 @@ td {
 
 .bar-actions .muted {
   margin-right: auto;
+}
+
+.orders-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.orders-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.orders-search__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(176, 0, 32, 0.15);
+  outline: none;
+}
+
+.orders-search__input::placeholder {
+  color: var(--color-muted);
+  opacity: 0.8;
+}
+
+@media (max-width: 720px) {
+  .orders-search {
+    flex-basis: 100%;
+  }
+
+  .bar-actions .muted {
+    order: 3;
+    margin-right: 0;
+  }
 }
 
 .export-menu {

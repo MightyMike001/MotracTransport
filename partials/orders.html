@@ -29,9 +29,6 @@
         <label>Ordernummer klant / PO
           <input id="filterCustomerOrder" type="search" placeholder="Bijv. PO-12345" />
         </label>
-        <label>Zoekopdracht
-          <input id="filterQuery" type="search" placeholder="Referentie, notities, adressen" />
-        </label>
         <label>Leverdatum
           <input id="filterDate" type="date" />
         </label>
@@ -46,6 +43,17 @@
       <div class="bar">
         <h2>Orders</h2>
         <div class="bar-actions">
+          <div class="orders-search">
+            <label class="visually-hidden" for="filterQuery">Zoeken in orders</label>
+            <input
+              id="filterQuery"
+              class="orders-search__input"
+              type="search"
+              placeholder="Zoeken op order, klant of status"
+              aria-label="Zoeken in orders"
+              autocomplete="off"
+            />
+          </div>
           <div class="muted small">Klik op een regel om details te bewerken.</div>
           <div class="export-menu" data-export-menu>
             <button
