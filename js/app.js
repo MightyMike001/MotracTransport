@@ -5660,6 +5660,47 @@ function sortCarriersInPlace() {
   });
 }
 
+const ICON_EDIT = `
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 3 21l.5-4.5Z" />
+  </svg>
+`;
+
+const ICON_TRASH = `
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M15 6V4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v2" />
+  </svg>
+`;
+
+function createIconActionButton(label, icon, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn ghost small icon-only";
+  button.setAttribute("aria-label", label);
+  button.title = label;
+
+  const iconWrap = document.createElement("span");
+  iconWrap.className = "btn__icon";
+  iconWrap.setAttribute("aria-hidden", "true");
+  iconWrap.innerHTML = icon;
+  button.appendChild(iconWrap);
+
+  const srLabel = document.createElement("span");
+  srLabel.className = "sr-only";
+  srLabel.textContent = label;
+  button.appendChild(srLabel);
+
+  if (typeof onClick === "function") {
+    button.addEventListener("click", onClick);
+  }
+
+  return button;
+}
+
 function renderCarrierList() {
   const list = els.carrierManageList;
   if (!list) {
@@ -5685,17 +5726,15 @@ function renderCarrierList() {
     header.appendChild(title);
     const actions = document.createElement("div");
     actions.className = "carrier-actions";
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "btn ghost small";
-    editBtn.textContent = "Bewerken";
-    editBtn.addEventListener("click", () => startCarrierEdit(carrier.id));
+    const editLabel = carrier?.name
+      ? `Carrier ${carrier.name} bewerken`
+      : "Carrier bewerken";
+    const editBtn = createIconActionButton(editLabel, ICON_EDIT, () => startCarrierEdit(carrier.id));
     actions.appendChild(editBtn);
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "btn ghost small";
-    removeBtn.textContent = "Verwijderen";
-    removeBtn.addEventListener("click", () => removeCarrier(carrier.id));
+    const removeLabel = carrier?.name
+      ? `Carrier ${carrier.name} verwijderen`
+      : "Carrier verwijderen";
+    const removeBtn = createIconActionButton(removeLabel, ICON_TRASH, () => removeCarrier(carrier.id));
     actions.appendChild(removeBtn);
     header.appendChild(actions);
     li.appendChild(header);
@@ -5980,17 +6019,15 @@ function renderTrucks(){
       header.appendChild(title);
       const actions = document.createElement("div");
       actions.className = "truck-actions";
-      const editBtn = document.createElement("button");
-      editBtn.className = "btn ghost small";
-      editBtn.type = "button";
-      editBtn.textContent = "Bewerken";
-      editBtn.addEventListener("click", () => startTruckEdit(truck.id));
+      const editLabel = truck?.name
+        ? `Voertuig ${truck.name} bewerken`
+        : "Voertuig bewerken";
+      const editBtn = createIconActionButton(editLabel, ICON_EDIT, () => startTruckEdit(truck.id));
       actions.appendChild(editBtn);
-      const removeBtn = document.createElement("button");
-      removeBtn.className = "btn ghost small";
-      removeBtn.type = "button";
-      removeBtn.textContent = "Verwijderen";
-      removeBtn.addEventListener("click", () => removeTruck(truck.id));
+      const removeLabel = truck?.name
+        ? `Voertuig ${truck.name} verwijderen`
+        : "Voertuig verwijderen";
+      const removeBtn = createIconActionButton(removeLabel, ICON_TRASH, () => removeTruck(truck.id));
       actions.appendChild(removeBtn);
       header.appendChild(actions);
       li.appendChild(header);
@@ -6043,6 +6080,7 @@ async function addTruck(event){
     renderTrucks();
     const successMessage = `${truck.name} bijgewerkt.`;
     setStatus(els.truckStatus, successMessage, "success");
+    showToastMessage("success", successMessage);
     let syncResult = null;
     if (previousName !== truck.name){
       syncResult = await syncTruckAssignmentsAfterEdit(truck);
@@ -6067,12 +6105,23 @@ async function addTruck(event){
   TRUCKS.push(truck);
   saveTrucks();
   renderTrucks();
-  setStatus(els.truckStatus, `${truck.name} opgeslagen.`, "success");
+  const successMessage = `${truck.name} opgeslagen.`;
+  setStatus(els.truckStatus, successMessage, "success");
+  showToastMessage("success", successMessage);
   resetTruckForm();
 }
 
 async function removeTruck(id){
   const truck = TRUCKS.find(t => t.id === id);
+  const confirmationMessage = truck?.name
+    ? `Weet u het zeker? ${truck.name} en de bijbehorende planning worden definitief verwijderd.`
+    : "Weet u het zeker? Dit voertuig en de bijbehorende planning worden definitief verwijderd.";
+  const confirmed = typeof window.confirm === "function"
+    ? window.confirm(confirmationMessage)
+    : true;
+  if (!confirmed) {
+    return;
+  }
   TRUCKS = TRUCKS.filter(t => t.id !== id);
   saveTrucks();
   let boardChanged = false;
@@ -6101,6 +6150,7 @@ async function removeTruck(id){
   renderTrucks();
   const removalMessage = truck ? `${truck.name} verwijderd.` : "Vrachtwagen verwijderd.";
   setStatus(els.truckStatus, removalMessage, "success");
+  showToastMessage("success", removalMessage);
   setStatus(
     els.boardStatus,
     truck ? `Planning voor ${truck.name} verwijderd.` : "Vrachtwagen verwijderd.",

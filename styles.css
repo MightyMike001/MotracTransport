@@ -1179,6 +1179,33 @@ textarea {
   gap: 10px;
 }
 
+.btn.icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 6px;
+  min-height: 36px;
+  min-width: 36px;
+  width: 36px;
+}
+
+.btn.icon-only .btn__icon {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.btn.icon-only .btn__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn.icon-only:hover .btn__icon,
+.btn.icon-only:focus-visible .btn__icon {
+  background: var(--color-icon-muted-bg);
+}
+
 .btn__icon {
   display: inline-flex;
   align-items: center;
