@@ -6272,11 +6272,7 @@ function renderPlanBoard(){
   container.innerHTML = "";
   const date = ensureBoardDate();
   const regionFilter = getBoardRegionFilter();
-  if (!TRUCKS.length){
-    container.innerHTML = '<div class="empty-hint">Voeg eerst vrachtwagens toe om te plannen.</div>';
-    setStatus(els.boardStatus, "Geen vrachtwagens beschikbaar.");
-    return;
-  }
+  const hasTrucks = Array.isArray(TRUCKS) && TRUCKS.length > 0;
   const dayData = PLAN_BOARD[date] || {};
   const plannedToday = new Set();
   for (const assignments of Object.values(dayData)){
@@ -6326,6 +6322,15 @@ function renderPlanBoard(){
   }
   backlogLane.appendChild(backlogBody);
   container.appendChild(backlogLane);
+
+  if (!hasTrucks){
+    const hint = document.createElement("div");
+    hint.className = "empty-hint";
+    hint.textContent = "Voeg vrachtwagens toe om opdrachten in te plannen.";
+    container.appendChild(hint);
+    setStatus(els.boardStatus, "Geen vrachtwagens beschikbaar. Sleep opdrachten zodra er voertuigen zijn.");
+    return;
+  }
 
   let totalAssignments = 0;
   const sortedTrucks = TRUCKS.slice().sort((a, b) => a.name.localeCompare(b.name));
