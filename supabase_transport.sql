@@ -40,7 +40,6 @@ create table if not exists public.transport_orders (
   assigned_carrier text,
   reference text,
   request_reference text,
-  transport_type text,
   request_received_date date,
   customer_name text not null,
   customer_number text,
@@ -90,9 +89,6 @@ alter table public.transport_orders add column if not exists planned_slot text;
 alter table public.transport_orders add column if not exists assigned_carrier text;
 alter table public.transport_orders add column if not exists reference text;
 alter table public.transport_orders add column if not exists request_reference text;
-alter table public.transport_orders add column if not exists transport_type text;
-alter table public.transport_orders
-  alter column transport_type set default 'Afleveren';
 alter table public.transport_orders add column if not exists request_received_date date;
 alter table public.transport_orders add column if not exists customer_name text;
 alter table public.transport_orders add column if not exists customer_number text;
@@ -131,20 +127,6 @@ alter table public.transport_orders add column if not exists created_by_name tex
 
 alter table public.transport_orders
   add column if not exists updated_at timestamptz not null default now();
-
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'transport_orders_transport_type_allowed'
-      and conrelid = 'public.transport_orders'::regclass
-  ) then
-    alter table public.transport_orders
-      add constraint transport_orders_transport_type_allowed
-      check (transport_type is null or transport_type in ('Afleveren', 'Retour'));
-  end if;
-end $$;
 
 do $$
 begin

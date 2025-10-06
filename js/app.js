@@ -487,7 +487,6 @@ function refreshElements() {
     carrierManageList: doc.getElementById("carrierManageList"),
     orderForm: doc.getElementById("orderForm"),
     oRequestReference: doc.getElementById("oRequestReference"),
-    oTransportType: doc.getElementById("oTransportType"),
     oStatus: doc.getElementById("oStatus"),
     oReceivedAt: doc.getElementById("oReceivedAt"),
     oDue: doc.getElementById("oDue"),
@@ -1857,7 +1856,6 @@ const ORDER_SORT_CONFIG = {
   customer_order_number: { field: "customer_order_number", defaultDirection: "asc" },
   pickup_location: { field: "pickup_location", defaultDirection: "asc" },
   delivery_location: { field: "delivery_location", defaultDirection: "asc" },
-  transport_type: { field: "transport_type", defaultDirection: "asc" },
   status: { field: "status", defaultDirection: "asc" },
   assigned_carrier: { field: "assigned_carrier", defaultDirection: "asc" },
   planned_date: { field: "planned_date", defaultDirection: "asc", nulls: "last" },
@@ -2732,7 +2730,6 @@ function generateQrSvg(value, options = {}) {
 function parseOrderDetails(order) {
   const details = {
     reference: null,
-    transportType: null,
     customerOrderNumber: null,
     customerNumber: null,
     orderReference: null,
@@ -2749,7 +2746,6 @@ function parseOrderDetails(order) {
   if (!order) return details;
 
   details.reference = cleanText(order.request_reference) || cleanText(order.reference);
-  details.transportType = cleanText(order.transport_type ?? order.load_type ?? order.cargo_type);
   details.customerOrderNumber = cleanText(order.customer_order_number);
   details.customerNumber = cleanText(order.customer_number);
   details.orderReference = cleanText(order.order_reference);
@@ -2777,9 +2773,7 @@ function parseOrderDetails(order) {
     phone: cleanText(order.delivery_contact_phone),
     instructions: cleanText(order.delivery_instructions),
   });
-  details.cargo = normalizeCargo({
-    type: details.transportType ?? order.cargo_type ?? null,
-  });
+  details.cargo = normalizeCargo(order.cargo_type ?? order.load_type ?? null);
 
   const contactName = cleanText(order.customer_contact ?? order.contact);
   const contactPhone = cleanText(order.customer_contact_phone);
@@ -3596,7 +3590,6 @@ function renderOrders(rows) {
     tr.classList.add("order-row");
     const tooltip = [];
     if (details.orderDescription) tooltip.push(`Omschrijving: ${details.orderDescription}`);
-    if (details.transportType) tooltip.push(`Transporttype: ${details.transportType}`);
     if (details.orderReference) tooltip.push(`Order referentie: ${details.orderReference}`);
     if (details.customerOrderNumber) tooltip.push(`Klantorder: ${details.customerOrderNumber}`);
     if (details.customerNumber) tooltip.push(`Klantnummer: ${details.customerNumber}`);
@@ -3648,10 +3641,6 @@ function renderOrders(rows) {
     const deliveryCell = document.createElement("td");
     deliveryCell.textContent = formatStop(details.delivery);
     tr.appendChild(deliveryCell);
-
-    const transportCell = document.createElement("td");
-    transportCell.textContent = details.transportType || formatCargo(details.cargo) || "-";
-    tr.appendChild(transportCell);
 
     const statusCell = document.createElement("td");
     statusCell.className = "cell-status";
@@ -3806,7 +3795,6 @@ function exportOrders(format = "csv") {
     "Ordernummer klant",
     "Laadadres",
     "Losadres",
-    "Transport type",
     "Status",
     "Vrachtwagen",
     "Gepland",
@@ -3821,7 +3809,6 @@ function exportOrders(format = "csv") {
       details.customerOrderNumber || details.customerNumber || "-",
       formatStop(details.pickup),
       formatStop(details.delivery),
-      details.transportType || formatCargo(details.cargo) || "-",
       row.status || "-",
       row.assigned_carrier || "-",
       formatPlanned(row),
@@ -5252,7 +5239,6 @@ function buildReturnRequestReference(baseReference) {
 
 function collectOrderPayload(articleType) {
   const requestReference = cleanText(els.oRequestReference?.value);
-  const transportType = cleanText(els.oTransportType?.value) || "Afleveren";
   const status = cleanText(els.oStatus?.value) || "Nieuw";
   const customerName = cleanText(els.oCustomerName?.value);
   const orderDescription = cleanText(els.oOrderDescription?.value);
@@ -5275,9 +5261,6 @@ function collectOrderPayload(articleType) {
   const payload = {
     reference: requestReference,
     request_reference: requestReference,
-    transport_type: transportType,
-    load_type: transportType,
-    cargo_type: transportType,
     status,
     request_received_date: els.oReceivedAt?.value || getTodayDateValue(),
     due_date: els.oDue?.value || null,
@@ -5338,9 +5321,6 @@ function collectReturnOrderPayload(articleType) {
   const payload = {
     reference: returnReference,
     request_reference: returnReference,
-    transport_type: "Retour",
-    load_type: "Retour",
-    cargo_type: "Retour",
     status: cleanText(els.oStatus?.value) || "Nieuw",
     request_received_date: els.oReceivedAt?.value || getTodayDateValue(),
     due_date: els.oReturnDeliveryDate?.value || els.oDue?.value || null,
@@ -5389,9 +5369,6 @@ function resetOrderForm(){
   setCombinedFlowEnabled(false, { keepStep: false });
   if (els.oStatus) {
     els.oStatus.value = "Nieuw";
-  }
-  if (els.oTransportType) {
-    els.oTransportType.value = "Afleveren";
   }
   applyDefaultReceivedDate();
   resetArticlesSection();

@@ -589,7 +589,6 @@
       [
         { term: "Geplande datum", value: formatDate(plannedDate) || "-" },
         { term: "Gewenste levering", value: formatDate(deliveryDate) || "-" },
-        { term: "Transporttype", value: sanitizeText(safeDetails.transportType || safeOrder.transport_type) || "-" },
       ],
       { spacingAfter: 10 }
     );
