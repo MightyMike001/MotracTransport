@@ -700,27 +700,61 @@
     } catch (error) {
       console.warn("Kan exportvenster niet voorbereiden", error);
     }
+    let documentHtml;
     if (!snapshot) {
-      const emptyHtml = buildRoutesExportDocument({ date: null, generatedAt: new Date().toISOString(), groups: [], backlog: [] }, new Map());
+      documentHtml = buildRoutesExportDocument(
+        { date: null, generatedAt: new Date().toISOString(), groups: [], backlog: [] },
+        new Map()
+      );
+    } else {
+      let linesByOrder = new Map();
       try {
-        exportWindow.document.open();
-        exportWindow.document.write(emptyHtml);
-        exportWindow.document.close();
+        linesByOrder = await prepareRouteLines(snapshot);
       } catch (error) {
-        console.warn("Kan exportdocument niet tonen", error);
+        console.warn("Kan artikelen voor export niet laden", error);
       }
-      return;
+      if (!exportWindow || exportWindow.closed) {
+        return;
+      }
+      documentHtml = buildRoutesExportDocument(snapshot, linesByOrder);
     }
-    let linesByOrder = new Map();
-    try {
-      linesByOrder = await prepareRouteLines(snapshot);
-    } catch (error) {
-      console.warn("Kan artikelen voor export niet laden", error);
-    }
+
     if (!exportWindow || exportWindow.closed) {
       return;
     }
-    const documentHtml = buildRoutesExportDocument(snapshot, linesByOrder);
+
+    let storageKey = null;
+    let storedSuccessfully = false;
+    try {
+      storageKey = `routes-export-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      window.sessionStorage.setItem(storageKey, documentHtml);
+      storedSuccessfully = true;
+    } catch (error) {
+      console.warn("Kan exportdocument niet in sessieopslag bewaren", error);
+      storageKey = null;
+    }
+
+    if (storedSuccessfully && storageKey) {
+      const exportUrl = new URL("routes-export.html", window.location.href);
+      exportUrl.searchParams.set("payload", storageKey);
+      try {
+        exportWindow.location.replace(exportUrl.toString());
+        try {
+          exportWindow.focus();
+        } catch (focusError) {
+          console.warn("Kan exportvenster niet focussen", focusError);
+        }
+        return;
+      } catch (navigationError) {
+        console.warn("Kan exportpagina niet openen via sessieopslag", navigationError);
+        try {
+          window.sessionStorage.removeItem(storageKey);
+        } catch (cleanupError) {
+          console.warn("Kan tijdelijke exportdata niet opschonen", cleanupError);
+        }
+      }
+    }
+
     try {
       exportWindow.document.open();
       exportWindow.document.write(documentHtml);
