@@ -13,6 +13,8 @@
 
 De gegenereerde `js/env.js` en `.env` staan in `.gitignore` zodat sleutels niet per ongeluk in de repository terechtkomen.
 
+Zie ook [SECURITY.md](SECURITY.md) voor aanvullende beveiligingsrichtlijnen, onder andere over het beschermen van Supabase-sleutels en het beheer van accounts.
+
 ### Optionele e-mailmeldingen
 
 Als er een e-mailsysteem beschikbaar is kun je automatische meldingen inschakelen via extra variabelen in `.env`:

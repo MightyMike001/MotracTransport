@@ -72,19 +72,15 @@
 
   async function hashPassword(password) {
     if (!password) return "";
-    if (window.crypto?.subtle) {
-      const data = new TextEncoder().encode(password);
-      const hash = await window.crypto.subtle.digest("SHA-256", data);
-      const hashArray = Array.from(new Uint8Array(hash));
-      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (!window.crypto || !window.crypto.subtle) {
+      throw new Error(
+        "Deze browser ondersteunt geen veilige wachtwoordhashing. Gebruik een moderne browser of update je systeem."
+      );
     }
-    // Fallback (niet cryptografisch veilig, maar voorkomt blokkeren op oudere browsers)
-    let hash = 0;
-    for (let i = 0; i < password.length; i += 1) {
-      hash = (hash << 5) - hash + password.charCodeAt(i);
-      hash |= 0;
-    }
-    return hash.toString(16);
+    const data = new TextEncoder().encode(password);
+    const hash = await window.crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hash));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
   function formatRole(role) {
@@ -138,24 +134,45 @@
     const area = document.getElementById("authArea");
     if (!area) return;
     const user = getUser();
+    while (area.firstChild) {
+      area.removeChild(area.firstChild);
+    }
     if (!user) {
-      area.innerHTML = '<a class="btn primary small" href="login.html" data-route="login">Inloggen</a>';
+      const link = document.createElement("a");
+      link.className = "btn primary small";
+      link.href = "login.html";
+      link.dataset.route = "login";
+      link.textContent = "Inloggen";
+      area.appendChild(link);
       return;
     }
-    area.innerHTML = `
-      <div class="auth-summary">
-        <span class="auth-user">${user.name}</span>
-        <span class="auth-role">${formatRole(user.role)}</span>
-      </div>
-      <button class="btn ghost small" id="btnLogout" type="button">Uitloggen</button>
-    `;
-    const btn = document.getElementById("btnLogout");
-    if (btn) {
-      btn.addEventListener("click", (evt) => {
-        evt.preventDefault();
-        logout();
-      });
-    }
+
+    const summary = document.createElement("div");
+    summary.className = "auth-summary";
+
+    const userSpan = document.createElement("span");
+    userSpan.className = "auth-user";
+    userSpan.textContent = user.name || user.email || "";
+    summary.appendChild(userSpan);
+
+    const roleSpan = document.createElement("span");
+    roleSpan.className = "auth-role";
+    roleSpan.textContent = formatRole(user.role);
+    summary.appendChild(roleSpan);
+
+    area.appendChild(summary);
+
+    const btn = document.createElement("button");
+    btn.className = "btn ghost small";
+    btn.id = "btnLogout";
+    btn.type = "button";
+    btn.textContent = "Uitloggen";
+    btn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      logout();
+    });
+
+    area.appendChild(btn);
   }
 
   function applyRoleVisibility() {

@@ -3354,7 +3354,12 @@ async function refreshCarriersDatalist() {
     CARRIERS = Array.isArray(carriers) ? carriers : [];
     sortCarriersInPlace();
     if (els.carrierList) {
-      els.carrierList.innerHTML = CARRIERS.map((c) => `<option value="${c.name}">`).join("");
+      els.carrierList.textContent = "";
+      for (const carrier of CARRIERS) {
+        const option = document.createElement("option");
+        option.value = carrier.name || "";
+        els.carrierList.appendChild(option);
+      }
     }
     if (
       EDITING_CARRIER_ID &&
@@ -3367,7 +3372,7 @@ async function refreshCarriersDatalist() {
     console.error("Kan carriers niet laden", error);
     CARRIERS = [];
     if (els.carrierList) {
-      els.carrierList.innerHTML = "";
+      els.carrierList.textContent = "";
     }
     renderCarrierList();
     setStatus(els.carrierStatus, "Carriers laden mislukt.", "error");

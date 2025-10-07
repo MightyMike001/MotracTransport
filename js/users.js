@@ -142,42 +142,88 @@
 
   function renderUsers(users) {
     if (!els.tableBody) return;
+    els.tableBody.textContent = "";
+
     if (!users.length) {
-      els.tableBody.innerHTML = '<tr><td colspan="6" class="muted">Geen gebruikers gevonden.</td></tr>';
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 6;
+      cell.className = "muted";
+      cell.textContent = "Geen gebruikers gevonden.";
+      row.appendChild(cell);
+      els.tableBody.appendChild(row);
       return;
     }
 
-    const rows = users
-      .map((user) => {
-        const toggleLabel = user.is_active ? "Deactiveer" : "Activeer";
-        const statusLabel = user.is_active ? "Actief" : "Gedeactiveerd";
-        const currentRole = user.role || "in aanvraag";
-        const roleOptions = ROLE_OPTIONS.map(
-          (option) =>
-            `<option value="${option.value}"${option.value === currentRole ? " selected" : ""}>${option.label}</option>`
-        ).join("");
-        return `
-          <tr data-id="${user.id}">
-            <td>${user.full_name}</td>
-            <td>${user.email}</td>
-            <td>
-              <label class="sr-only" for="role-${user.id}">Rol</label>
-              <select class="role-select" id="role-${user.id}" data-action="role" data-id="${user.id}">
-                ${roleOptions}
-              </select>
-            </td>
-            <td>${statusLabel}</td>
-            <td>${formatDate(user.created_at)}</td>
-            <td class="actions">
-              <button class="btn ghost small" data-action="toggle">${toggleLabel}</button>
-              <button class="btn small" data-action="reset">Reset wachtwoord</button>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+    users.forEach((user) => {
+      const row = document.createElement("tr");
+      row.dataset.id = String(user.id ?? "");
 
-    els.tableBody.innerHTML = rows;
+      const nameCell = document.createElement("td");
+      nameCell.textContent = user.full_name || "";
+      row.appendChild(nameCell);
+
+      const emailCell = document.createElement("td");
+      emailCell.textContent = user.email || "";
+      row.appendChild(emailCell);
+
+      const roleCell = document.createElement("td");
+      const roleLabel = document.createElement("label");
+      roleLabel.className = "sr-only";
+      const roleId = `role-${user.id}`;
+      roleLabel.htmlFor = roleId;
+      roleLabel.textContent = "Rol";
+      roleCell.appendChild(roleLabel);
+
+      const roleSelect = document.createElement("select");
+      roleSelect.className = "role-select";
+      roleSelect.id = roleId;
+      roleSelect.dataset.action = "role";
+      roleSelect.dataset.id = String(user.id ?? "");
+
+      const currentRole = user.role || "in aanvraag";
+      ROLE_OPTIONS.forEach((option) => {
+        const opt = document.createElement("option");
+        opt.value = option.value;
+        opt.textContent = option.label;
+        if (option.value === currentRole) {
+          opt.selected = true;
+        }
+        roleSelect.appendChild(opt);
+      });
+
+      roleCell.appendChild(roleSelect);
+      row.appendChild(roleCell);
+
+      const statusCell = document.createElement("td");
+      statusCell.textContent = user.is_active ? "Actief" : "Gedeactiveerd";
+      row.appendChild(statusCell);
+
+      const createdCell = document.createElement("td");
+      createdCell.textContent = formatDate(user.created_at);
+      row.appendChild(createdCell);
+
+      const actionsCell = document.createElement("td");
+      actionsCell.className = "actions";
+
+      const toggleButton = document.createElement("button");
+      toggleButton.className = "btn ghost small";
+      toggleButton.type = "button";
+      toggleButton.dataset.action = "toggle";
+      toggleButton.textContent = user.is_active ? "Deactiveer" : "Activeer";
+      actionsCell.appendChild(toggleButton);
+
+      const resetButton = document.createElement("button");
+      resetButton.className = "btn small";
+      resetButton.type = "button";
+      resetButton.dataset.action = "reset";
+      resetButton.textContent = "Reset wachtwoord";
+      actionsCell.appendChild(resetButton);
+
+      row.appendChild(actionsCell);
+
+      els.tableBody.appendChild(row);
+    });
   }
 
   async function loadUsers(showMessage = false) {
