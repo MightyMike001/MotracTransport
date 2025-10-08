@@ -822,10 +822,84 @@ const Users = {
   remove: (id) => sbDelete("app_users", `id=eq.${id}`),
   setPassword: (id, passwordHash) =>
     sbUpdate("app_users", `id=eq.${id}`, { password_hash: passwordHash }).then(r => r[0]),
-  authenticate: async (email, passwordHash) => {
-    const query = `?select=id,full_name,email,role,is_active&email=eq.${encodeURIComponent(email)}&password_hash=eq.${encodeURIComponent(passwordHash)}`;
-    const result = await sbSelect("app_users", query);
-    const record = Array.isArray(result) ? result[0] : null;
+  authenticate: async (email, passwordHash, options = {}) => {
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const candidateSet = new Set();
+
+    const registerCandidate = (value) => {
+      if (typeof value !== "string") return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      candidateSet.add(trimmed);
+    };
+
+    if (Array.isArray(passwordHash)) {
+      passwordHash.forEach(registerCandidate);
+    } else {
+      registerCandidate(passwordHash);
+    }
+
+    if (Array.isArray(options.additionalHashes)) {
+      options.additionalHashes.forEach(registerCandidate);
+    }
+
+    const candidates = Array.from(candidateSet);
+    if (!normalizedEmail || !candidates.length) {
+      return null;
+    }
+
+    const baseSelectFields = ["id", "full_name", "email", "role", "is_active"];
+    const tokenSelectFields = ["token", "auth_token", "jwt", "access_token"];
+
+    const buildQuery = (fields) => {
+      let q = `?select=${encodeURIComponent(fields.join(","))}`;
+      q += `&email=eq.${encodeURIComponent(normalizedEmail)}`;
+
+      if (candidates.length === 1) {
+        q += `&password_hash=eq.${encodeURIComponent(candidates[0])}`;
+      } else {
+        const orFilters = candidates
+          .map((hash) => `password_hash.eq.${encodeURIComponent(hash)}`)
+          .join(",");
+        q += `&or=(${orFilters})`;
+      }
+
+      return q;
+    };
+
+    const queryWithTokens = buildQuery([...baseSelectFields, ...tokenSelectFields]);
+    const queryWithoutTokens = buildQuery(baseSelectFields);
+
+    const executeAuthQuery = async (query) => {
+      const result = await sbSelect("app_users", query);
+      return Array.isArray(result) && result.length ? result[0] : null;
+    };
+
+    const shouldRetryWithoutTokenColumns = (error) => {
+      const message = formatSupabaseError(error, "");
+      if (typeof message !== "string" || !message) {
+        return false;
+      }
+      const normalizedMessage = message.toLowerCase();
+      if (!normalizedMessage.includes("does not exist")) {
+        return false;
+      }
+      return tokenSelectFields.some((column) =>
+        normalizedMessage.includes(`app_users.${column}`)
+      );
+    };
+
+    let record;
+    try {
+      record = await executeAuthQuery(queryWithTokens);
+    } catch (error) {
+      if (!shouldRetryWithoutTokenColumns(error)) {
+        throw error;
+      }
+      console.warn("Tokenkolommen niet gevonden op app_users, probeer opnieuw zonder tokens", error);
+      record = await executeAuthQuery(queryWithoutTokens);
+    }
+
     if (!record) {
       return null;
     }
@@ -834,7 +908,7 @@ const Users = {
     let token = inlineToken;
 
     if (!token) {
-      token = await fetchUserAuthToken(user.id);
+      token = await fetchUserAuthToken(user?.id);
     }
 
     return { user, token: token || null };

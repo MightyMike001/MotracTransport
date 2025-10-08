@@ -166,6 +166,12 @@
       },
       window.__APP_ENV__ || {}
     );
+
+    if (!window.__APP_ENV__.SUPABASE_URL || !window.__APP_ENV__.SUPABASE_ANON_KEY) {
+      console.warn(
+        "Supabase configuratie onvolledig. Stel de variabelen in via js/env.js of vul ze hier aan."
+      );
+    }
   </script>
   <script src="js/env.js"></script>
   <script src="js/config.js"></script>

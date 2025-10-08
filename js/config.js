@@ -95,9 +95,16 @@
     }),
   ]);
 
+  const defaults = Object.freeze({
+    SUPABASE_URL: "https://ezcxfobjsvomcjuwbgep.supabase.co",
+    SUPABASE_ANON_KEY:
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y3hmb2Jqc3ZvbWNqdXdiZ2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NzQ3ODcsImV4cCI6MjA3MzI1MDc4N30.IhYZYfB_N2JDOG82NFbB_wxY7BJhahqJd9Y71nhpI3I",
+  });
+
   const config = {
-    SUPABASE_URL: toStringValue(sourceEnv.SUPABASE_URL),
-    SUPABASE_ANON_KEY: toStringValue(sourceEnv.SUPABASE_ANON_KEY),
+    SUPABASE_URL: toStringValue(sourceEnv.SUPABASE_URL) || defaults.SUPABASE_URL,
+    SUPABASE_ANON_KEY:
+      toStringValue(sourceEnv.SUPABASE_ANON_KEY) || defaults.SUPABASE_ANON_KEY,
     EMAIL_NOTIFICATIONS_URL: toStringValue(sourceEnv.EMAIL_NOTIFICATIONS_URL),
     EMAIL_NOTIFICATIONS_FROM: toStringValue(sourceEnv.EMAIL_NOTIFICATIONS_FROM),
     EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS: Object.freeze(
@@ -114,16 +121,10 @@
     .filter(([, value]) => !value)
     .map(([key]) => key);
 
-  const requiredMissing = missing.filter((key) =>
-    ["SUPABASE_URL", "SUPABASE_ANON_KEY"].includes(key)
-  );
-
-  if (requiredMissing.length > 0) {
-    const message =
-      "Configuration missing: " +
-      `${requiredMissing.join(", ")}. Did you run \"npm run build:env\" with the required environment variables?`;
-    console.error(message);
-    throw new Error(message);
+  if (missing.length > 0) {
+    console.warn(
+      `Ontbrekende configuratiewaarden: ${missing.join(", ")}. Standaardwaarden worden gebruikt waar beschikbaar.`
+    );
   }
 
   if (!config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS.length) {

@@ -181,8 +181,14 @@
         els.btnCreate.disabled = true;
       }
 
-      const adminHash = await window.Auth.hashPassword(adminPasswordValue);
-      const adminAuth = await window.Users.authenticate(normalizedAdminEmail, adminHash);
+      const adminHashes = await window.Auth.generatePasswordHashes(
+        adminPasswordValue,
+        normalizedAdminEmail
+      );
+      const adminAuth = await window.Users.authenticate(
+        normalizedAdminEmail,
+        adminHashes.hashes
+      );
       const adminUser = adminAuth?.user || adminAuth;
       if (!adminUser || adminUser.role !== "admin") {
         throw new Error("Alleen admins kunnen nieuwe gebruikers aanmaken");
@@ -193,7 +199,10 @@
         );
       }
 
-      const newPasswordHash = await window.Auth.hashPassword(newPasswordValue);
+      const newPasswordHash = await window.Auth.hashPassword(
+        newPasswordValue,
+        normalizedUserEmail
+      );
       await window.Users.create({
         full_name: newNameValue.trim(),
         email: normalizedUserEmail,

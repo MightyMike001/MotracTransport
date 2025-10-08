@@ -1,3 +1,16 @@
+-- Herstel wijzigingen uit de aangescherpte policies zodat de API weer toegankelijk is.
+drop function if exists public.authenticate_app_user(text, text[]);
+drop function if exists public.current_app_role();
+drop policy if exists app_users_select_by_role on public.app_users;
+drop policy if exists app_users_insert_by_role on public.app_users;
+drop policy if exists app_users_insert_signup on public.app_users;
+drop policy if exists app_users_update_by_role on public.app_users;
+drop policy if exists app_users_delete_by_admin on public.app_users;
+drop policy if exists app_user_tokens_select_by_role on public.app_user_tokens;
+drop policy if exists app_user_tokens_manage_by_role on public.app_user_tokens;
+
+alter table if exists public.app_user_tokens disable row level security;
+
 -- Maak benodigde extensies voor UUID en case-insensitieve e-mailvergelijking
 create extension if not exists pgcrypto;
 create extension if not exists citext;

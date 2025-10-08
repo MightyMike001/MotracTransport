@@ -2,8 +2,10 @@
 
 ## Configuratie
 
-1. Kopieer `.env.example` naar `.env` en vul de Supabase waarden in.
-2. Genereer het runtime configuratiebestand met:
+De app bevat standaard Supabase instellingen zodat de demo direct werkt. Wil je eigen sleutels gebruiken, volg dan deze stappen:
+
+1. Kopieer `.env.example` naar `.env` en vul je Supabase waarden in.
+2. Genereer optioneel een runtime configuratiebestand met:
    ```bash
    npm install
    npm run build:env

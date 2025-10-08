@@ -213,7 +213,7 @@
 
     try {
       setStatus("Gebruiker wordt opgeslagen…");
-      const passwordHash = await window.Auth.hashPassword(password);
+      const passwordHash = await window.Auth.hashPassword(password, email);
       const payload = {
         full_name: name,
         email,
@@ -279,7 +279,7 @@
     if (!passwordValue) return;
     try {
       setStatus("Wachtwoord wordt bijgewerkt…");
-      const hash = await window.Auth.hashPassword(passwordValue);
+      const hash = await window.Auth.hashPassword(passwordValue, user.email);
       await window.Users.setPassword(id, hash);
       const successMessage = "Wachtwoord opnieuw ingesteld";
       setStatus(successMessage, "success");
