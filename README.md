@@ -2,8 +2,10 @@
 
 ## Configuratie
 
-1. Kopieer `.env.example` naar `.env` en vul de Supabase waarden in.
-2. Genereer het runtime configuratiebestand met:
+De app bevat standaard Supabase instellingen zodat de demo direct werkt. Wil je eigen sleutels gebruiken, volg dan deze stappen:
+
+1. Kopieer `.env.example` naar `.env` en vul je Supabase waarden in.
+2. Genereer optioneel een runtime configuratiebestand met:
    ```bash
    npm install
    npm run build:env
@@ -12,25 +14,6 @@
 3. Start de applicatie via je gewenste webserver. Het script `npm run build:env` maakt `js/env.js` aan dat door de app wordt gelezen.
 
 De gegenereerde `js/env.js` en `.env` staan in `.gitignore` zodat sleutels niet per ongeluk in de repository terechtkomen.
-
-### Authenticatietokens instellen
-
-De webapp verwacht dat voor iedere geactiveerde gebruiker een JWT met de claim `app_role` beschikbaar is in de tabel `app_user_tokens`.
-Deze tokens worden door de nieuwe RPC `authenticate_app_user` meegegeven en bepalen welke rijen een gebruiker volgens Row Level
-Security mag benaderen. Een token kan bijvoorbeeld een Supabase service role JWT zijn met een extra claim:
-
-```sql
-insert into public.app_user_tokens (user_id, token, app_role, expires_at)
-values (
-  '00000000-0000-0000-0000-000000000000',
-  '<JWT_MET_CLAIM_APP_ROLE>',
-  'admin',
-  now() + interval '90 days'
-);
-```
-
-Zonder geldig token valt de applicatie terug op de anonieme Supabase key en blokkeren de aangescherpte RLS policies bewust iedere
-gevoelige bewerking.
 
 ### Optionele e-mailmeldingen
 

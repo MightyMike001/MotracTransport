@@ -848,42 +848,32 @@ const Users = {
       return null;
     }
 
-    const headers = buildSupabaseHeaders({ Prefer: "return=representation,params=single-object" });
-    const payload = {
-      email: normalizedEmail,
-      password_hashes: candidates,
-    };
+    const selectFields = [
+      "id",
+      "full_name",
+      "email",
+      "role",
+      "is_active",
+      "token",
+      "auth_token",
+      "jwt",
+      "access_token",
+    ];
 
-    const data = await tryWrap(async () => {
-      const response = await fetch(`${SUPABASE_REST_URL}/rpc/authenticate_app_user`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-      const text = await response.text();
-      let parsed = null;
-      if (text) {
-        try {
-          parsed = JSON.parse(text);
-        } catch (error) {
-          console.warn("Kan JSON-respons van authenticate_app_user niet parsen", error);
-        }
-      }
+    let query = `?select=${encodeURIComponent(selectFields.join(","))}`;
+    query += `&email=eq.${encodeURIComponent(normalizedEmail)}`;
 
-      if (!response.ok) {
-        const errorMessage =
-          typeof parsed === "string"
-            ? parsed
-            : parsed && typeof parsed === "object"
-              ? JSON.stringify(parsed)
-              : text || response.statusText;
-        throw new Error(errorMessage || "Authenticatie mislukt");
-      }
+    if (candidates.length === 1) {
+      query += `&password_hash=eq.${encodeURIComponent(candidates[0])}`;
+    } else {
+      const orFilters = candidates
+        .map((hash) => `password_hash.eq.${encodeURIComponent(hash)}`)
+        .join(",");
+      query += `&or=(${orFilters})`;
+    }
 
-      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-    });
-
-    const record = Array.isArray(data) && data.length ? data[0] : null;
+    const result = await sbSelect("app_users", query);
+    const record = Array.isArray(result) && result.length ? result[0] : null;
     if (!record) {
       return null;
     }

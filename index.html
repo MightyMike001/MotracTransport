@@ -158,9 +158,18 @@
 
   <script src="js/date-utils.js"></script>
   <script>
-    if (!window.__APP_ENV__) {
+    window.__APP_ENV__ = Object.assign(
+      {
+        SUPABASE_URL: "https://ezcxfobjsvomcjuwbgep.supabase.co",
+        SUPABASE_ANON_KEY:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y3hmb2Jqc3ZvbWNqdXdiZ2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NzQ3ODcsImV4cCI6MjA3MzI1MDc4N30.IhYZYfB_N2JDOG82NFbB_wxY7BJhahqJd9Y71nhpI3I",
+      },
+      window.__APP_ENV__ || {}
+    );
+
+    if (!window.__APP_ENV__.SUPABASE_URL || !window.__APP_ENV__.SUPABASE_ANON_KEY) {
       console.warn(
-        "Geen runtime-configuratie gevonden. Voer 'npm run build:env' uit om js/env.js te genereren met de vereiste variabelen."
+        "Supabase configuratie onvolledig. Stel de variabelen in via js/env.js of vul ze hier aan."
       );
     }
   </script>
