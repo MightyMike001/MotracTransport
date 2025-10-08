@@ -13,23 +13,39 @@ function normalizeSupabaseRestUrl(url) {
     return "";
   }
 
-  let normalized = url.trim();
-  if (!normalized) {
+  const trimmed = url.trim();
+  if (!trimmed) {
     return "";
   }
 
-  // Remove trailing slashes to simplify further checks.
-  normalized = normalized.replace(/\/+$/g, "");
-
   const restV1Pattern = /\/rest\/v1$/i;
-  if (restV1Pattern.test(normalized)) {
-    return normalized;
+
+  try {
+    const parsed = new URL(trimmed);
+    let pathname = parsed.pathname || "/";
+    pathname = pathname.replace(/\/+$/g, "");
+
+    if (!restV1Pattern.test(pathname)) {
+      pathname = pathname.replace(/\/rest$/i, "");
+      pathname = `${pathname.replace(/\/+$/g, "")}/rest/v1`;
+    }
+
+    parsed.pathname = pathname || "/rest/v1";
+    parsed.search = "";
+    parsed.hash = "";
+
+    return parsed.toString().replace(/\/+$/g, "");
+  } catch (error) {
+    let normalized = trimmed.replace(/[#?].*$/, "");
+    normalized = normalized.replace(/\/+$/g, "");
+
+    if (restV1Pattern.test(normalized)) {
+      return normalized;
+    }
+
+    normalized = normalized.replace(/\/rest$/i, "");
+    return `${normalized}/rest/v1`;
   }
-
-  // Strip a trailing `/rest` segment so that we can safely append `/rest/v1`.
-  normalized = normalized.replace(/\/rest$/i, "");
-
-  return `${normalized}/rest/v1`;
 }
 
 const SUPABASE_REST_URL = normalizeSupabaseRestUrl(SUPABASE_URL);
