@@ -146,7 +146,7 @@
       setSignupStatus("Account wordt aangevraagd…");
       if (els.signupButton) els.signupButton.disabled = true;
 
-      const passwordHash = await window.Auth.hashPassword(passwordValue);
+      const passwordHash = await window.Auth.hashPassword(passwordValue, emailValue);
       const fullName = deriveNameFromEmail(emailValue);
 
       await window.Users.create({

@@ -822,10 +822,68 @@ const Users = {
   remove: (id) => sbDelete("app_users", `id=eq.${id}`),
   setPassword: (id, passwordHash) =>
     sbUpdate("app_users", `id=eq.${id}`, { password_hash: passwordHash }).then(r => r[0]),
-  authenticate: async (email, passwordHash) => {
-    const query = `?select=id,full_name,email,role,is_active&email=eq.${encodeURIComponent(email)}&password_hash=eq.${encodeURIComponent(passwordHash)}`;
-    const result = await sbSelect("app_users", query);
-    const record = Array.isArray(result) ? result[0] : null;
+  authenticate: async (email, passwordHash, options = {}) => {
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const candidateSet = new Set();
+
+    const registerCandidate = (value) => {
+      if (typeof value !== "string") return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      candidateSet.add(trimmed);
+    };
+
+    if (Array.isArray(passwordHash)) {
+      passwordHash.forEach(registerCandidate);
+    } else {
+      registerCandidate(passwordHash);
+    }
+
+    if (Array.isArray(options.additionalHashes)) {
+      options.additionalHashes.forEach(registerCandidate);
+    }
+
+    const candidates = Array.from(candidateSet);
+    if (!normalizedEmail || !candidates.length) {
+      return null;
+    }
+
+    const headers = buildSupabaseHeaders({ Prefer: "return=representation,params=single-object" });
+    const payload = {
+      email: normalizedEmail,
+      password_hashes: candidates,
+    };
+
+    const data = await tryWrap(async () => {
+      const response = await fetch(`${SUPABASE_REST_URL}/rpc/authenticate_app_user`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let parsed = null;
+      if (text) {
+        try {
+          parsed = JSON.parse(text);
+        } catch (error) {
+          console.warn("Kan JSON-respons van authenticate_app_user niet parsen", error);
+        }
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          typeof parsed === "string"
+            ? parsed
+            : parsed && typeof parsed === "object"
+              ? JSON.stringify(parsed)
+              : text || response.statusText;
+        throw new Error(errorMessage || "Authenticatie mislukt");
+      }
+
+      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    });
+
+    const record = Array.isArray(data) && data.length ? data[0] : null;
     if (!record) {
       return null;
     }
@@ -834,7 +892,7 @@ const Users = {
     let token = inlineToken;
 
     if (!token) {
-      token = await fetchUserAuthToken(user.id);
+      token = await fetchUserAuthToken(user?.id);
     }
 
     return { user, token: token || null };

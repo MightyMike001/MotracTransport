@@ -5,6 +5,9 @@
   let domReady = false;
   let cachedAuthToken = null;
 
+  const PASSWORD_PBKDF2_ITERATIONS = 150000;
+  const PASSWORD_KEY_LENGTH_BITS = 256;
+
   const storageAvailable = (() => {
     try {
       const testKey = "__auth_test__";
@@ -70,21 +73,125 @@
     return cachedAuthToken;
   }
 
-  async function hashPassword(password) {
-    if (!password) return "";
-    if (window.crypto?.subtle) {
-      const data = new TextEncoder().encode(password);
-      const hash = await window.crypto.subtle.digest("SHA-256", data);
-      const hashArray = Array.from(new Uint8Array(hash));
-      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  function normalizeSaltSource(value) {
+    if (typeof value !== "string") return "";
+    return value.trim().toLowerCase();
+  }
+
+  function encodeBytesToBase64(bytes) {
+    if (!(bytes instanceof Uint8Array)) {
+      return "";
     }
+    const base64Encoder =
+      (typeof window !== "undefined" && typeof window.btoa === "function")
+        ? window.btoa.bind(window)
+        : typeof btoa === "function"
+          ? btoa
+          : null;
+    if (!base64Encoder) {
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return base64Encoder(binary);
+  }
+
+  async function computeLegacyHash(password) {
+    const value = typeof password === "string" ? password : String(password || "");
+    if (!value) return "";
+
+    if (window.crypto?.subtle) {
+      try {
+        const data = new TextEncoder().encode(value);
+        const hash = await window.crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hash));
+        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      } catch (error) {
+        console.warn("SHA-256 hashing niet beschikbaar", error);
+      }
+    }
+
     // Fallback (niet cryptografisch veilig, maar voorkomt blokkeren op oudere browsers)
     let hash = 0;
-    for (let i = 0; i < password.length; i += 1) {
-      hash = (hash << 5) - hash + password.charCodeAt(i);
+    for (let i = 0; i < value.length; i += 1) {
+      hash = (hash << 5) - hash + value.charCodeAt(i);
       hash |= 0;
     }
     return hash.toString(16);
+  }
+
+  async function computePbkdf2Hash(password, saltSource = "") {
+    const value = typeof password === "string" ? password : String(password || "");
+    if (!value) return "";
+    if (!window.crypto?.subtle) {
+      return "";
+    }
+
+    try {
+      const encoder = new TextEncoder();
+      const normalizedSalt = normalizeSaltSource(saltSource) || "transportplanner";
+      const saltDigest = await window.crypto.subtle.digest(
+        "SHA-256",
+        encoder.encode(normalizedSalt)
+      );
+      const saltBytes = new Uint8Array(saltDigest).slice(0, 16);
+      const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        encoder.encode(value),
+        { name: "PBKDF2" },
+        false,
+        ["deriveBits"]
+      );
+      const derivedBits = await window.crypto.subtle.deriveBits(
+        {
+          name: "PBKDF2",
+          hash: "SHA-256",
+          iterations: PASSWORD_PBKDF2_ITERATIONS,
+          salt: saltBytes,
+        },
+        keyMaterial,
+        PASSWORD_KEY_LENGTH_BITS
+      );
+      const derivedBytes = new Uint8Array(derivedBits);
+      const encodedSalt = encodeBytesToBase64(saltBytes);
+      const encodedHash = encodeBytesToBase64(derivedBytes);
+      if (!encodedSalt || !encodedHash) {
+        return "";
+      }
+      return `pbkdf2$sha256$${PASSWORD_PBKDF2_ITERATIONS}$${encodedSalt}$${encodedHash}`;
+    } catch (error) {
+      console.warn("PBKDF2 hashing niet beschikbaar", error);
+      return "";
+    }
+  }
+
+  async function hashPassword(password, saltSource = "") {
+    const pbkdf2Hash = await computePbkdf2Hash(password, saltSource);
+    if (pbkdf2Hash) {
+      return pbkdf2Hash;
+    }
+    return computeLegacyHash(password);
+  }
+
+  async function generatePasswordHashes(password, saltSource = "") {
+    const candidates = [];
+    const primary = await computePbkdf2Hash(password, saltSource);
+    const legacy = await computeLegacyHash(password);
+    if (primary) {
+      candidates.push(primary);
+    }
+    if (legacy && !candidates.includes(legacy)) {
+      candidates.push(legacy);
+    }
+    return {
+      primary: primary || legacy || "",
+      legacy,
+      hashes: candidates.filter((value) => typeof value === "string" && value.length > 0),
+    };
   }
 
   function formatRole(role) {
@@ -100,14 +207,15 @@
 
   async function login(email, password) {
     const cleanedEmail = (email || "").trim().toLowerCase();
-    const passwordHash = await hashPassword(password || "");
-    if (!cleanedEmail || !passwordHash) {
+    const hashes = await generatePasswordHashes(password || "", cleanedEmail);
+    const candidates = Array.isArray(hashes.hashes) ? hashes.hashes.filter(Boolean) : [];
+    if (!cleanedEmail || !candidates.length) {
       throw new Error("Vul een e-mailadres en wachtwoord in.");
     }
     if (!window.Users || typeof window.Users.authenticate !== "function") {
       throw new Error("Users API is niet beschikbaar");
     }
-    const authResult = await window.Users.authenticate(cleanedEmail, passwordHash);
+    const authResult = await window.Users.authenticate(cleanedEmail, candidates);
     const user = authResult?.user || authResult;
     const token = authResult?.token || authResult?.authToken || null;
     if (!user) {
@@ -210,6 +318,7 @@
     login,
     logout,
     hashPassword,
+    generatePasswordHashes,
     onChange,
     applyRoleVisibility,
   };
