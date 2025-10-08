@@ -848,32 +848,58 @@ const Users = {
       return null;
     }
 
-    const selectFields = [
-      "id",
-      "full_name",
-      "email",
-      "role",
-      "is_active",
-      "token",
-      "auth_token",
-      "jwt",
-      "access_token",
-    ];
+    const baseSelectFields = ["id", "full_name", "email", "role", "is_active"];
+    const tokenSelectFields = ["token", "auth_token", "jwt", "access_token"];
 
-    let query = `?select=${encodeURIComponent(selectFields.join(","))}`;
-    query += `&email=eq.${encodeURIComponent(normalizedEmail)}`;
+    const buildQuery = (fields) => {
+      let q = `?select=${encodeURIComponent(fields.join(","))}`;
+      q += `&email=eq.${encodeURIComponent(normalizedEmail)}`;
 
-    if (candidates.length === 1) {
-      query += `&password_hash=eq.${encodeURIComponent(candidates[0])}`;
-    } else {
-      const orFilters = candidates
-        .map((hash) => `password_hash.eq.${encodeURIComponent(hash)}`)
-        .join(",");
-      query += `&or=(${orFilters})`;
+      if (candidates.length === 1) {
+        q += `&password_hash=eq.${encodeURIComponent(candidates[0])}`;
+      } else {
+        const orFilters = candidates
+          .map((hash) => `password_hash.eq.${encodeURIComponent(hash)}`)
+          .join(",");
+        q += `&or=(${orFilters})`;
+      }
+
+      return q;
+    };
+
+    const queryWithTokens = buildQuery([...baseSelectFields, ...tokenSelectFields]);
+    const queryWithoutTokens = buildQuery(baseSelectFields);
+
+    const executeAuthQuery = async (query) => {
+      const result = await sbSelect("app_users", query);
+      return Array.isArray(result) && result.length ? result[0] : null;
+    };
+
+    const shouldRetryWithoutTokenColumns = (error) => {
+      const message = formatSupabaseError(error, "");
+      if (typeof message !== "string" || !message) {
+        return false;
+      }
+      const normalizedMessage = message.toLowerCase();
+      if (!normalizedMessage.includes("does not exist")) {
+        return false;
+      }
+      return tokenSelectFields.some((column) =>
+        normalizedMessage.includes(`app_users.${column}`)
+      );
+    };
+
+    let record;
+    try {
+      record = await executeAuthQuery(queryWithTokens);
+    } catch (error) {
+      if (!shouldRetryWithoutTokenColumns(error)) {
+        throw error;
+      }
+      console.warn("Tokenkolommen niet gevonden op app_users, probeer opnieuw zonder tokens", error);
+      record = await executeAuthQuery(queryWithoutTokens);
     }
 
-    const result = await sbSelect("app_users", query);
-    const record = Array.isArray(result) && result.length ? result[0] : null;
     if (!record) {
       return null;
     }
