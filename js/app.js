@@ -62,6 +62,11 @@ const VALIDATION_CLASSES = {
   fieldError: "field-error",
 };
 
+const DEFAULT_TIME_SLOT = Object.freeze({
+  start: "07:00",
+  end: "18:00",
+});
+
 const showToastMessage = (type, message) => {
   if (typeof window.showToast === "function" && message) {
     window.showToast(type, message);
@@ -1801,6 +1806,125 @@ function applyDefaultReceivedDate() {
   const todayValue = getTodayDateValue();
   els.oReceivedAt.value = todayValue;
   els.oReceivedAt.defaultValue = todayValue;
+}
+
+function setAutofillValue(field, value, { force = false, onlyIfEmpty = false } = {}) {
+  if (!field) {
+    return false;
+  }
+  const normalizedValue = value === null || value === undefined ? "" : String(value);
+  const currentValue = field.value === null || field.value === undefined ? "" : String(field.value);
+  const autoValue = field.dataset?.autofillValue;
+  const hasAutofill = autoValue !== undefined;
+
+  if (onlyIfEmpty && currentValue) {
+    return false;
+  }
+
+  if (!force) {
+    if (hasAutofill && currentValue !== autoValue) {
+      return false;
+    }
+    if (!hasAutofill && currentValue && currentValue !== normalizedValue) {
+      return false;
+    }
+  }
+
+  field.value = normalizedValue;
+  field.defaultValue = normalizedValue;
+  if (normalizedValue) {
+    field.dataset.autofillValue = normalizedValue;
+  } else if (field.dataset) {
+    delete field.dataset.autofillValue;
+  }
+  return true;
+}
+
+function clearAutofillIfChanged(field) {
+  if (!field || !field.dataset) {
+    return;
+  }
+  const { autofillValue } = field.dataset;
+  if (autofillValue === undefined) {
+    return;
+  }
+  const currentValue = field.value === null || field.value === undefined ? "" : String(field.value);
+  if (currentValue !== autofillValue) {
+    delete field.dataset.autofillValue;
+  }
+}
+
+function registerAutofillField(field) {
+  if (!field) {
+    return;
+  }
+  const handler = () => clearAutofillIfChanged(field);
+  addBoundListener(field, "input", handler);
+  addBoundListener(field, "change", handler);
+}
+
+function shiftDateValue(value, offsetDays) {
+  if (!value) {
+    return "";
+  }
+  const parts = String(value).split("-");
+  if (parts.length !== 3) {
+    return "";
+  }
+  const year = Number.parseInt(parts[0], 10);
+  const month = Number.parseInt(parts[1], 10);
+  const day = Number.parseInt(parts[2], 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return "";
+  }
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  date.setDate(date.getDate() + offsetDays);
+  return formatDateForInput(date);
+}
+
+function applyDefaultTimeWindows(options = {}) {
+  const opts = { ...options };
+  setAutofillValue(els.oPickupTimeFrom, DEFAULT_TIME_SLOT.start, opts);
+  setAutofillValue(els.oPickupTimeTo, DEFAULT_TIME_SLOT.end, opts);
+  setAutofillValue(els.oDeliveryTimeFrom, DEFAULT_TIME_SLOT.start, opts);
+  setAutofillValue(els.oDeliveryTimeTo, DEFAULT_TIME_SLOT.end, opts);
+}
+
+function applyDefaultDeliveryDateFromDue(options = {}) {
+  if (!els.oDue) {
+    return;
+  }
+  const dueValue = els.oDue.value;
+  if (!dueValue) {
+    return;
+  }
+  setAutofillValue(els.oDeliveryDate, dueValue, options);
+  applyDefaultPickupDate(options);
+}
+
+function applyDefaultPickupDate(options = {}) {
+  const deliveryValue = els.oDeliveryDate?.value || els.oDue?.value || "";
+  if (!deliveryValue) {
+    return;
+  }
+  const pickupValue = shiftDateValue(deliveryValue, -1);
+  if (!pickupValue) {
+    return;
+  }
+  setAutofillValue(els.oPickupDate, pickupValue, options);
+}
+
+function applyOrderSchedulingDefaults({ force = false, onlyIfEmpty = false } = {}) {
+  const opts = { force, onlyIfEmpty };
+  applyDefaultTimeWindows(opts);
+  if (els.oDue?.value) {
+    applyDefaultDeliveryDateFromDue(opts);
+  } else {
+    applyDefaultPickupDate(opts);
+  }
 }
 
 function randomId() {
@@ -5299,6 +5423,7 @@ function resetOrderForm(){
     els.oStatus.value = "Nieuw";
   }
   applyDefaultReceivedDate();
+  applyOrderSchedulingDefaults({ force: true, onlyIfEmpty: true });
   resetArticlesSection();
   if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
     ORDER_FORM_VALIDATOR.reset();
@@ -6797,8 +6922,48 @@ function bind(canManagePlanning){
     addBoundListener(els.oCustomerName, "input", updateOrderSummary);
   }
   if (els.oDue) {
-    addBoundListener(els.oDue, "input", updateOrderSummary);
-    addBoundListener(els.oDue, "change", updateOrderSummary);
+    addBoundListener(els.oDue, "input", () => {
+      updateOrderSummary();
+    });
+    addBoundListener(els.oDue, "change", () => {
+      applyDefaultDeliveryDateFromDue();
+      updateOrderSummary();
+    });
+  }
+  if (els.oDeliveryDate) {
+    registerAutofillField(els.oDeliveryDate);
+    addBoundListener(els.oDeliveryDate, "change", () => {
+      applyDefaultPickupDate();
+      updateOrderSummary();
+    });
+    addBoundListener(els.oDeliveryDate, "input", () => {
+      updateOrderSummary();
+    });
+  }
+  if (els.oPickupDate) {
+    registerAutofillField(els.oPickupDate);
+    addBoundListener(els.oPickupDate, "change", updateOrderSummary);
+    addBoundListener(els.oPickupDate, "input", updateOrderSummary);
+  }
+  if (els.oPickupTimeFrom) {
+    registerAutofillField(els.oPickupTimeFrom);
+    addBoundListener(els.oPickupTimeFrom, "change", updateOrderSummary);
+    addBoundListener(els.oPickupTimeFrom, "input", updateOrderSummary);
+  }
+  if (els.oPickupTimeTo) {
+    registerAutofillField(els.oPickupTimeTo);
+    addBoundListener(els.oPickupTimeTo, "change", updateOrderSummary);
+    addBoundListener(els.oPickupTimeTo, "input", updateOrderSummary);
+  }
+  if (els.oDeliveryTimeFrom) {
+    registerAutofillField(els.oDeliveryTimeFrom);
+    addBoundListener(els.oDeliveryTimeFrom, "change", updateOrderSummary);
+    addBoundListener(els.oDeliveryTimeFrom, "input", updateOrderSummary);
+  }
+  if (els.oDeliveryTimeTo) {
+    registerAutofillField(els.oDeliveryTimeTo);
+    addBoundListener(els.oDeliveryTimeTo, "change", updateOrderSummary);
+    addBoundListener(els.oDeliveryTimeTo, "input", updateOrderSummary);
   }
   if (els.oFirstWorkInputs && typeof els.oFirstWorkInputs[Symbol.iterator] === "function") {
     for (const input of els.oFirstWorkInputs) {
@@ -6940,6 +7105,7 @@ async function initAppPage() {
   setCombinedFlowEnabled(Boolean(els.oCombinedFlow?.checked), { keepStep: false });
   await assignRequestReference();
   applyDefaultReceivedDate();
+  applyOrderSchedulingDefaults({ force: true, onlyIfEmpty: true });
   updateOrderSummary();
   ensureMinimumArticleRows();
   resetArticleImport();
