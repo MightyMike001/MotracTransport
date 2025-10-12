@@ -1,5 +1,22 @@
 -- Herstel wijzigingen uit de aangescherpte policies zodat de API weer toegankelijk is.
 drop function if exists public.authenticate_app_user(text, text[]);
+
+-- Verwijder policies die de functie current_app_role() gebruiken zodat de functie
+-- probleemloos kan worden vervangen. Anders blokkeert PostgreSQL het verwijderen
+-- van de functie omdat er afhankelijkheden zijn.
+drop policy if exists transport_orders_select_by_role on public.transport_orders;
+drop policy if exists transport_orders_modify_by_planner on public.transport_orders;
+drop policy if exists transport_orders_update_by_planner on public.transport_orders;
+drop policy if exists transport_orders_delete_by_planner on public.transport_orders;
+drop policy if exists transport_lines_select_by_role on public.transport_lines;
+drop policy if exists transport_lines_insert_by_planner on public.transport_lines;
+drop policy if exists transport_lines_update_by_planner on public.transport_lines;
+drop policy if exists transport_lines_delete_by_planner on public.transport_lines;
+drop policy if exists carriers_select_by_role on public.carriers;
+drop policy if exists carriers_insert_by_planner on public.carriers;
+drop policy if exists carriers_update_by_planner on public.carriers;
+drop policy if exists carriers_delete_by_admin on public.carriers;
+
 drop function if exists public.current_app_role();
 drop policy if exists app_users_select_by_role on public.app_users;
 drop policy if exists app_users_insert_by_role on public.app_users;
