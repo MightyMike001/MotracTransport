@@ -361,20 +361,7 @@
         <h4 class="section-title">4. Artikelen</h4>
         <div class="section-grid">
           <div class="form-panel">
-            <p class="muted small">Selecteer of het om serienummer gebonden of niet serienummer gebonden artikelen gaat en voeg alle artikelen toe.</p>
-            <div class="form-toggle">
-              <span class="toggle-label">Artikeltype</span>
-              <div class="toggle-group">
-                <label class="toggle-option">
-                  <input type="radio" name="articleType" value="serial" id="articleTypeSerial" />
-                  <span>Serienummer gebonden artikel</span>
-                </label>
-                <label class="toggle-option">
-                  <input type="radio" name="articleType" value="non_serial" id="articleTypeNonSerial" />
-                  <span>Niet serienummer gebonden artikel</span>
-                </label>
-              </div>
-            </div>
+            <p class="muted small">Voeg alle artikelen toe.</p>
             <div id="articleList" class="article-list"></div>
             <button type="button" class="btn ghost btn--icon-leading" id="btnAddArticle">
               <span class="btn__icon" aria-hidden="true">
@@ -389,7 +376,7 @@
               <div class="article-import__intro">
                 <h5 class="article-import__title">CSV-import</h5>
                 <p class="muted small">
-                  Upload een CSV-bestand met de kolommen “artikel”, “serienummer” en “aantal”.
+                  Upload een CSV-bestand met de kolommen “artikel”, “serienummer of ref nummer” en “aantal”.
                   Controleer de preview voordat je de regels toevoegt.
                 </p>
               </div>
@@ -407,7 +394,7 @@
                       <tr>
                         <th scope="col">Rij</th>
                         <th scope="col">Artikel</th>
-                        <th scope="col">Serienummer</th>
+                        <th scope="col">Serienummer of ref nummer</th>
                         <th scope="col">Aantal</th>
                         <th scope="col">Status</th>
                       </tr>
@@ -431,7 +418,7 @@
           </div>
           <aside class="form-panel form-panel-secondary">
             <h5 class="panel-title">Voorbeeld</h5>
-            <p class="muted small">Gebruik dit overzicht om alle te vervoeren artikelen inclusief serienummers vast te leggen.</p>
+            <p class="muted small">Gebruik dit overzicht om alle te vervoeren artikelen inclusief serienummers of ref nummers vast te leggen.</p>
           </aside>
         </div>
         <div class="wizard-actions">
@@ -626,7 +613,6 @@
           </section>
           <section class="summary-card summary-card-full">
             <h5>Artikelen</h5>
-            <p class="summary-meta" data-summary-field="article_type">-</p>
             <div id="orderSummaryArticles" class="summary-table-wrapper"></div>
           </section>
         </div>
@@ -643,8 +629,8 @@
             <label>Artikel
               <input data-field="product" placeholder="Bijv. Heftruck, reachtruck" />
             </label>
-            <label class="serial-field">Serienummer
-              <input data-field="serial_number" placeholder="Bijv. HFT-001234" />
+            <label class="serial-field">Serienummer of ref nummer
+              <input data-field="serial_number" placeholder="Bijv. HFT-001234" required />
             </label>
             <label class="quantity-field">Aantal
               <input data-field="quantity" type="number" min="1" value="1" />
