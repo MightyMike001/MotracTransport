@@ -635,7 +635,7 @@
 
     pdf.addSectionTitle("Goederen");
     pdf.addTable({
-      headers: ["#", "Omschrijving", "Aantal", "Serienummer"],
+      headers: ["#", "Omschrijving", "Aantal", "Serienummer of ref nummer"],
       rows: buildGoodsTableRows(lines),
       columnWidths: [30, 260, 80, 120],
     });
