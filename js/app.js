@@ -540,7 +540,6 @@ function refreshElements() {
     oReturnDeliveryPhone: doc.getElementById("oReturnDeliveryPhone"),
     oReturnDeliveryLocation: doc.getElementById("oReturnDeliveryLocation"),
     oReturnDeliveryInstructions: doc.getElementById("oReturnDeliveryInstructions"),
-    articleTypeInputs: doc.querySelectorAll('input[name="articleType"]'),
     articleList: doc.getElementById("articleList"),
     articleRowTemplate: doc.getElementById("articleRowTemplate"),
     btnAddArticle: doc.getElementById("btnAddArticle"),
@@ -847,12 +846,8 @@ function isWizardStepReady(step) {
     }
   }
   if (step === getArticleStepIndex()) {
-    const articleType = getArticleType();
-    if (!articleType) {
-      return false;
-    }
     try {
-      collectArticles(articleType);
+      collectArticles(getArticleType());
     } catch (error) {
       return false;
     }
@@ -922,11 +917,6 @@ function setupWizardFieldObservers() {
   }
   if (els.oFirstWorkInputs && typeof els.oFirstWorkInputs[Symbol.iterator] === "function") {
     for (const input of els.oFirstWorkInputs) {
-      observeWizardField(input);
-    }
-  }
-  if (els.articleTypeInputs && typeof els.articleTypeInputs[Symbol.iterator] === "function") {
-    for (const input of els.articleTypeInputs) {
       observeWizardField(input);
     }
   }
@@ -1050,16 +1040,8 @@ function validateWizardStep(step) {
     }
   }
   if (step === getArticleStepIndex()) {
-    const articleType = getArticleType();
-    if (!articleType) {
-      if (els.wizardStatus) {
-        setStatus(els.wizardStatus, "Kies het artikeltype.", "error");
-      }
-      updateWizardNavigationState();
-      return false;
-    }
     try {
-      collectArticles(articleType);
+      collectArticles(getArticleType());
     } catch (articleError) {
       if (els.wizardStatus) {
         setStatus(
@@ -1106,38 +1088,12 @@ function findWizardStepWithErrors() {
   return null;
 }
 
-function getSelectedArticleTypeLabel(articleType) {
-  const selected = document.querySelector('input[name="articleType"]:checked');
-  if (selected) {
-    const label = selected.closest("label");
-    if (label) {
-      const text = label.textContent || "";
-      if (text.trim()) {
-        return text.trim();
-      }
-    }
-  }
-  if (articleType === "serial") {
-    return "Serienummer gebonden artikel";
-  }
-  if (articleType === "non_serial") {
-    return "Niet serienummer gebonden artikel";
-  }
-  return "Geen artikeltype geselecteerd";
-}
-
 function renderOrderSummaryArticles(articleType, articles) {
   if (!els.orderSummaryArticles) {
     return;
   }
   els.orderSummaryArticles.innerHTML = "";
-  if (!articleType) {
-    const message = document.createElement("p");
-    message.className = "muted small";
-    message.textContent = "Geen artikeltype geselecteerd.";
-    els.orderSummaryArticles.appendChild(message);
-    return;
-  }
+  const normalizedType = articleType === "serial" ? "serial" : "non_serial";
   if (!Array.isArray(articles) || articles.length === 0) {
     const message = document.createElement("p");
     message.className = "muted small";
@@ -1152,7 +1108,7 @@ function renderOrderSummaryArticles(articleType, articles) {
   const productHeader = document.createElement("th");
   productHeader.textContent = "Artikel";
   headRow.appendChild(productHeader);
-  if (articleType === "serial") {
+  if (normalizedType === "serial") {
     const serialHeader = document.createElement("th");
     serialHeader.textContent = "Serienummer";
     headRow.appendChild(serialHeader);
@@ -1170,7 +1126,7 @@ function renderOrderSummaryArticles(articleType, articles) {
     productCell.textContent = item?.product || "-";
     row.appendChild(productCell);
     const secondCell = document.createElement("td");
-    if (articleType === "serial") {
+    if (normalizedType === "serial") {
       secondCell.textContent = item?.serial_number || "-";
     } else {
       secondCell.textContent = Number.isFinite(item?.quantity) ? String(item.quantity) : "-";
@@ -1274,7 +1230,7 @@ function updateOrderSummary() {
   const articleType = getArticleType();
   let articles = [];
   try {
-    articles = articleType ? collectArticles(articleType) : [];
+    articles = collectArticles(articleType);
   } catch (error) {
     articles = [];
   }
@@ -1318,7 +1274,6 @@ function updateOrderSummary() {
   setSummaryField("return_delivery_phone", combinedFlow ? returnDeliveryPhone : "-");
   setSummaryField("return_delivery_location", combinedFlow ? returnDeliveryLocation : "-");
   setSummaryField("return_delivery_instructions", combinedFlow ? returnDeliveryInstructions : "-");
-  setSummaryField("article_type", getSelectedArticleTypeLabel(articleType));
   renderOrderSummaryArticles(articleType, articles);
 }
 
@@ -1346,6 +1301,8 @@ const PHONE_PATTERN = /^[+0-9()\s-]{6,}$/;
 const ORDER_FORM_FLOW = {
   combined: false,
 };
+
+const DEFAULT_ARTICLE_TYPE = "non_serial";
 
 function isCombinedFlowEnabled() {
   return Boolean(ORDER_FORM_FLOW.combined);
@@ -1887,6 +1844,7 @@ let CURRENT_EDIT_ORDER = null;
 let CURRENT_EDIT_ORDER_DETAILS = null;
 let CURRENT_EDIT_ORDER_LINES = null;
 let CURRENT_EDIT_LINES_LOADING = null;
+let CURRENT_ARTICLE_TYPE = DEFAULT_ARTICLE_TYPE;
 const ORDERS_REALTIME_REFRESH_DELAY = 400;
 const PAGINATION = {
   currentPage: 1,
@@ -4664,13 +4622,7 @@ function readInteger(value) {
 }
 
 function getArticleType() {
-  if (!els.articleTypeInputs) return null;
-  for (const input of els.articleTypeInputs) {
-    if (input && input.checked) {
-      return input.value;
-    }
-  }
-  return null;
+  return CURRENT_ARTICLE_TYPE || DEFAULT_ARTICLE_TYPE;
 }
 
 function getArticleRows() {
@@ -5081,17 +5033,6 @@ function refreshArticleImportPreview(options = {}) {
     return;
   }
   const articleType = getArticleType();
-  if (!articleType) {
-    if (!silent && els.articleImportStatus) {
-      setStatus(els.articleImportStatus, "Kies het artikeltype om de import te controleren.", "error");
-    }
-    if (els.articleImportPreview) {
-      els.articleImportPreview.classList.add("is-hidden");
-    }
-    ARTICLE_IMPORT_STATE.validatedRows = [];
-    updateArticleImportActions([]);
-    return;
-  }
   const validatedRows = validateArticleImportRows(ARTICLE_IMPORT_STATE.rawRows, articleType);
   ARTICLE_IMPORT_STATE.validatedRows = validatedRows;
   renderArticleImportPreview(validatedRows);
@@ -5175,12 +5116,6 @@ function applyArticleImport(event) {
     return;
   }
   const articleType = getArticleType();
-  if (!articleType) {
-    if (els.articleImportStatus) {
-      setStatus(els.articleImportStatus, "Kies eerst het artikeltype.", "error");
-    }
-    return;
-  }
   const validatedRows = ARTICLE_IMPORT_STATE.validatedRows && ARTICLE_IMPORT_STATE.validatedRows.length
     ? ARTICLE_IMPORT_STATE.validatedRows
     : validateArticleImportRows(ARTICLE_IMPORT_STATE.rawRows, articleType);
@@ -5211,11 +5146,7 @@ function applyArticleImport(event) {
 }
 
 function resetArticlesSection() {
-  if (els.articleTypeInputs) {
-    for (const input of els.articleTypeInputs) {
-      input.checked = false;
-    }
-  }
+  CURRENT_ARTICLE_TYPE = DEFAULT_ARTICLE_TYPE;
   if (els.articleList) {
     els.articleList.innerHTML = "";
   }
@@ -5459,14 +5390,6 @@ async function createOrder(){
   const requestReference = cleanText(els.oRequestReference.value);
   const articleType = getArticleType();
   const combinedFlow = isCombinedFlowEnabled();
-  if (!articleType) {
-    setStatus(els.createStatus, "Kies het artikeltype.", "error");
-    setWizardStep(4);
-    if (els.wizardStatus) {
-      setStatus(els.wizardStatus, "Kies het artikeltype.", "error");
-    }
-    return;
-  }
   let articleLines = [];
   try {
     articleLines = collectArticles(articleType);
@@ -7001,16 +6924,6 @@ function bind(canManagePlanning){
   }
   if (els.articleCsvInput) {
     addBoundListener(els.articleCsvInput, "change", handleArticleCsvChange);
-  }
-  if (els.articleTypeInputs) {
-    for (const input of els.articleTypeInputs) {
-      addBoundListener(input, "change", () => {
-        updateArticleRowsForType(getArticleType());
-        if (ARTICLE_IMPORT_STATE && Array.isArray(ARTICLE_IMPORT_STATE.rawRows) && ARTICLE_IMPORT_STATE.rawRows.length) {
-          refreshArticleImportPreview();
-        }
-      });
-    }
   }
   if (els.boardDate) {
     addBoundListener(els.boardDate, "change", () => { renderPlanBoard(); });
