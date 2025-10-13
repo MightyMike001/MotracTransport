@@ -5905,6 +5905,163 @@ function collectArticles() {
   return items;
 }
 
+function isBranchLocationField(field) {
+  const branchId = field?.dataset?.branchId;
+  return typeof branchId === "string" && branchId.trim().length > 0;
+}
+
+function buildOrderCustomerLocation(kind, locationField, contactField, phoneField, instructionsField) {
+  if (!locationField) {
+    return null;
+  }
+  if (isBranchLocationField(locationField)) {
+    return null;
+  }
+  const location = cleanText(locationField.value);
+  if (!location) {
+    return null;
+  }
+
+  const entry = {
+    kind: typeof kind === "string" && kind.trim() ? kind.trim().toLowerCase() : null,
+    location,
+    last_used_at: new Date().toISOString(),
+  };
+
+  const contactName = cleanText(contactField?.value);
+  if (contactName) {
+    entry.contact_name = contactName;
+  }
+
+  const contactPhone = cleanText(phoneField?.value);
+  if (contactPhone) {
+    entry.contact_phone = contactPhone;
+  }
+
+  const instructions = cleanText(instructionsField?.value);
+  if (instructions) {
+    entry.instructions = instructions;
+  }
+
+  return entry;
+}
+
+function collectOrderCustomerLocations(options = {}) {
+  const entries = [];
+  const includeReturn = options && options.includeReturn;
+
+  const pushEntry = (entry) => {
+    if (entry && entry.location) {
+      entries.push(entry);
+    }
+  };
+
+  pushEntry(
+    buildOrderCustomerLocation(
+      "pickup",
+      els.oPickupLocation,
+      els.oPickupContact,
+      els.oPickupPhone,
+      els.oPickupInstructions
+    )
+  );
+
+  pushEntry(
+    buildOrderCustomerLocation(
+      "delivery",
+      els.oDeliveryLocation,
+      els.oDeliveryContact,
+      els.oDeliveryPhone,
+      els.oDeliveryInstructions
+    )
+  );
+
+  if (includeReturn) {
+    pushEntry(
+      buildOrderCustomerLocation(
+        "return_pickup",
+        els.oReturnPickupLocation,
+        els.oReturnPickupContact,
+        els.oReturnPickupPhone,
+        els.oReturnPickupInstructions
+      )
+    );
+
+    pushEntry(
+      buildOrderCustomerLocation(
+        "return_delivery",
+        els.oReturnDeliveryLocation,
+        els.oReturnDeliveryContact,
+        els.oReturnDeliveryPhone,
+        els.oReturnDeliveryInstructions
+      )
+    );
+  }
+
+  return entries;
+}
+
+async function ensureCustomerRecordExists(name, number, orderNumber) {
+  const customerName = cleanText(name);
+  const customerNumber = cleanText(number);
+  const customerOrderNumber = cleanText(orderNumber);
+  if (!customerName && !customerNumber) {
+    return null;
+  }
+  if (!window.Customers || typeof window.Customers.bulkUpsert !== "function") {
+    return null;
+  }
+
+  const entry = {
+    name: customerName || "",
+    number: customerNumber || "",
+    orderNumber: customerOrderNumber || "",
+    lastUsed: Date.now(),
+  };
+
+  try {
+    const rows = await window.Customers.bulkUpsert([entry]);
+    let record = Array.isArray(rows) && rows.length ? rows[0] : null;
+    if (!record || record.id === undefined || record.id === null) {
+      if (typeof window.Customers.findByIdentity === "function") {
+        record = await window.Customers.findByIdentity({
+          name: customerName,
+          number: customerNumber,
+        });
+      }
+    }
+    return record || null;
+  } catch (error) {
+    console.warn("Kan klantrecord niet opslaan", error);
+    return null;
+  }
+}
+
+async function persistCustomerLocationsForRecord(customerRecord, entries) {
+  if (!customerRecord || !Array.isArray(entries) || !entries.length) {
+    return;
+  }
+  if (!window.CustomerLocations || typeof window.CustomerLocations.bulkUpsert !== "function") {
+    return;
+  }
+  const customerId = Number(customerRecord.id ?? customerRecord.customer_id);
+  if (!Number.isFinite(customerId)) {
+    return;
+  }
+
+  const payload = entries.map((entry) => ({
+    ...entry,
+    customer_id: customerId,
+    last_used_at: entry.last_used_at || new Date().toISOString(),
+  }));
+
+  try {
+    await window.CustomerLocations.bulkUpsert(payload);
+  } catch (error) {
+    console.warn("Kan klantlocaties niet opslaan", error);
+  }
+}
+
 function buildReturnRequestReference(baseReference) {
   const reference = cleanText(baseReference);
   if (!reference) {
@@ -6086,7 +6243,11 @@ async function createOrder(){
   const customerName = cleanText(els.oCustomerName.value);
   const requestReference = cleanText(els.oRequestReference.value);
   const combinedFlow = isCombinedFlowEnabled();
+  const customerNumber = cleanText(els.oCustomerNumber?.value);
+  const customerOrderNumber = cleanText(els.oCustomerOrderNumber?.value);
+  const customerLocations = collectOrderCustomerLocations({ includeReturn: combinedFlow });
   let articleLines = [];
+  let customerRecord = null;
   try {
     articleLines = collectArticles();
   } catch (articleError) {
@@ -6103,6 +6264,8 @@ async function createOrder(){
   try {
     const payload = collectOrderPayload();
     payload.customer_name = customerName;
+    payload.customer_number = customerNumber;
+    payload.customer_order_number = customerOrderNumber;
     payload.reference = requestReference;
     payload.request_reference = requestReference;
     const userId = user?.id ?? user?.user_id ?? null;
@@ -6123,6 +6286,13 @@ async function createOrder(){
           returnPayload.created_by_name = creatorName;
         }
       }
+    }
+    if (!customerRecord) {
+      customerRecord = await ensureCustomerRecordExists(
+        customerName,
+        customerNumber,
+        customerOrderNumber
+      );
     }
     const created = await Orders.create(payload);
     createdOrderId = created?.id ?? null;
@@ -6183,6 +6353,16 @@ async function createOrder(){
         }
         throw returnLineError;
       }
+    }
+    if (!customerRecord && (customerName || customerNumber)) {
+      customerRecord = await ensureCustomerRecordExists(
+        customerName,
+        customerNumber,
+        customerOrderNumber
+      );
+    }
+    if (customerRecord && customerLocations.length) {
+      await persistCustomerLocationsForRecord(customerRecord, customerLocations);
     }
     upsertCustomerSuggestion({
       name: payload.customer_name,

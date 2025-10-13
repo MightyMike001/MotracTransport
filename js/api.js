@@ -94,6 +94,83 @@ function sanitizeCustomerPayload(entry) {
   return payload;
 }
 
+function normalizeLocationKey(value) {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  return String(value).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function sanitizeCustomerLocationPayload(entry) {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  const rawCustomerId = entry.customer_id ?? entry.customerId;
+  const customerId = Number(rawCustomerId);
+  if (!Number.isFinite(customerId)) {
+    return null;
+  }
+
+  const rawLocation = entry.location ?? entry.address ?? "";
+  const locationText = typeof rawLocation === "string"
+    ? rawLocation.trim()
+    : String(rawLocation || "").trim();
+  const locationKey = normalizeLocationKey(locationText);
+  if (!locationKey) {
+    return null;
+  }
+
+  const kindValue = entry.kind ?? entry.type ?? null;
+  const kind = typeof kindValue === "string" && kindValue.trim()
+    ? kindValue.trim().toLowerCase()
+    : null;
+
+  const contactNameValue = entry.contact_name ?? entry.contactName ?? null;
+  const contactName = typeof contactNameValue === "string" && contactNameValue.trim()
+    ? contactNameValue.trim()
+    : null;
+
+  const contactPhoneValue = entry.contact_phone ?? entry.contactPhone ?? null;
+  const contactPhone = typeof contactPhoneValue === "string" && contactPhoneValue.trim()
+    ? contactPhoneValue.trim()
+    : null;
+
+  const instructionsValue = entry.instructions ?? entry.notes ?? null;
+  const instructions = typeof instructionsValue === "string" && instructionsValue.trim()
+    ? instructionsValue.trim()
+    : null;
+
+  const branchIdValue = entry.branch_id ?? entry.branchId ?? null;
+  const branchId = typeof branchIdValue === "string" && branchIdValue.trim()
+    ? branchIdValue.trim().toLowerCase()
+    : null;
+
+  const lastUsedRaw = entry.last_used_at ?? entry.lastUsed ?? null;
+  let lastUsedAt = null;
+  if (lastUsedRaw !== undefined && lastUsedRaw !== null) {
+    const candidate = new Date(lastUsedRaw);
+    if (!Number.isNaN(candidate.getTime())) {
+      lastUsedAt = candidate.toISOString();
+    }
+  }
+  if (!lastUsedAt) {
+    lastUsedAt = new Date().toISOString();
+  }
+
+  return {
+    customer_id: customerId,
+    kind,
+    location: locationText,
+    location_key: locationKey,
+    contact_name: contactName,
+    contact_phone: contactPhone,
+    instructions,
+    branch_id: branchId,
+    last_used_at: lastUsedAt,
+  };
+}
+
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -868,6 +945,59 @@ const Customers = {
       return data;
     });
   },
+  async findByIdentity(identity = {}) {
+    const nameKey = normalizeCustomerKey(identity.name);
+    const numberKey = normalizeCustomerKey(identity.number);
+    if (!nameKey && !numberKey) {
+      return null;
+    }
+    const params = ["select=id,name,number,order_number,last_used_at", "limit=1"];
+    if (nameKey) {
+      params.push(`name_key=eq.${encodeURIComponent(nameKey)}`);
+    }
+    if (numberKey) {
+      params.push(`number_key=eq.${encodeURIComponent(numberKey)}`);
+    }
+    const query = `?${params.join("&")}`;
+    const rows = await sbSelect("transport_customers", query);
+    if (Array.isArray(rows) && rows.length) {
+      return rows[0];
+    }
+    return null;
+  },
+};
+
+const CustomerLocations = {
+  async bulkUpsert(entries) {
+    if (!Array.isArray(entries) || !entries.length) {
+      return [];
+    }
+
+    const payload = entries
+      .map((entry) => sanitizeCustomerLocationPayload(entry))
+      .filter(Boolean);
+
+    if (!payload.length) {
+      return [];
+    }
+
+    return tryWrap(async () => {
+      const headers = buildSupabaseHeaders({
+        Prefer: "return=representation,resolution=merge-duplicates",
+      });
+      const response = await fetch(
+        `${SUPABASE_REST_URL}/transport_customer_locations?on_conflict=customer_id,kind,location_key`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(data));
+      return data;
+    });
+  },
 };
 
 const Lines = {
@@ -987,6 +1117,7 @@ const Users = {
 
 window.Orders = Orders;
 window.Customers = Customers;
+window.CustomerLocations = CustomerLocations;
 window.Lines = Lines;
 window.Carriers = Carriers;
 window.Users = Users;
