@@ -271,7 +271,13 @@ begin
     create policy transport_orders_modify_by_planner
       on public.transport_orders
       for insert
-      with check (public.current_app_role() in ('admin', 'planner'));
+      with check (
+        public.current_app_role() in ('admin', 'planner')
+        or (
+          public.current_app_role() = 'werknemer'
+          and coalesce(created_by, auth.uid()) = auth.uid()
+        )
+      );
   end if;
 
   if not exists (
