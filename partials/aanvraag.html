@@ -83,12 +83,24 @@
                 <input id="oCustomerOrderNumber" placeholder="Bijv. PO-20311" />
               </label>
               <label>Klantnaam
-                <input id="oCustomerName" placeholder="Klant BV" />
+                <input
+                  id="oCustomerName"
+                  placeholder="Klant BV"
+                  list="customerNameSuggestions"
+                  autocomplete="off"
+                />
+                <datalist id="customerNameSuggestions"></datalist>
               </label>
             </div>
             <div class="grid2">
               <label>Klantnummer
-                <input id="oCustomerNumber" placeholder="Bijv. 123456" />
+                <input
+                  id="oCustomerNumber"
+                  placeholder="Bijv. 123456"
+                  list="customerNumberSuggestions"
+                  autocomplete="off"
+                />
+                <datalist id="customerNumberSuggestions"></datalist>
               </label>
               <label class="form-field-full">Order referentie
                 <input id="oOrderReference" placeholder="Interne referentie" />
