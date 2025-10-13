@@ -140,7 +140,7 @@ h4 {
 .header-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-top: 16px;
@@ -208,6 +208,19 @@ h4 {
   gap: 8px;
   font-size: 13px;
   color: var(--color-muted);
+  align-self: flex-start;
+}
+
+.auth-area .auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-area .auth-logo {
+  width: 160px;
+  max-width: 100%;
+  height: auto;
 }
 
 .auth-area .auth-controls {
