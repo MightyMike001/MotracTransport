@@ -1324,12 +1324,7 @@ const ORDER_FORM_SCHEMA = {
     required: "Vul de klantnaam in.",
   },
   oOrderReference: {},
-  oOrderDescription: {
-    minLength: {
-      value: 5,
-      message: "Beschrijf de order in minimaal 5 tekens.",
-    },
-  },
+  oOrderDescription: {},
   oOrderContact: {
     required: "Vul de order contactpersoon in.",
   },
@@ -1524,8 +1519,6 @@ const ORDER_WIZARD_STEP_FIELDS_DEFAULT = {
     "oRequestReference",
     "oDue",
     "oCustomerName",
-    "oOrderReference",
-    "oOrderDescription",
     "oOrderContact",
     "oOrderContactPhone",
     "oOrderContactEmail",
