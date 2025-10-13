@@ -28,6 +28,59 @@ drop policy if exists app_user_tokens_manage_by_role on public.app_user_tokens;
 
 alter table if exists public.app_user_tokens disable row level security;
 
+-- Opslag voor (tijdelijke) auth-tokens die door de webapp worden gebruikt.
+create table if not exists public.app_user_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.app_users(id) on delete cascade,
+  token text,
+  auth_token text,
+  jwt text,
+  access_token text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.app_user_tokens
+  add column if not exists token text,
+  add column if not exists auth_token text,
+  add column if not exists jwt text,
+  add column if not exists access_token text,
+  add column if not exists created_at timestamptz not null default now();
+
+alter table public.app_user_tokens
+  add column if not exists user_id uuid not null references public.app_users(id) on delete cascade;
+
+alter table public.app_user_tokens enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'app_user_tokens'
+      and policyname = 'allow anon read tokens'
+  ) then
+    create policy "allow anon read tokens"
+      on public.app_user_tokens
+      for select
+      using (true);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'app_user_tokens'
+      and policyname = 'allow anon modify tokens'
+  ) then
+    create policy "allow anon modify tokens"
+      on public.app_user_tokens
+      for all
+      using (true)
+      with check (true);
+  end if;
+end $$;
+
 -- Maak benodigde extensies voor UUID en case-insensitieve e-mailvergelijking
 create extension if not exists pgcrypto;
 create extension if not exists citext;
