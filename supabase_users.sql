@@ -23,8 +23,18 @@ drop policy if exists app_users_insert_by_role on public.app_users;
 drop policy if exists app_users_insert_signup on public.app_users;
 drop policy if exists app_users_update_by_role on public.app_users;
 drop policy if exists app_users_delete_by_admin on public.app_users;
-drop policy if exists app_user_tokens_select_by_role on public.app_user_tokens;
-drop policy if exists app_user_tokens_manage_by_role on public.app_user_tokens;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'app_user_tokens'
+  ) then
+    execute 'drop policy if exists app_user_tokens_select_by_role on public.app_user_tokens';
+    execute 'drop policy if exists app_user_tokens_manage_by_role on public.app_user_tokens';
+  end if;
+end $$;
 
 alter table if exists public.app_user_tokens disable row level security;
 
