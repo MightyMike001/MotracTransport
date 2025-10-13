@@ -63,6 +63,37 @@ const DEFAULT_RETRY_DELAY = 400;
 const NETWORK_ERROR_MESSAGE =
   "Kan geen verbinding maken met de server. Controleer je netwerk en probeer het opnieuw.";
 
+function normalizeCustomerKey(value) {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  return String(value).trim().toLowerCase();
+}
+
+function sanitizeCustomerPayload(entry) {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const name = typeof entry.name === "string" ? entry.name.trim() : "";
+  const number = typeof entry.number === "string" ? entry.number.trim() : "";
+  const orderNumber = typeof entry.orderNumber === "string" ? entry.orderNumber.trim() : "";
+  const lastUsed = Number.isFinite(entry.lastUsed) ? Number(entry.lastUsed) : Date.now();
+  const normalizedName = normalizeCustomerKey(name);
+  const normalizedNumber = normalizeCustomerKey(number);
+  if (!normalizedName && !normalizedNumber) {
+    return null;
+  }
+  const payload = {
+    name: name || null,
+    number: number || null,
+    order_number: orderNumber || null,
+    last_used_at: new Date(lastUsed).toISOString(),
+    name_key: normalizedName,
+    number_key: normalizedNumber,
+  };
+  return payload;
+}
+
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -800,6 +831,45 @@ const Orders = {
   },
 };
 
+const Customers = {
+  async list(options = {}) {
+    const limitValue = Number.isFinite(options.limit)
+      ? Math.max(1, Math.min(200, Math.floor(options.limit)))
+      : 100;
+    const params = [`order=last_used_at.desc`, `limit=${limitValue}`];
+    const query = `?${params.join("&")}`;
+    const rows = await sbSelect("transport_customers", query);
+    return Array.isArray(rows) ? rows : [];
+  },
+  async bulkUpsert(entries) {
+    if (!Array.isArray(entries) || !entries.length) {
+      return [];
+    }
+    const payload = entries
+      .map((entry) => sanitizeCustomerPayload(entry))
+      .filter(Boolean);
+    if (!payload.length) {
+      return [];
+    }
+    return tryWrap(async () => {
+      const headers = buildSupabaseHeaders({
+        Prefer: "return=representation,resolution=merge-duplicates",
+      });
+      const response = await fetch(
+        `${SUPABASE_REST_URL}/transport_customers?on_conflict=name_key,number_key`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(data));
+      return data;
+    });
+  },
+};
+
 const Lines = {
   create: (row) => sbInsert("transport_lines", [row]).then(r => r[0]),
   listByOrder: (orderId) => sbSelect("transport_lines", `?order_id=eq.${orderId}`),
@@ -916,6 +986,7 @@ const Users = {
 };
 
 window.Orders = Orders;
+window.Customers = Customers;
 window.Lines = Lines;
 window.Carriers = Carriers;
 window.Users = Users;

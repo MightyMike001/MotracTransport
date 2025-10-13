@@ -1,5 +1,6 @@
 let els = {};
 let ordersFiltersDebounce = null;
+let CUSTOMER_SUGGESTIONS = [];
 
 const DATE_UTILS = window.DateUtils || {};
 
@@ -498,6 +499,8 @@ function refreshElements() {
     oCustomerName: doc.getElementById("oCustomerName"),
     oCustomerNumber: doc.getElementById("oCustomerNumber"),
     oCustomerOrderNumber: doc.getElementById("oCustomerOrderNumber"),
+    customerNameSuggestions: doc.getElementById("customerNameSuggestions"),
+    customerNumberSuggestions: doc.getElementById("customerNumberSuggestions"),
     oOrderReference: doc.getElementById("oOrderReference"),
     oOrderDescription: doc.getElementById("oOrderDescription"),
     oFirstWorkYes: doc.getElementById("oFirstWorkYes"),
@@ -1287,6 +1290,7 @@ const STORAGE_KEYS = {
   lastReference: "transport_last_reference_v1",
   orderFilters: "transport_order_filters_v1",
   userContact: "transport_user_contact_v1",
+  customers: "transport_customers_v1",
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1297,6 +1301,13 @@ const ORDER_FORM_FLOW = {
 };
 
 const DEFAULT_ARTICLE_TYPE = "serial";
+const MAX_STORED_CUSTOMERS = 50;
+const REMOTE_CUSTOMER_SYNC_LIMIT = 100;
+const REMOTE_CUSTOMER_SYNC_DELAY = 800;
+
+const CUSTOMER_REMOTE_QUEUE = new Map();
+let CUSTOMER_REMOTE_SYNC_TIMEOUT = null;
+let CUSTOMER_REMOTE_FLUSH_BOUND = false;
 
 function isCombinedFlowEnabled() {
   return Boolean(ORDER_FORM_FLOW.combined);
@@ -1697,6 +1708,453 @@ function storageSet(key, value) {
   } catch (e) {
     console.warn("Kan localStorage niet schrijven", e);
   }
+}
+
+function sanitizeCustomerEntry(entry) {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const name = cleanText(entry.name) || "";
+  const number = cleanText(entry.number) || "";
+  const orderNumber =
+    cleanText(entry.orderNumber) ||
+    cleanText(entry.customerOrderNumber) ||
+    cleanText(entry.customer_order_number) ||
+    "";
+  const lastUsed = Number.isFinite(entry.lastUsed) ? Number(entry.lastUsed) : Date.now();
+  if (!name && !number) {
+    return null;
+  }
+  return {
+    name,
+    number,
+    orderNumber,
+    lastUsed,
+  };
+}
+
+function dedupeCustomerSuggestions(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const sorted = [...list].sort((a, b) => (b?.lastUsed || 0) - (a?.lastUsed || 0));
+  const seen = new Set();
+  const result = [];
+  for (const entry of sorted) {
+    if (!entry) continue;
+    const name = entry.name || "";
+    const number = entry.number || "";
+    if (!name && !number) continue;
+    const keySource = number ? number.toLowerCase() : name.toLowerCase();
+    if (!keySource) continue;
+    const key = number ? `number:${keySource}` : `name:${keySource}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    const sanitized = {
+      name,
+      number,
+      orderNumber: entry.orderNumber || "",
+      lastUsed: Number.isFinite(entry.lastUsed) ? Number(entry.lastUsed) : Date.now(),
+    };
+    result.push(sanitized);
+    seen.add(key);
+    if (result.length >= MAX_STORED_CUSTOMERS) {
+      break;
+    }
+  }
+  return result;
+}
+
+function sanitizeStoredCustomers(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const sanitized = [];
+  for (const raw of value) {
+    const entry = sanitizeCustomerEntry(raw);
+    if (entry) {
+      sanitized.push(entry);
+    }
+  }
+  return dedupeCustomerSuggestions(sanitized);
+}
+
+function addCustomerSuggestionToList(list, entry, timestamp = Date.now()) {
+  const sanitizedEntry = sanitizeCustomerEntry({ ...entry, lastUsed: timestamp });
+  const resultList = Array.isArray(list) ? [...list] : [];
+  if (!sanitizedEntry) {
+    return { changed: false, list: resultList, entry: null };
+  }
+  const normalizedNumber = sanitizedEntry.number ? sanitizedEntry.number.toLowerCase() : null;
+  const normalizedName = sanitizedEntry.name ? sanitizedEntry.name.toLowerCase() : null;
+  let index = -1;
+  if (normalizedNumber) {
+    index = resultList.findIndex(
+      (item) => item?.number && item.number.toLowerCase() === normalizedNumber,
+    );
+  }
+  if (index === -1 && normalizedName) {
+    index = resultList.findIndex(
+      (item) => item?.name && item.name.toLowerCase() === normalizedName,
+    );
+  }
+  if (index >= 0) {
+    const existing = resultList[index];
+    const next = {
+      name: sanitizedEntry.name || existing.name || "",
+      number: sanitizedEntry.number || existing.number || "",
+      orderNumber: sanitizedEntry.orderNumber || existing.orderNumber || "",
+      lastUsed: timestamp,
+    };
+    if (
+      next.name === existing.name &&
+      next.number === existing.number &&
+      next.orderNumber === existing.orderNumber &&
+      next.lastUsed === existing.lastUsed
+    ) {
+      return { changed: false, list: resultList, entry: existing };
+    }
+    resultList[index] = next;
+    return { changed: true, list: resultList, entry: next };
+  }
+  const inserted = {
+    name: sanitizedEntry.name,
+    number: sanitizedEntry.number,
+    orderNumber: sanitizedEntry.orderNumber,
+    lastUsed: timestamp,
+  };
+  resultList.unshift(inserted);
+  return { changed: true, list: resultList, entry: inserted };
+}
+
+function saveCustomerSuggestionsList(list) {
+  const sanitized = sanitizeStoredCustomers(list);
+  CUSTOMER_SUGGESTIONS = sanitized;
+  storageSet(STORAGE_KEYS.customers, sanitized);
+  renderCustomerSuggestions();
+}
+
+function upsertCustomerSuggestion(entry) {
+  const list = Array.isArray(CUSTOMER_SUGGESTIONS) ? CUSTOMER_SUGGESTIONS : [];
+  const { changed, list: updated, entry: appliedEntry } = addCustomerSuggestionToList(
+    list,
+    entry,
+    Date.now(),
+  );
+  if (!changed) {
+    return false;
+  }
+  saveCustomerSuggestionsList(updated);
+  if (appliedEntry) {
+    queueRemoteCustomerSync(appliedEntry);
+  }
+  return true;
+}
+
+function rememberCustomersFromOrders(rows) {
+  if (!Array.isArray(rows) || !rows.length) {
+    return;
+  }
+  let list = Array.isArray(CUSTOMER_SUGGESTIONS) ? [...CUSTOMER_SUGGESTIONS] : [];
+  let changed = false;
+  let timestamp = Date.now();
+  for (const row of rows) {
+    if (!row) {
+      timestamp -= 1;
+      continue;
+    }
+    const name = cleanText(row.customer_name);
+    const number = cleanText(row.customer_number);
+    const orderNumber = cleanText(row.customer_order_number);
+    if (!name && !number) {
+      timestamp -= 1;
+      continue;
+    }
+    const result = addCustomerSuggestionToList(list, { name, number, orderNumber }, timestamp);
+    if (result.changed) {
+      changed = true;
+      list = result.list;
+      if (result.entry) {
+        queueRemoteCustomerSync(result.entry);
+      }
+    }
+    timestamp -= 1;
+  }
+  if (changed) {
+    saveCustomerSuggestionsList(list);
+  }
+}
+
+function populateCustomerDatalist(datalist, list, field) {
+  if (!datalist) {
+    return;
+  }
+  while (datalist.firstChild) {
+    datalist.removeChild(datalist.firstChild);
+  }
+  if (!Array.isArray(list) || !list.length) {
+    return;
+  }
+  const seen = new Set();
+  for (const entry of list) {
+    if (!entry) continue;
+    const value = field === "name" ? entry.name : entry.number;
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const option = document.createElement("option");
+    option.value = value;
+    const counterpart = field === "name" ? entry.number : entry.name;
+    if (counterpart) {
+      const display = `${value} — ${counterpart}`;
+      option.label = display;
+      option.textContent = display;
+    } else {
+      option.textContent = value;
+    }
+    datalist.appendChild(option);
+  }
+}
+
+function renderCustomerSuggestions() {
+  if (
+    !els ||
+    (!els.customerNameSuggestions && !els.customerNumberSuggestions)
+  ) {
+    return;
+  }
+  const list = Array.isArray(CUSTOMER_SUGGESTIONS) ? CUSTOMER_SUGGESTIONS : [];
+  if (els.customerNameSuggestions) {
+    populateCustomerDatalist(els.customerNameSuggestions, list, "name");
+  }
+  if (els.customerNumberSuggestions) {
+    populateCustomerDatalist(els.customerNumberSuggestions, list, "number");
+  }
+}
+
+function getCustomerQueueKey(entry) {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const nameKey = entry.name ? entry.name.toLowerCase() : "";
+  const numberKey = entry.number ? entry.number.toLowerCase() : "";
+  if (!nameKey && !numberKey) {
+    return null;
+  }
+  return `${nameKey}::${numberKey}`;
+}
+
+function ensureCustomerRemoteFlushListeners() {
+  if (CUSTOMER_REMOTE_FLUSH_BOUND) {
+    return;
+  }
+  CUSTOMER_REMOTE_FLUSH_BOUND = true;
+  const handler = () => {
+    if (CUSTOMER_REMOTE_SYNC_TIMEOUT) {
+      clearTimeout(CUSTOMER_REMOTE_SYNC_TIMEOUT);
+      CUSTOMER_REMOTE_SYNC_TIMEOUT = null;
+    }
+    flushRemoteCustomerSync();
+  };
+  window.addEventListener("pagehide", handler);
+  window.addEventListener("beforeunload", handler);
+}
+
+async function flushRemoteCustomerSync() {
+  if (!CUSTOMER_REMOTE_QUEUE.size) {
+    return;
+  }
+  if (!window.Customers || typeof window.Customers.bulkUpsert !== "function") {
+    return;
+  }
+  const entries = Array.from(CUSTOMER_REMOTE_QUEUE.values());
+  CUSTOMER_REMOTE_QUEUE.clear();
+  try {
+    await window.Customers.bulkUpsert(entries);
+  } catch (error) {
+    console.warn("Synchroniseren van klantgegevens naar database mislukt", error);
+    for (const entry of entries) {
+      const sanitized = sanitizeCustomerEntry(entry);
+      const key = sanitized ? getCustomerQueueKey(sanitized) : null;
+      if (!key) {
+        continue;
+      }
+      CUSTOMER_REMOTE_QUEUE.set(key, {
+        name: sanitized.name,
+        number: sanitized.number,
+        orderNumber: sanitized.orderNumber,
+        lastUsed: sanitized.lastUsed,
+      });
+    }
+    if (!CUSTOMER_REMOTE_SYNC_TIMEOUT && CUSTOMER_REMOTE_QUEUE.size) {
+      CUSTOMER_REMOTE_SYNC_TIMEOUT = window.setTimeout(() => {
+        CUSTOMER_REMOTE_SYNC_TIMEOUT = null;
+        flushRemoteCustomerSync();
+      }, REMOTE_CUSTOMER_SYNC_DELAY * 2);
+    }
+  }
+}
+
+function queueRemoteCustomerSync(entry) {
+  if (!window.Customers || typeof window.Customers.bulkUpsert !== "function") {
+    return;
+  }
+  const sanitized = sanitizeCustomerEntry(entry);
+  if (!sanitized) {
+    return;
+  }
+  ensureCustomerRemoteFlushListeners();
+  const key = getCustomerQueueKey(sanitized);
+  if (!key) {
+    return;
+  }
+  const existing = CUSTOMER_REMOTE_QUEUE.get(key);
+  if (existing) {
+    if (sanitized.lastUsed > existing.lastUsed) {
+      existing.lastUsed = sanitized.lastUsed;
+    }
+    if (!existing.orderNumber && sanitized.orderNumber) {
+      existing.orderNumber = sanitized.orderNumber;
+    }
+  } else {
+    CUSTOMER_REMOTE_QUEUE.set(key, {
+      name: sanitized.name,
+      number: sanitized.number,
+      orderNumber: sanitized.orderNumber,
+      lastUsed: sanitized.lastUsed,
+    });
+  }
+  if (CUSTOMER_REMOTE_QUEUE.size >= REMOTE_CUSTOMER_SYNC_LIMIT) {
+    if (CUSTOMER_REMOTE_SYNC_TIMEOUT) {
+      clearTimeout(CUSTOMER_REMOTE_SYNC_TIMEOUT);
+      CUSTOMER_REMOTE_SYNC_TIMEOUT = null;
+    }
+    Promise.resolve(flushRemoteCustomerSync()).catch(() => {});
+    return;
+  }
+  if (!CUSTOMER_REMOTE_SYNC_TIMEOUT) {
+    CUSTOMER_REMOTE_SYNC_TIMEOUT = window.setTimeout(() => {
+      CUSTOMER_REMOTE_SYNC_TIMEOUT = null;
+      flushRemoteCustomerSync();
+    }, REMOTE_CUSTOMER_SYNC_DELAY);
+  }
+}
+
+async function syncRemoteCustomerSuggestions() {
+  if (!window.Customers || typeof window.Customers.list !== "function") {
+    return;
+  }
+  try {
+    const rows = await window.Customers.list({ limit: REMOTE_CUSTOMER_SYNC_LIMIT });
+    if (!Array.isArray(rows) || !rows.length) {
+      return;
+    }
+    let list = Array.isArray(CUSTOMER_SUGGESTIONS) ? [...CUSTOMER_SUGGESTIONS] : [];
+    let changed = false;
+    let fallbackTimestamp = Date.now();
+    for (const row of rows) {
+      if (!row) {
+        fallbackTimestamp -= 1;
+        continue;
+      }
+      const name = cleanText(row.name);
+      const number = cleanText(row.number);
+      const orderNumber = cleanText(row.order_number);
+      if (!name && !number) {
+        fallbackTimestamp -= 1;
+        continue;
+      }
+      const parsedLastUsed = row.last_used_at ? Date.parse(row.last_used_at) : NaN;
+      const timestamp = Number.isFinite(parsedLastUsed) ? parsedLastUsed : fallbackTimestamp;
+      const result = addCustomerSuggestionToList(list, { name, number, orderNumber }, timestamp);
+      if (result.changed) {
+        changed = true;
+        list = result.list;
+      }
+      fallbackTimestamp -= 1;
+    }
+    if (changed) {
+      saveCustomerSuggestionsList(list);
+    }
+  } catch (error) {
+    console.warn("Kan klant suggesties niet synchroniseren", error);
+  }
+}
+
+function findCustomerSuggestionByName(name) {
+  const text = cleanText(name);
+  if (!text) {
+    return null;
+  }
+  const lower = text.toLowerCase();
+  return (
+    (CUSTOMER_SUGGESTIONS || []).find(
+      (entry) => entry?.name && entry.name.toLowerCase() === lower,
+    ) || null
+  );
+}
+
+function findCustomerSuggestionByNumber(number) {
+  const text = cleanText(number);
+  if (!text) {
+    return null;
+  }
+  const lower = text.toLowerCase();
+  return (
+    (CUSTOMER_SUGGESTIONS || []).find(
+      (entry) => entry?.number && entry.number.toLowerCase() === lower,
+    ) || null
+  );
+}
+
+function applyCustomerSuggestionFromName() {
+  if (!els.oCustomerName) {
+    return false;
+  }
+  const name = cleanText(els.oCustomerName.value);
+  if (!name) {
+    return false;
+  }
+  const suggestion = findCustomerSuggestionByName(name);
+  if (!suggestion) {
+    return false;
+  }
+  if (els.oCustomerNumber && !cleanText(els.oCustomerNumber.value) && suggestion.number) {
+    els.oCustomerNumber.value = suggestion.number;
+  }
+  updateOrderSummary();
+  return true;
+}
+
+function applyCustomerSuggestionFromNumber() {
+  if (!els.oCustomerNumber) {
+    return false;
+  }
+  const number = cleanText(els.oCustomerNumber.value);
+  if (!number) {
+    return false;
+  }
+  const suggestion = findCustomerSuggestionByNumber(number);
+  if (!suggestion) {
+    return false;
+  }
+  if (els.oCustomerName && !cleanText(els.oCustomerName.value) && suggestion.name) {
+    els.oCustomerName.value = suggestion.name;
+  }
+  updateOrderSummary();
+  return true;
+}
+
+function persistCustomerSuggestionFromInputs() {
+  const name = cleanText(els.oCustomerName?.value);
+  const number = cleanText(els.oCustomerNumber?.value);
+  const orderNumber = cleanText(els.oCustomerOrderNumber?.value);
+  if (!name && !number) {
+    return;
+  }
+  upsertCustomerSuggestion({ name, number, orderNumber });
 }
 
 function getUserStorageId(user) {
@@ -2191,6 +2649,8 @@ function canUserEditOrder(order, user = getCurrentUser()) {
 function hydrateLocalState() {
   TRUCKS = storageGet(STORAGE_KEYS.trucks, []);
   PLAN_BOARD = sanitizePlanBoard(storageGet(STORAGE_KEYS.board, {}));
+  CUSTOMER_SUGGESTIONS = sanitizeStoredCustomers(storageGet(STORAGE_KEYS.customers, []));
+  renderCustomerSuggestions();
 }
 
 function captureOrderFilterState() {
@@ -3778,6 +4238,7 @@ async function loadOrders(options = {}) {
     const firstPage = await Orders.list(filtersForQuery, queryOptions);
     stopOrdersSkeleton();
     const safeRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
+    rememberCustomersFromOrders(safeRows);
     const totalCount = Number(firstPage?.total) || safeRows.length;
     const pageSize = usePagination ? (Number(firstPage?.pageSize) || PAGINATION.pageSize) : safeRows.length || PAGINATION.pageSize;
     const totalPages = usePagination
@@ -5723,6 +6184,15 @@ async function createOrder(){
         throw returnLineError;
       }
     }
+    upsertCustomerSuggestion({
+      name: payload.customer_name,
+      number: payload.customer_number,
+      orderNumber:
+        payload.customer_order_number ||
+        payload.request_reference ||
+        payload.reference ||
+        null,
+    });
     storageSet(STORAGE_KEYS.lastReference, requestReference);
     const successMessage = "Transport aangemaakt";
     setStatus(els.createStatus, successMessage, "success");
@@ -7092,6 +7562,32 @@ function bind(canManagePlanning){
   }
   if (els.oCustomerName) {
     addBoundListener(els.oCustomerName, "input", updateOrderSummary);
+    addBoundListener(els.oCustomerName, "focus", renderCustomerSuggestions);
+    addBoundListener(els.oCustomerName, "change", () => {
+      applyCustomerSuggestionFromName();
+      persistCustomerSuggestionFromInputs();
+    });
+    addBoundListener(els.oCustomerName, "blur", () => {
+      applyCustomerSuggestionFromName();
+      persistCustomerSuggestionFromInputs();
+    });
+  }
+  if (els.oCustomerNumber) {
+    addBoundListener(els.oCustomerNumber, "input", updateOrderSummary);
+    addBoundListener(els.oCustomerNumber, "focus", renderCustomerSuggestions);
+    addBoundListener(els.oCustomerNumber, "change", () => {
+      applyCustomerSuggestionFromNumber();
+      persistCustomerSuggestionFromInputs();
+    });
+    addBoundListener(els.oCustomerNumber, "blur", () => {
+      applyCustomerSuggestionFromNumber();
+      persistCustomerSuggestionFromInputs();
+    });
+  }
+  if (els.oCustomerOrderNumber) {
+    addBoundListener(els.oCustomerOrderNumber, "input", updateOrderSummary);
+    addBoundListener(els.oCustomerOrderNumber, "change", persistCustomerSuggestionFromInputs);
+    addBoundListener(els.oCustomerOrderNumber, "blur", persistCustomerSuggestionFromInputs);
   }
   if (els.oDue) {
     addBoundListener(els.oDue, "input", () => {
@@ -7288,6 +7784,7 @@ async function initAppPage() {
   resetArticleImport();
   updateArticleRowsForType();
   hydrateLocalState();
+  await syncRemoteCustomerSuggestions();
   PLAN_SUGGESTIONS = [];
   ORDERS_CACHE = [];
   DRAG_CONTEXT = null;
@@ -7332,10 +7829,18 @@ function destroyAppPage() {
   DRAG_CONTEXT = null;
   ORDER_FORM_VALIDATOR = null;
   ARTICLE_IMPORT_STATE = null;
+  CUSTOMER_SUGGESTIONS = [];
   if (ordersFiltersDebounce && typeof ordersFiltersDebounce.cancel === "function") {
     ordersFiltersDebounce.cancel();
   }
   ordersFiltersDebounce = null;
+  if (CUSTOMER_REMOTE_SYNC_TIMEOUT) {
+    clearTimeout(CUSTOMER_REMOTE_SYNC_TIMEOUT);
+    CUSTOMER_REMOTE_SYNC_TIMEOUT = null;
+  }
+  if (CUSTOMER_REMOTE_QUEUE.size) {
+    Promise.resolve(flushRemoteCustomerSync()).catch(() => {});
+  }
 }
 
 window.Pages = window.Pages || {};
