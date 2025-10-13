@@ -251,11 +251,18 @@
       return;
     }
     area.innerHTML = `
-      <div class="auth-summary">
-        <span class="auth-user">${user.name}</span>
-        <span class="auth-role">${formatRole(user.role)}</span>
+      <img
+        src="LMH_MOTRAC_LOGO_2_Links_RGB.png"
+        alt="LMH Motrac logo"
+        class="auth-logo"
+      />
+      <div class="auth-controls">
+        <div class="auth-summary">
+          <span class="auth-user">${user.name}</span>
+          <span class="auth-role">${formatRole(user.role)}</span>
+        </div>
+        <button class="btn ghost small" id="btnLogout" type="button">Uitloggen</button>
       </div>
-      <button class="btn ghost small" id="btnLogout" type="button">Uitloggen</button>
     `;
     const btn = document.getElementById("btnLogout");
     if (btn) {
