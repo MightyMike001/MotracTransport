@@ -316,7 +316,7 @@ function createFormValidator(form, schema, registerListener) {
         return false;
       }
     }
-    if (config.minLength && typeof value === "string") {
+    if (config.minLength && typeof value === "string" && value) {
       const limit = typeof config.minLength === "number" ? config.minLength : config.minLength.value;
       if (Number.isFinite(limit) && value.length < limit) {
         setFieldError(field, getMessage(config.minLength, `Minimaal ${limit} tekens.`));
@@ -1323,11 +1323,8 @@ const ORDER_FORM_SCHEMA = {
   oCustomerName: {
     required: "Vul de klantnaam in.",
   },
-  oOrderReference: {
-    required: "Vul de orderreferentie in.",
-  },
+  oOrderReference: {},
   oOrderDescription: {
-    required: "Vul de orderomschrijving in.",
     minLength: {
       value: 5,
       message: "Beschrijf de order in minimaal 5 tekens.",
