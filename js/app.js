@@ -1286,6 +1286,7 @@ const STORAGE_KEYS = {
   board: "transport_board_v1",
   lastReference: "transport_last_reference_v1",
   orderFilters: "transport_order_filters_v1",
+  userContact: "transport_user_contact_v1",
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1705,6 +1706,185 @@ function storageSet(key, value) {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     console.warn("Kan localStorage niet schrijven", e);
+  }
+}
+
+function getUserStorageId(user) {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+  const candidates = [user.id, user.user_id, user.userId];
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate !== null) {
+      return String(candidate);
+    }
+  }
+  return null;
+}
+
+function getUserContactStorageMap() {
+  const stored = storageGet(STORAGE_KEYS.userContact, {});
+  if (!stored || typeof stored !== "object") {
+    return {};
+  }
+  return { ...stored };
+}
+
+function getStoredUserContactPhone(user) {
+  const userId = getUserStorageId(user);
+  if (!userId) {
+    return "";
+  }
+  const map = storageGet(STORAGE_KEYS.userContact, {});
+  if (!map || typeof map !== "object") {
+    return "";
+  }
+  const entry = map[userId];
+  const stored = entry && typeof entry === "object" ? cleanText(entry.phone) : null;
+  return stored || "";
+}
+
+function setStoredUserContactPhone(user, phone) {
+  const userId = getUserStorageId(user);
+  if (!userId) {
+    return;
+  }
+  const map = getUserContactStorageMap();
+  const normalized = cleanText(phone);
+  if (normalized) {
+    map[userId] = { phone: normalized };
+  } else {
+    delete map[userId];
+  }
+  storageSet(STORAGE_KEYS.userContact, map);
+}
+
+function getUserAccountPhone(user) {
+  if (!user || typeof user !== "object") {
+    return "";
+  }
+  const PHONE_KEYS = [
+    "phone",
+    "phone_number",
+    "phoneNumber",
+    "telephone",
+    "telefoon",
+    "telefoonnummer",
+    "mobile",
+    "mobile_number",
+    "mobileNumber",
+    "gsm",
+  ];
+  for (const key of PHONE_KEYS) {
+    if (key in user) {
+      const value = cleanText(user[key]);
+      if (value) {
+        return value;
+      }
+    }
+  }
+  const nestedSources = [user.contact, user.profile, user.metadata];
+  for (const source of nestedSources) {
+    if (!source || typeof source !== "object") {
+      continue;
+    }
+    for (const key of PHONE_KEYS) {
+      if (key in source) {
+        const value = cleanText(source[key]);
+        if (value) {
+          return value;
+        }
+      }
+    }
+  }
+  return "";
+}
+
+function setReadOnlyField(field, readOnly) {
+  if (!field) {
+    return;
+  }
+  if (readOnly) {
+    field.setAttribute("readonly", "readonly");
+    field.setAttribute("aria-readonly", "true");
+  } else {
+    field.removeAttribute("readonly");
+    field.removeAttribute("aria-readonly");
+  }
+}
+
+function applyOrderContactDefaultsFromUser(options = {}) {
+  const config = typeof options === "object" && options !== null ? options : {};
+  const force = Boolean(config.force);
+  if (!els || (!els.oOrderContact && !els.oOrderContactEmail && !els.oOrderContactPhone)) {
+    return;
+  }
+  const user = getCurrentUser();
+  if (!user) {
+    return;
+  }
+  const contactName = getUserDisplayName(user) || "";
+  const contactEmail = typeof user.email === "string" ? user.email.trim() : "";
+  const storedPhone = getStoredUserContactPhone(user);
+  const accountPhone = getUserAccountPhone(user);
+  const phoneValue = storedPhone || accountPhone || "";
+
+  if (els.oOrderContact) {
+    const currentName = cleanText(els.oOrderContact.value);
+    if (force || !currentName) {
+      const nextValue = contactName || "";
+      if (els.oOrderContact.value !== nextValue) {
+        els.oOrderContact.value = nextValue;
+        els.oOrderContact.dispatchEvent(new Event("input", { bubbles: true }));
+        els.oOrderContact.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    setReadOnlyField(els.oOrderContact, true);
+  }
+
+  if (els.oOrderContactEmail) {
+    const currentEmail = cleanText(els.oOrderContactEmail.value);
+    if (force || !currentEmail) {
+      const nextValue = contactEmail || "";
+      if (els.oOrderContactEmail.value !== nextValue) {
+        els.oOrderContactEmail.value = nextValue;
+        els.oOrderContactEmail.dispatchEvent(new Event("input", { bubbles: true }));
+        els.oOrderContactEmail.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    setReadOnlyField(els.oOrderContactEmail, true);
+  }
+
+  if (els.oOrderContactPhone) {
+    const currentPhone = cleanText(els.oOrderContactPhone.value);
+    if ((force || !currentPhone) && phoneValue) {
+      if (els.oOrderContactPhone.value !== phoneValue) {
+        els.oOrderContactPhone.value = phoneValue;
+        els.oOrderContactPhone.dispatchEvent(new Event("input", { bubbles: true }));
+        els.oOrderContactPhone.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    if (phoneValue) {
+      setStoredUserContactPhone(user, phoneValue);
+    }
+  }
+}
+
+function persistCurrentUserContactPhone() {
+  if (!els || !els.oOrderContactPhone) {
+    return;
+  }
+  const user = getCurrentUser();
+  if (!user) {
+    return;
+  }
+  const phoneValue = cleanText(els.oOrderContactPhone.value);
+  if (!phoneValue) {
+    setStoredUserContactPhone(user, null);
+    return;
+  }
+  if (PHONE_PATTERN.test(phoneValue)) {
+    setStoredUserContactPhone(user, phoneValue);
   }
 }
 
@@ -5424,6 +5604,7 @@ function resetOrderForm(){
   }
   applyDefaultReceivedDate();
   applyOrderSchedulingDefaults({ force: true, onlyIfEmpty: true });
+  applyOrderContactDefaultsFromUser({ force: true });
   resetArticlesSection();
   if (ORDER_FORM_VALIDATOR && typeof ORDER_FORM_VALIDATOR.reset === "function") {
     ORDER_FORM_VALIDATOR.reset();
@@ -5438,6 +5619,7 @@ function resetOrderForm(){
 async function createOrder(){
   if (!els.oCustomerName || !els.oRequestReference) return;
   const user = getCurrentUser();
+  persistCurrentUserContactPhone();
   resetWizardStatus();
   if (ORDER_FORM_VALIDATOR && !ORDER_FORM_VALIDATOR.validate()) {
     setStatus(els.createStatus, "Controleer de gemarkeerde velden.", "error");
@@ -7016,6 +7198,10 @@ function bind(canManagePlanning){
   bindClick(els.btnCancelTruckEdit, cancelTruckEdit);
   bindClick(els.btnAddTruck, addTruck);
   bindClick(els.btnClearBoard, clearBoardForDay, canManagePlanning);
+  if (els.oOrderContactPhone) {
+    addBoundListener(els.oOrderContactPhone, "change", persistCurrentUserContactPhone);
+    addBoundListener(els.oOrderContactPhone, "blur", persistCurrentUserContactPhone);
+  }
   if (els.articleList) {
     addBoundListener(els.articleList, "click", (event) => {
       const removeButton = event.target.closest('[data-action="remove-article"]');
@@ -7106,6 +7292,7 @@ async function initAppPage() {
   await assignRequestReference();
   applyDefaultReceivedDate();
   applyOrderSchedulingDefaults({ force: true, onlyIfEmpty: true });
+  applyOrderContactDefaultsFromUser({ force: true });
   updateOrderSummary();
   ensureMinimumArticleRows();
   resetArticleImport();
