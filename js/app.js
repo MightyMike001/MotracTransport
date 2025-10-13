@@ -4085,7 +4085,7 @@ function exportOrders(format = "csv") {
     "Gewenste leverdatum",
     "Transport aanvraag referentie",
     "Klant",
-    "Ordernummer klant",
+    "Meldingsnummer",
     "Laadadres",
     "Losadres",
     "Status",
