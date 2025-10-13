@@ -140,7 +140,7 @@ h4 {
 .header-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-top: 16px;
@@ -203,10 +203,24 @@ h4 {
 
 .auth-area {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
   font-size: 13px;
   color: var(--color-muted);
+  align-self: flex-start;
+}
+
+.auth-area .auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-area .auth-logo {
+  width: 160px;
+  max-width: 100%;
+  height: auto;
 }
 
 .auth-area .auth-summary {
@@ -496,11 +510,16 @@ h4 {
 
   .auth-area {
     width: 100%;
+    align-items: flex-start;
+  }
+
+  .auth-area .auth-controls {
+    width: 100%;
     justify-content: space-between;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
+  }
+
+  .auth-area .auth-summary {
+    text-align: left;
   }
 
   .page,
