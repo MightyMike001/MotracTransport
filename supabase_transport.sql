@@ -289,8 +289,20 @@ begin
     create policy transport_orders_update_by_planner
       on public.transport_orders
       for update
-      using (public.current_app_role() in ('admin', 'planner'))
-      with check (public.current_app_role() in ('admin', 'planner'));
+      using (
+        public.current_app_role() in ('admin', 'planner')
+        or (
+          public.current_app_role() = 'werknemer'
+          and coalesce(created_by, auth.uid()) = auth.uid()
+        )
+      )
+      with check (
+        public.current_app_role() in ('admin', 'planner')
+        or (
+          public.current_app_role() = 'werknemer'
+          and coalesce(created_by, auth.uid()) = auth.uid()
+        )
+      );
   end if;
 
   if not exists (
