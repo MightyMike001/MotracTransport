@@ -2,18 +2,19 @@
 
 ## Configuratie
 
-De app bevat standaard Supabase instellingen zodat de demo direct werkt. Wil je eigen sleutels gebruiken, volg dan deze stappen:
+De applicatie verwacht Supabase instellingen tijdens runtime via `js/env.js`. Zonder deze configuratie stopt de app bewust met laden zodat er geen verbinding wordt gemaakt met een onbekende database.
 
-1. Kopieer `.env.example` naar `.env` en vul je Supabase waarden in.
-2. Genereer optioneel een runtime configuratiebestand met:
+1. Kopieer `.env.example` naar `.env` en vul de waarden van je eigen Supabase project in.
+2. Genereer het runtime configuratiebestand:
    ```bash
-   npm install
+   npm install # alleen de eerste keer nodig
    npm run build:env
    ```
-   > `npm install` is alleen nodig bij de eerste keer om eventuele toekomstige afhankelijkheden te installeren.
-3. Start de applicatie via je gewenste webserver. Het script `npm run build:env` maakt `js/env.js` aan dat door de app wordt gelezen.
+3. Start de applicatie via je gewenste webserver. Het script `npm run build:env` schrijft `js/env.js`, dat automatisch door `index.html` wordt geladen.
 
-De gegenereerde `js/env.js` en `.env` staan in `.gitignore` zodat sleutels niet per ongeluk in de repository terechtkomen.
+Wanneer `SUPABASE_URL` of `SUPABASE_ANON_KEY` ontbreken, geeft de console een foutmelding en wordt `window.APP_CONFIG` niet aangemaakt. Zo voorkom je dat productiegegevens per ongeluk worden gebruikt tijdens lokaal testen.
+
+Let op: zowel `js/env.js` als `.env` staan in `.gitignore` en horen nooit gecommit te worden.
 
 ### Optionele e-mailmeldingen
 

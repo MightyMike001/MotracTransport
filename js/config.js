@@ -95,16 +95,23 @@
     }),
   ]);
 
-  const defaults = Object.freeze({
-    SUPABASE_URL: "https://ezcxfobjsvomcjuwbgep.supabase.co",
-    SUPABASE_ANON_KEY:
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y3hmb2Jqc3ZvbWNqdXdiZ2VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NzQ3ODcsImV4cCI6MjA3MzI1MDc4N30.IhYZYfB_N2JDOG82NFbB_wxY7BJhahqJd9Y71nhpI3I",
-  });
+  const REQUIRED_PLACEHOLDER_PATTERN = /^__REQUIRED_[A-Z0-9_]+__$/;
+
+  const requireStringValue = (key) => {
+    const value = toStringValue(sourceEnv[key]);
+    if (!value || REQUIRED_PLACEHOLDER_PATTERN.test(value)) {
+      const message =
+        `Ontbrekende vereiste configuratiewaarde: ${key}. ` +
+        "Genereer js/env.js via 'npm run build:env' of stel window.__APP_ENV__ handmatig in voordat config.js wordt geladen.";
+      console.error(message);
+      throw new Error(message);
+    }
+    return value;
+  };
 
   const config = {
-    SUPABASE_URL: toStringValue(sourceEnv.SUPABASE_URL) || defaults.SUPABASE_URL,
-    SUPABASE_ANON_KEY:
-      toStringValue(sourceEnv.SUPABASE_ANON_KEY) || defaults.SUPABASE_ANON_KEY,
+    SUPABASE_URL: requireStringValue("SUPABASE_URL"),
+    SUPABASE_ANON_KEY: requireStringValue("SUPABASE_ANON_KEY"),
     EMAIL_NOTIFICATIONS_URL: toStringValue(sourceEnv.EMAIL_NOTIFICATIONS_URL),
     EMAIL_NOTIFICATIONS_FROM: toStringValue(sourceEnv.EMAIL_NOTIFICATIONS_FROM),
     EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS: Object.freeze(
@@ -116,16 +123,6 @@
     DOCUMENT_EMAIL_TEMPLATES: Object.freeze([]),
     DOCUMENT_EMAIL_LISTS: Object.freeze([]),
   };
-
-  const missing = Object.entries(config)
-    .filter(([, value]) => !value)
-    .map(([key]) => key);
-
-  if (missing.length > 0) {
-    console.warn(
-      `Ontbrekende configuratiewaarden: ${missing.join(", ")}. Standaardwaarden worden gebruikt waar beschikbaar.`
-    );
-  }
 
   if (!config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS.length) {
     config.EMAIL_NOTIFICATIONS_DEFAULT_RECIPIENTS = Object.freeze([]);
