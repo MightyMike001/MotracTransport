@@ -596,13 +596,63 @@ function buildSelectQuery(query = "") {
   return `?${parts.join("&")}`;
 }
 
+async function parseSupabaseResponse(response) {
+  if (!response) return null;
+
+  const contentType = response.headers?.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      return await response.json();
+    } catch (error) {
+      console.warn("Kon Supabase JSON-respons niet parsen", error);
+      return null;
+    }
+  }
+
+  try {
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+    return tryParseJson(text) ?? text;
+  } catch (error) {
+    console.warn("Kon Supabase tekstrespons niet lezen", error);
+    return null;
+  }
+}
+
+function createSupabaseError(response, payload, fallbackMessage = "Onbekende fout") {
+  const normalizedPayload =
+    typeof payload === "string" ? tryParseJson(payload) ?? { message: payload } : payload;
+  const messageFromPayload = pickErrorMessage(normalizedPayload);
+  const responseMessage = typeof payload === "string" && payload.trim() ? payload.trim() : "";
+  const fallback = response?.statusText || responseMessage || fallbackMessage;
+
+  const error = new Error(messageFromPayload || fallback || fallbackMessage);
+  if (response) {
+    error.status = response.status;
+    error.statusText = response.statusText;
+  }
+
+  if (normalizedPayload && typeof normalizedPayload === "object") {
+    if (normalizedPayload.code && !error.code) error.code = normalizedPayload.code;
+    if (normalizedPayload.details && !error.details) error.details = normalizedPayload.details;
+    if (normalizedPayload.hint && !error.hint) error.hint = normalizedPayload.hint;
+    error.payload = normalizedPayload;
+  } else if (normalizedPayload !== undefined) {
+    error.payload = normalizedPayload;
+  }
+
+  return error;
+}
+
 async function sbSelect(table, query = "") {
   return tryWrap(async () => {
     const normalizedQuery = buildSelectQuery(query);
     const headers = buildSupabaseHeaders();
-    const r = await fetch(`${SUPABASE_REST_URL}/${table}${normalizedQuery}`, { headers });
-    const data = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(data));
+    const response = await fetch(`${SUPABASE_REST_URL}/${table}${normalizedQuery}`, { headers });
+    const data = await parseSupabaseResponse(response);
+    if (!response.ok) throw createSupabaseError(response, data);
     return data;
   });
 }
@@ -610,13 +660,13 @@ async function sbSelect(table, query = "") {
 async function sbInsert(table, rows) {
   return tryWrap(async () => {
     const headers = buildSupabaseHeaders({ Prefer: "return=representation" });
-    const r = await fetch(`${SUPABASE_REST_URL}/${table}`, {
+    const response = await fetch(`${SUPABASE_REST_URL}/${table}`, {
       method: "POST",
       headers,
       body: JSON.stringify(rows)
     });
-    const data = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(data));
+    const data = await parseSupabaseResponse(response);
+    if (!response.ok) throw createSupabaseError(response, data);
     return data;
   });
 }
@@ -624,13 +674,13 @@ async function sbInsert(table, rows) {
 async function sbUpdate(table, match, patch) {
   return tryWrap(async () => {
     const headers = buildSupabaseHeaders({ Prefer: "return=representation" });
-    const r = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
+    const response = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify(patch)
     });
-    const data = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(data));
+    const data = await parseSupabaseResponse(response);
+    if (!response.ok) throw createSupabaseError(response, data);
     return data;
   });
 }
@@ -638,11 +688,14 @@ async function sbUpdate(table, match, patch) {
 async function sbDelete(table, match) {
   return tryWrap(async () => {
     const headers = buildSupabaseHeaders();
-    const r = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
+    const response = await fetch(`${SUPABASE_REST_URL}/${table}?${match}`, {
       method: "DELETE",
       headers
     });
-    if (!r.ok) throw new Error(await r.text());
+    if (!response.ok) {
+      const data = await parseSupabaseResponse(response);
+      throw createSupabaseError(response, data);
+    }
     return true;
   });
 }
@@ -675,6 +728,32 @@ function pickErrorMessage(obj) {
 }
 
 function formatSupabaseError(error, fallback = "Onbekende fout") {
+  if (!error) return fallback;
+
+  const statusCandidate =
+    typeof error?.status === "number"
+      ? error.status
+      : typeof error?.statusCode === "number"
+        ? error.statusCode
+        : null;
+
+  if (statusCandidate === 401) {
+    return "Je sessie is verlopen of ontbreekt. Meld je opnieuw aan.";
+  }
+
+  if (statusCandidate === 403) {
+    return "Je hebt geen toestemming om deze actie uit te voeren.";
+  }
+
+  if (error.payload && typeof error.payload === "object") {
+    const payloadMessage = pickErrorMessage(error.payload);
+    if (payloadMessage) return payloadMessage;
+  }
+
+  if (typeof error.details === "string" && error.details.trim()) {
+    return error.details.trim();
+  }
+
   if (!error) return fallback;
 
   if (typeof error === "string") {
@@ -841,8 +920,8 @@ const Orders = {
 
     const { response, data } = await tryWrap(async () => {
       const response = await fetch(`${SUPABASE_REST_URL}/transport_orders${qs}`, { headers });
-      const data = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(data));
+      const data = await parseSupabaseResponse(response);
+      if (!response.ok) throw createSupabaseError(response, data);
       return { response, data };
     });
 
@@ -897,8 +976,8 @@ const Orders = {
     const { response, data } = await tryWrap(async () => {
       const headers = buildSupabaseHeaders();
       const response = await fetch(`${SUPABASE_REST_URL}/transport_orders${query}`, { headers });
-      const data = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(data));
+      const data = await parseSupabaseResponse(response);
+      if (!response.ok) throw createSupabaseError(response, data);
       return { response, data };
     });
     if (!Array.isArray(data) || !data.length) {
@@ -940,8 +1019,8 @@ const Customers = {
           body: JSON.stringify(payload),
         }
       );
-      const data = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(data));
+      const data = await parseSupabaseResponse(response);
+      if (!response.ok) throw createSupabaseError(response, data);
       return data;
     });
   },
@@ -993,8 +1072,8 @@ const CustomerLocations = {
           body: JSON.stringify(payload),
         }
       );
-      const data = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(data));
+      const data = await parseSupabaseResponse(response);
+      if (!response.ok) throw createSupabaseError(response, data);
       return data;
     });
   },

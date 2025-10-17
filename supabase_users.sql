@@ -1,4 +1,5 @@
--- Herstel wijzigingen uit de aangescherpte policies zodat de API weer toegankelijk is.
+-- Stel aangescherpte policies in zodat alleen geautoriseerde gebruikers en services
+-- toegang hebben tot app_users en app_user_tokens.
 drop function if exists public.authenticate_app_user(text, text[]);
 
 -- Verwijder policies die de functie current_app_role() gebruiken zodat de functie
@@ -23,6 +24,14 @@ drop policy if exists app_users_insert_by_role on public.app_users;
 drop policy if exists app_users_insert_signup on public.app_users;
 drop policy if exists app_users_update_by_role on public.app_users;
 drop policy if exists app_users_delete_by_admin on public.app_users;
+drop policy if exists "allow anon read users" on public.app_users;
+drop policy if exists "allow anon modify users" on public.app_users;
+drop policy if exists "app users read access" on public.app_users;
+drop policy if exists "app users service role access" on public.app_users;
+drop policy if exists "app users insert privileged" on public.app_users;
+drop policy if exists "app users update privileged" on public.app_users;
+drop policy if exists "app users manage self" on public.app_users;
+drop policy if exists "app users delete privileged" on public.app_users;
 do $$
 begin
   if exists (
@@ -33,6 +42,12 @@ begin
   ) then
     execute 'drop policy if exists app_user_tokens_select_by_role on public.app_user_tokens';
     execute 'drop policy if exists app_user_tokens_manage_by_role on public.app_user_tokens';
+    execute 'drop policy if exists "allow anon read tokens" on public.app_user_tokens';
+    execute 'drop policy if exists "allow anon modify tokens" on public.app_user_tokens';
+    execute 'drop policy if exists "app user tokens read access" on public.app_user_tokens';
+    execute 'drop policy if exists "app user tokens insert access" on public.app_user_tokens';
+    execute 'drop policy if exists "app user tokens update access" on public.app_user_tokens';
+    execute 'drop policy if exists "app user tokens delete privileged" on public.app_user_tokens';
   end if;
 end $$;
 
@@ -61,35 +76,89 @@ alter table public.app_user_tokens
 
 alter table public.app_user_tokens enable row level security;
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'app_user_tokens'
-      and policyname = 'allow anon read tokens'
-  ) then
-    create policy "allow anon read tokens"
-      on public.app_user_tokens
-      for select
-      using (true);
-  end if;
+drop function if exists public.is_app_admin();
 
-  if not exists (
+create or replace function public.is_app_admin()
+returns boolean
+language sql
+stable
+set search_path = public
+as $$
+  select exists (
     select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'app_user_tokens'
-      and policyname = 'allow anon modify tokens'
-  ) then
-    create policy "allow anon modify tokens"
-      on public.app_user_tokens
-      for all
-      using (true)
-      with check (true);
-  end if;
-end $$;
+    from public.app_users admin
+    where admin.id = auth.uid()
+      and admin.role = 'admin'
+  );
+$$;
+
+comment on function public.is_app_admin is 'Geeft aan of de huidige geauthenticeerde gebruiker een beheerder is.';
+
+create policy "app user tokens read access"
+  on public.app_user_tokens
+  for select
+  using (
+    auth.role() = 'service_role'
+    or (
+      auth.role() = 'authenticated'
+      and (
+        user_id = auth.uid()
+        or public.is_app_admin()
+      )
+    )
+  );
+
+create policy "app user tokens insert access"
+  on public.app_user_tokens
+  for insert
+  with check (
+    auth.role() = 'service_role'
+    or (
+      auth.role() = 'authenticated'
+      and (
+        user_id = auth.uid()
+        or public.is_app_admin()
+      )
+    )
+  );
+
+create policy "app user tokens update access"
+  on public.app_user_tokens
+  for update
+  using (
+    auth.role() = 'service_role'
+    or (
+      auth.role() = 'authenticated'
+      and (
+        user_id = auth.uid()
+        or public.is_app_admin()
+      )
+    )
+  )
+  with check (
+    auth.role() = 'service_role'
+    or (
+      auth.role() = 'authenticated'
+      and (
+        user_id = auth.uid()
+        or public.is_app_admin()
+      )
+    )
+  );
+
+create policy "app user tokens delete privileged"
+  on public.app_user_tokens
+  for delete
+  using (
+    auth.role() = 'service_role'
+    or (
+      auth.role() = 'authenticated'
+      and (
+        user_id = auth.uid()
+        or public.is_app_admin()
+      )
+    )
+  );
 
 -- Maak benodigde extensies voor UUID en case-insensitieve e-mailvergelijking
 create extension if not exists pgcrypto;
@@ -121,32 +190,62 @@ comment on table public.app_users is 'Authenticatiegebruikers voor de transportp
 -- service clients deze tabel kunnen wijzigen.
 alter table public.app_users enable row level security;
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'app_users'
-      and policyname = 'allow anon read users'
-  ) then
-    create policy "allow anon read users"
-      on public.app_users
-      for select
-      using (true);
-  end if;
+create policy "app users read access"
+  on public.app_users
+  for select
+  using (
+    auth.role() = 'service_role'
+    or (
+      auth.role() = 'authenticated'
+      and (
+        id = auth.uid()
+        or public.is_app_admin()
+      )
+    )
+  );
 
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'app_users'
-      and policyname = 'allow anon modify users'
-  ) then
-    create policy "allow anon modify users"
-      on public.app_users
-      for all
-      using (true)
-      with check (true);
-  end if;
-end $$;
+create policy "app users service role access"
+  on public.app_users
+  for all
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');
+
+create policy "app users insert privileged"
+  on public.app_users
+  for insert
+  with check (
+    auth.role() = 'service_role'
+    or public.is_app_admin()
+  );
+
+create policy "app users update privileged"
+  on public.app_users
+  for update
+  using (
+    auth.role() = 'service_role'
+    or public.is_app_admin()
+  )
+  with check (
+    auth.role() = 'service_role'
+    or public.is_app_admin()
+  );
+
+create policy "app users delete privileged"
+  on public.app_users
+  for delete
+  using (
+    auth.role() = 'service_role'
+    or public.is_app_admin()
+  );
+
+create policy "app users manage self"
+  on public.app_users
+  for update
+  using (
+    auth.role() = 'authenticated'
+    and id = auth.uid()
+  )
+  with check (
+    auth.role() = 'authenticated'
+    and id = auth.uid()
+  );
