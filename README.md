@@ -4,7 +4,7 @@
 
 De applicatie verwacht Supabase instellingen tijdens runtime via `js/env.js`. Zonder deze configuratie stopt de app bewust met laden zodat er geen verbinding wordt gemaakt met een onbekende database.
 
-1. Kopieer `.env.example` naar `.env` en vul de waarden van je eigen Supabase project in.
+1. Kopieer `.env.example` naar `.env` en vul de waarden van je eigen Supabase project in. Gebruik voor `SUPABASE_URL` de projectbasis (bijv. `https://<project>.supabase.co`) of de PostgREST-endpoint zonder extra querystring of hashfragment; het script voegt automatisch `/rest/v1` toe.
 2. Genereer het runtime configuratiebestand:
    ```bash
    npm install # alleen de eerste keer nodig

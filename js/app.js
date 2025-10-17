@@ -2742,7 +2742,7 @@ function getSupabaseRealtimeClient() {
   if (!window.supabase || typeof window.supabase.createClient !== "function") {
     return null;
   }
-  let clientUrl = restUrl.replace(/\/rest\/v1\/?$/, "");
+  let clientUrl = restUrl.replace(/\/(rest|postgrest)\/v1\/?$/i, "");
   if (!clientUrl) {
     clientUrl = restUrl;
   }
