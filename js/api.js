@@ -18,11 +18,31 @@ function normalizeSupabaseRestUrl(url) {
     return "";
   }
 
-  const REST_PATH_PATTERN = /\/(rest|postgrest)\/v1$/i;
-  const REST_PREFIX_PATTERN = /\/(rest|postgrest)$/i;
-
   const hasQueryOrHash = raw.includes("?") || raw.includes("#");
   let warnedAboutQuery = false;
+
+  const buildRestPathname = (pathname) => {
+    const sanitized = (pathname || "").replace(/\/+$/g, "");
+    if (!sanitized) {
+      return "/rest/v1";
+    }
+
+    const segments = sanitized.split("/").filter(Boolean);
+    if (!segments.length) {
+      return "/rest/v1";
+    }
+
+    const restIndex = segments.findIndex((segment) => /^(rest|postgrest)$/i.test(segment));
+    if (restIndex === -1) {
+      return `/${[...segments, "rest", "v1"].join("/")}`;
+    }
+
+    const prefixSegments = segments.slice(0, restIndex);
+    const restSegment = segments[restIndex].toLowerCase() === "postgrest" ? "postgrest" : "rest";
+    const versionSegment = "v1";
+
+    return `/${[...prefixSegments, restSegment, versionSegment].join("/")}`;
+  };
 
   try {
     const baseOrigin =
@@ -31,9 +51,6 @@ function normalizeSupabaseRestUrl(url) {
         : undefined;
     const parsed = new URL(raw, baseOrigin);
 
-    // Drop any query/hash component so that request specific parameters can be
-    // added later without producing invalid URLs such as
-    // `.../rest/v1?apikey=.../transport_orders`.
     if (parsed.search || parsed.hash) {
       console.warn(
         "SUPABASE_URL bevat query- of hashcomponenten. Deze worden genegeerd bij het opbouwen van REST-requests."
@@ -43,32 +60,9 @@ function normalizeSupabaseRestUrl(url) {
       warnedAboutQuery = true;
     }
 
-    let pathname = parsed.pathname.replace(/\/+$/g, "");
-
-    if (REST_PATH_PATTERN.test(pathname)) {
-      parsed.pathname = pathname;
-      return parsed.toString().replace(/\/+$/g, "");
-    }
-
-    const prefixMatch = pathname.match(REST_PREFIX_PATTERN);
-    if (prefixMatch) {
-      const endIndex = typeof prefixMatch.index === "number" ? prefixMatch.index : pathname.length;
-      const basePath = pathname.slice(0, endIndex).replace(/\/+$/g, "");
-      const prefix = prefixMatch[0].replace(/\//g, "").toLowerCase() === "postgrest" ? "postgrest" : "rest";
-      const segments = basePath.split("/").filter(Boolean);
-      segments.push(prefix, "v1");
-      parsed.pathname = `/${segments.join("/")}`;
-      return parsed.toString().replace(/\/+$/g, "");
-    }
-
-    const segments = pathname.split("/").filter(Boolean);
-    segments.push("rest", "v1");
-    parsed.pathname = `/${segments.join("/")}`;
+    parsed.pathname = buildRestPathname(parsed.pathname);
     return parsed.toString().replace(/\/+$/g, "");
   } catch (error) {
-    // Fallback to the previous normalisation logic when the URL constructor
-    // cannot parse the value (e.g. custom schemes). The fallback also strips
-    // query/hash components to avoid producing malformed request URLs.
     if (!warnedAboutQuery && hasQueryOrHash) {
       console.warn(
         "SUPABASE_URL bevat query- of hashcomponenten. Deze worden genegeerd bij het opbouwen van REST-requests."
@@ -78,20 +72,19 @@ function normalizeSupabaseRestUrl(url) {
     normalized = normalized.split("?")[0];
     normalized = normalized.replace(/\/+$/g, "");
 
-    if (REST_PATH_PATTERN.test(normalized)) {
-      return normalized;
+    const originMatch = normalized.match(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\/[^/]+/);
+    let origin = "";
+    let pathPart = normalized;
+    if (originMatch) {
+      origin = originMatch[0];
+      pathPart = normalized.slice(origin.length) || "/";
     }
 
-    const prefixMatch = normalized.match(REST_PREFIX_PATTERN);
-    if (prefixMatch) {
-      const endIndex = typeof prefixMatch.index === "number" ? prefixMatch.index : normalized.length;
-      const basePath = normalized.slice(0, endIndex).replace(/\/+$/g, "");
-      const prefix = prefixMatch[0].replace(/\//g, "").toLowerCase() === "postgrest" ? "postgrest" : "rest";
-      return `${basePath}/${prefix}/v1`.replace(/\/+$/, "");
+    const restPath = buildRestPathname(pathPart);
+    if (!origin) {
+      return restPath;
     }
-
-    normalized = normalized.replace(/\/+$/g, "");
-    return `${normalized}/rest/v1`.replace(/\/+$/, "");
+    return `${origin}${restPath}`;
   }
 }
 
