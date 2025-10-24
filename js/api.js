@@ -6,7 +6,11 @@ if (
   throw new Error("Supabase configuratie ontbreekt in window.APP_CONFIG");
 }
 
-const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.APP_CONFIG;
+const { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } = window.APP_CONFIG;
+const SUPABASE_ANON_KEY_TRIMMED =
+  typeof SUPABASE_ANON_KEY === "string" ? SUPABASE_ANON_KEY.trim() : "";
+const SUPABASE_SERVICE_ROLE_KEY_TRIMMED =
+  typeof SUPABASE_SERVICE_ROLE_KEY === "string" ? SUPABASE_SERVICE_ROLE_KEY.trim() : "";
 
 function normalizeSupabaseRestUrl(url) {
   if (!url || typeof url !== "string") {
@@ -95,11 +99,6 @@ if (!SUPABASE_REST_URL) {
 }
 
 function buildSupabaseHeaders(additionalHeaders = {}) {
-  const baseHeaders = {
-    "Content-Type": "application/json",
-    apikey: SUPABASE_ANON_KEY,
-  };
-
   let authToken = null;
   try {
     if (window.Auth && typeof window.Auth.getAuthToken === "function") {
@@ -109,7 +108,19 @@ function buildSupabaseHeaders(additionalHeaders = {}) {
     console.warn("Kan auth-token niet bepalen", error);
   }
 
-  baseHeaders.Authorization = `Bearer ${authToken || SUPABASE_ANON_KEY}`;
+  const token = typeof authToken === "string" ? authToken.trim() : "";
+  const hasUserToken = Boolean(token);
+  const useServiceRoleKey = !hasUserToken && SUPABASE_SERVICE_ROLE_KEY_TRIMMED;
+  const apiKeyHeader = useServiceRoleKey
+    ? SUPABASE_SERVICE_ROLE_KEY_TRIMMED
+    : SUPABASE_ANON_KEY_TRIMMED;
+  const authorizationToken = token || apiKeyHeader;
+
+  const baseHeaders = {
+    "Content-Type": "application/json",
+    apikey: apiKeyHeader,
+    Authorization: `Bearer ${authorizationToken}`,
+  };
 
   return Object.assign({}, baseHeaders, additionalHeaders);
 }
